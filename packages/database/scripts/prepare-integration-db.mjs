@@ -40,6 +40,10 @@ try {
     ALTER DEFAULT PRIVILEGES IN SCHEMA public
       GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO hollis_app
   `);
+  await client.unsafe(`
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public
+      GRANT USAGE, SELECT ON SEQUENCES TO hollis_app
+  `);
 } finally {
   await client.end();
 }

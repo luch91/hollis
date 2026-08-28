@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import type { AccessTokenVerifier, AuthenticatedPrincipal } from "./auth.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
+import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -33,7 +34,12 @@ function createPrincipal(permissions: string[] = ["reviews:read"]): Authenticate
 }
 
 function createDependencies(
-  options: { permissions?: string[]; provisioned?: boolean; store?: ReviewIntakeStore } = {},
+  options: {
+    permissions?: string[];
+    provisioned?: boolean;
+    store?: ReviewIntakeStore;
+    workflowStore?: ReviewWorkflowStore;
+  } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
     async verify(token) {
@@ -54,8 +60,27 @@ function createDependencies(
         throw new Error("Review intake was not expected.");
       },
     } satisfies ReviewIntakeStore);
+  const workflowStore: ReviewWorkflowStore =
+    options.workflowStore ??
+    ({
+      async claim() {
+        throw new Error("Workflow claim was not expected.");
+      },
+      async decide() {
+        throw new Error("Workflow decision was not expected.");
+      },
+      async escalate() {
+        throw new Error("Workflow escalation was not expected.");
+      },
+      async get() {
+        throw new Error("Workflow detail was not expected.");
+      },
+      async list() {
+        throw new Error("Workflow queue was not expected.");
+      },
+    } satisfies ReviewWorkflowStore);
 
-  return { accessTokenVerifier, reviewIntakeStore, tenantResolver };
+  return { accessTokenVerifier, reviewIntakeStore, tenantResolver, workflowStore };
 }
 
 const validIntake = {
@@ -71,6 +96,7 @@ const validIntake = {
   policyVersion: "commercial-property-2026-01",
   recommendation: "deny",
   riskLevel: "high",
+  reviewDueAt: "2026-08-29T08:00:00.000Z",
   ruleId: "human-review-adverse-action",
 };
 
@@ -183,6 +209,7 @@ describe("API boundaries", () => {
             externalReference: record.externalReference,
             fingerprint: record.fingerprint,
             id: record.caseId,
+            reviewDueAt: new Date(record.reviewDueAt),
             status: "pending",
           },
         };
@@ -211,6 +238,115 @@ describe("API boundaries", () => {
       actorId: "user_01",
       recommendation: "deny",
       tenantId,
+    });
+  });
+
+  it("lists the tenant queue only with read permission", async () => {
+    const queueItem: ReviewQueueItem = {
+      assignedToUserId: null,
+      createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      externalReference: "claim-001",
+      id: "0198ef37-6216-7000-8000-000000000002",
+      recommendation: "deny",
+      reviewDueAt: new Date("2026-08-29T08:00:00.000Z"),
+      riskLevel: "high",
+      status: "pending",
+    };
+    const workflowStore: ReviewWorkflowStore = {
+      async claim() {
+        throw new Error("Not expected.");
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list(resolvedTenantId, status) {
+        expect(resolvedTenantId).toBe(tenantId);
+        expect(status).toBeUndefined();
+        return [queueItem];
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({ permissions: ["reviews:read"], workflowStore }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "GET",
+      url: "/v1/review-cases",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      {
+        assignedToUserId: null,
+        createdAt: "2026-08-28T08:00:00.000Z",
+        externalReference: "claim-001",
+        id: "0198ef37-6216-7000-8000-000000000002",
+        recommendation: "deny",
+        reviewDueAt: "2026-08-29T08:00:00.000Z",
+        riskLevel: "high",
+        status: "pending",
+      },
+    ]);
+  });
+
+  it("allows a reviewer with assign permission to claim a case for themselves", async () => {
+    const claimedCase = {
+      assignedAt: new Date("2026-08-28T08:01:00.000Z"),
+      assignedToUserId: "user_01",
+      createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      externalReference: "claim-001",
+      id: "0198ef37-6216-7000-8000-000000000002",
+      recommendation: "deny",
+      reviewDueAt: new Date("2026-08-29T08:00:00.000Z"),
+      riskLevel: "high",
+      status: "in_review",
+    } as ReviewCaseDetail;
+    const workflowStore: ReviewWorkflowStore = {
+      async claim(resolvedTenantId, actorId, caseId) {
+        expect(resolvedTenantId).toBe(tenantId);
+        expect(actorId).toBe("user_01");
+        expect(caseId).toBe(claimedCase.id);
+        return { case: claimedCase, replayed: false };
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({ permissions: ["reviews:assign"], workflowStore }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      url: `/v1/review-cases/${claimedCase.id}/claim`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      assignedToUserId: "user_01",
+      replayed: false,
+      status: "in_review",
     });
   });
 });

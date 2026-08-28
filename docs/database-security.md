@@ -20,6 +20,9 @@ setting is missing and filter access when it is present.
 Application queries still include explicit tenant predicates. Row-level security is an additional
 boundary, not a replacement for authorization.
 
+Review events have a database-generated sequence used for hash-chain ordering. Timestamps are
+retained for audit display but are not used as the sole ordering key.
+
 ## Migration repair policy
 
 Migration `0001` adds intake fingerprints, row-level security policies, and runtime-role privilege

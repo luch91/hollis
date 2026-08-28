@@ -13,6 +13,9 @@ const tenantTwoId = randomUUID();
 const caseId = randomUUID();
 const organizationOneId = `org_${randomUUID()}`;
 const organizationTwoId = `org_${randomUUID()}`;
+const evidence = [
+  { digest: `sha256:${"a".repeat(64)}`, id: "isolation", mediaType: "application/json" },
+];
 
 beforeAll(async () => {
   await owner`
@@ -55,6 +58,7 @@ describe("PostgreSQL tenant isolation", () => {
       await transaction`
         insert into review_cases (
           automated_system_version,
+          evidence,
           external_reference,
           id,
           intake_fingerprint,
@@ -65,6 +69,7 @@ describe("PostgreSQL tenant isolation", () => {
           tenant_id
         ) values (
           'model-1',
+          ${JSON.stringify(evidence)}::jsonb,
           'isolation-claim',
           ${caseId},
           'sha256:isolation',

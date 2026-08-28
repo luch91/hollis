@@ -24,6 +24,7 @@ export type StoredReviewCase = {
   externalReference: string;
   fingerprint: string;
   id: string;
+  reviewDueAt: Date | null;
   status: "pending" | "in_review" | "completed" | "escalated";
 };
 
@@ -79,6 +80,7 @@ export async function createReviewIntake(
     externalReference: result.reviewCase.externalReference,
     id: result.reviewCase.id,
     replayed: !result.created,
+    reviewDueAt: result.reviewCase.reviewDueAt?.toISOString() ?? null,
     status: result.reviewCase.status,
   };
 }

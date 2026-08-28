@@ -52,8 +52,12 @@ The web application listens on `http://localhost:3000`. The API listens on
 organization-scoped bearer access token.
 
 `POST /v1/review-cases` requires the `reviews:create` permission. It creates a pending human review
-and never executes the supplied recommendation. Tenant scope comes from the verified organization,
-not from request content.
+and never executes the supplied recommendation. New cases require `reviewDueAt` and tenant scope
+comes from the verified organization, not from request content.
+
+Reviewers with `reviews:read` can list the queue with `GET /v1/review-cases`. A reviewer with
+`reviews:assign` can claim a case for themselves. The assigned reviewer can escalate with
+`reviews:escalate` or record a rationale-backed final recommendation with `reviews:decide`.
 
 ## Verification
 

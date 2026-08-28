@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createPostgresReviewIntakeStore,
   createPostgresTenantResolver,
+  createPostgresReviewWorkflowStore,
 } from "../src/persistence.js";
 import {
   createReviewIntake,
@@ -36,6 +37,7 @@ const input = {
   policyVersion: "commercial-property-2026-01",
   recommendation: "deny" as const,
   riskLevel: "high" as const,
+  reviewDueAt: "2026-08-29T08:00:00.000Z",
   ruleId: "human-review-adverse-action",
 };
 
@@ -57,6 +59,7 @@ afterAll(async () => {
 describe("PostgreSQL review intake", () => {
   const resolver = createPostgresTenantResolver(runtime.database);
   const store = createPostgresReviewIntakeStore(runtime.database);
+  const workflowStore = createPostgresReviewWorkflowStore(runtime.database);
 
   it("resolves the WorkOS organization through row security", async () => {
     await expect(resolver.findByOrganizationId(organizationId)).resolves.toEqual({
@@ -117,6 +120,51 @@ describe("PostgreSQL review intake", () => {
         store,
       ),
     ).rejects.toBeInstanceOf(ReviewIntakeConflictError);
+  });
+
+  it("enforces claim, escalation, handoff, and human decision transitions", async () => {
+    const workflowCase = await createReviewIntake(
+      { ...input, externalReference: `workflow_${randomUUID()}` },
+      { actorId: "user_01", tenantId },
+      store,
+    );
+
+    const claimed = await workflowStore.claim(tenantId, "user_01", workflowCase.id);
+    expect(claimed).toMatchObject({ case: { status: "in_review" }, replayed: false });
+
+    const escalated = await workflowStore.escalate(tenantId, "user_01", workflowCase.id, {
+      reason: "Requires senior review.",
+    });
+    expect(escalated).toMatchObject({ case: { status: "escalated" }, replayed: false });
+
+    const handedOff = await workflowStore.claim(tenantId, "user_02", workflowCase.id);
+    expect(handedOff).toMatchObject({
+      case: { assignedToUserId: "user_02", status: "in_review" },
+      replayed: false,
+    });
+
+    const decided = await workflowStore.decide(tenantId, "user_02", workflowCase.id, {
+      finalRecommendation: "refer",
+      outcome: "modified",
+      rationale: "The reviewer changed the recommendation after examining the evidence.",
+    });
+    expect(decided).toMatchObject({
+      case: {
+        decisionOutcome: "modified",
+        decidedByUserId: "user_02",
+        finalRecommendation: "refer",
+        status: "completed",
+      },
+      replayed: false,
+    });
+
+    await expect(
+      workflowStore.decide(tenantId, "user_02", workflowCase.id, {
+        finalRecommendation: "deny",
+        outcome: "rejected",
+        rationale: "A second decision is not allowed.",
+      }),
+    ).rejects.toThrow("transition");
   });
 
   it("rolls back the case if its audit event cannot be inserted", async () => {

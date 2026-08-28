@@ -54,7 +54,9 @@ Evaluates explicit intervention rules and records the exact rule and version tha
 
 ### Review
 
-Assigns cases, enforces separation of duties, and records approve, modify, reject, or escalate outcomes.
+Lists tenant-scoped cases by risk and deadline, lets a reviewer claim a case, records explicit
+escalation, and requires an assigned reviewer to submit a rationale-backed human decision. State
+changes and audit events commit together.
 
 ### Evidence
 

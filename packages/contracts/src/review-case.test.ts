@@ -16,6 +16,7 @@ describe("createReviewCaseSchema", () => {
       policyVersion: "commercial-property-2026-01",
       recommendation: "deny",
       riskLevel: "high",
+      reviewDueAt: "2026-08-29T08:00:00.000Z",
       ruleId: "human-review-adverse-action",
     });
 
@@ -30,6 +31,7 @@ describe("createReviewCaseSchema", () => {
       policyVersion: "commercial-property-2026-01",
       recommendation: "deny",
       riskLevel: "high",
+      reviewDueAt: "2026-08-29T08:00:00.000Z",
       ruleId: "human-review-adverse-action",
     });
 
@@ -50,6 +52,7 @@ describe("createReviewCaseSchema", () => {
       policyVersion: "commercial-property-2026-01",
       recommendation: "deny",
       riskLevel: "high",
+      reviewDueAt: "2026-08-29T08:00:00.000Z",
       ruleId: "human-review-adverse-action",
       tenantId: "0198ef37-6216-7000-8000-000000000001",
     });

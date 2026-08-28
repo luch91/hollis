@@ -19,6 +19,7 @@ const input = {
   policyVersion: "commercial-property-2026-01",
   recommendation: "deny" as const,
   riskLevel: "high" as const,
+  reviewDueAt: "2026-08-29T08:00:00.000Z",
   ruleId: "human-review-adverse-action",
 };
 
@@ -43,6 +44,7 @@ describe("review intake", () => {
             externalReference: record.externalReference,
             fingerprint: record.fingerprint,
             id: record.caseId,
+            reviewDueAt: new Date(record.reviewDueAt),
             status: "pending",
           },
         };
@@ -55,6 +57,7 @@ describe("review intake", () => {
       createdAt: "2026-08-28T08:00:00.000Z",
       externalReference: "claim-001",
       id: caseId,
+      reviewDueAt: "2026-08-29T08:00:00.000Z",
       replayed: false,
       status: "pending",
     });
@@ -80,6 +83,7 @@ describe("review intake", () => {
             externalReference: record.externalReference,
             fingerprint: record.fingerprint,
             id: caseId,
+            reviewDueAt: occurredAt,
             status: "in_review",
           },
         };
@@ -101,6 +105,7 @@ describe("review intake", () => {
             externalReference: record.externalReference,
             fingerprint: `sha256:${"f".repeat(64)}`,
             id: caseId,
+            reviewDueAt: occurredAt,
             status: "pending",
           },
         };
