@@ -1,0 +1,56 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check repository actor
+        env:
+          AUTHORIZED_ACTOR: luch91
+        run: |
+          if [ "$GITHUB_ACTOR" != "$AUTHORIZED_ACTOR" ]; then
+            echo "Unauthorized repository actor: $GITHUB_ACTOR"
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+          node-version: 22.22.2
+
+      - name: Configure verified Git identity
+        run: |
+          git config --local user.name luch91
+          git config --local user.email luchijudith@gmail.com
+
+      - name: Restore private decision-log sentinel
+        run: |
+          mkdir -p .hollis
+          printf '# CI sentinel\n' > .hollis/decisions.md
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify repository
+        run: pnpm verify

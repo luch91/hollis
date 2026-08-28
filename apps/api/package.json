@@ -1,0 +1,23 @@
+{
+  "name": "@hollis/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@fastify/helmet": "13.1.1",
+    "@hollis/contracts": "workspace:*",
+    "fastify": "5.12.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "4.23.12"
+  }
+}

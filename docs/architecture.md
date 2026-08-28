@@ -1,0 +1,75 @@
+# Architecture
+
+## Objective
+
+Hollis controls the transition from an automated recommendation to a consequential claim action. It records why a case was referred, what evidence was considered, which policy and system versions applied, who reviewed the case, and what outcome was authorized.
+
+## System context
+
+```text
+Claims system
+    |
+    | authenticated event
+    v
+Hollis API
+    |
+    +--> policy and intervention rules
+    +--> review workflow
+    +--> append-only evidence history
+    |
+    v
+PostgreSQL
+    |
+    +--> evidence object references
+    +--> optional attestation adapter
+```
+
+Hollis does not replace the customer's claims system. It acts as a control plane and evidence system around high-risk decisions.
+
+## Deployment shape
+
+The initial deployment is a modular monolith:
+
+- `apps/web` provides the reviewer interface.
+- `apps/api` owns application use cases and external boundaries.
+- `packages/contracts` defines validated inputs and shared domain values.
+- `packages/database` owns persistence schema and database access.
+- PostgreSQL is the source of truth for transactional state and review history.
+- An object store will hold encrypted evidence after a provider is selected.
+- An attestation adapter may publish minimal hashes after the core review is complete.
+
+This shape keeps transactions, authorization, and operational reasoning in one deployable boundary while maintaining module separation in code.
+
+## Domain modules
+
+### Intake
+
+Receives authenticated, replay-resistant events from a claims platform and creates an idempotent review case.
+
+### Policy
+
+Evaluates explicit intervention rules and records the exact rule and version that caused referral.
+
+### Review
+
+Assigns cases, enforces separation of duties, and records approve, modify, reject, or escalate outcomes.
+
+### Evidence
+
+Stores content-addressed references, provenance, media type, integrity digest, and access metadata. Sensitive content remains outside public ledgers.
+
+### Audit
+
+Writes append-only events linked by hashes. Corrections create new events and never rewrite history.
+
+### Attestation
+
+Publishes privacy-safe proofs after review finality. This module is isolated from the core transaction and can be disabled.
+
+## Trust boundaries
+
+Every integration, browser session, background process, database connection, object-store request, and attestation call is a separate trust boundary. Tenant identity and authorization must be established at each applicable boundary.
+
+## Deferred choices
+
+Authentication, hosting, object storage, initial claims integration, retention schedules, and attestation activation remain open. Business endpoints stay closed until the security-critical choices are resolved.
