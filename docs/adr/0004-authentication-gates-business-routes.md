@@ -1,6 +1,6 @@
 # ADR 0004: Authentication Gates Business Routes
 
-- Status: Accepted
+- Status: Accepted, satisfied for review intake by ADR 0005 and ADR 0006
 - Date: 2026-08-28
 
 ## Context
@@ -14,5 +14,6 @@ Expose liveness only during the foundation stage. Do not expose case intake, rev
 ## Consequences
 
 - The initial API is intentionally small.
-- Product endpoint work is blocked on an identity-provider decision.
-- Demo behavior must use test fixtures or an isolated development harness rather than unsecured production-shaped routes.
+- Each business route remains blocked until its own authentication, tenant, permission, and safety
+  checks are implemented and tested.
+- Review intake is the first business route to satisfy this gate.

@@ -34,8 +34,8 @@
 
 ## Required work before production
 
-- Select the identity provider and define role semantics.
-- Define tenant isolation and row-security tests.
+- Complete role semantics for review assignment, decision approval, and administration.
+- Extend tenant isolation tests to every new tenant-scoped table and query path.
 - Select encrypted object storage and key management.
 - Complete a data-flow inventory and privacy review.
 - Define incident response, backup, recovery, retention, and deletion procedures.

@@ -23,13 +23,14 @@ These constraints define whether Hollis is safe and viable. A feature that viola
 1. Sensitive claim data stays off public ledgers.
 2. Tenant identity comes only from a verified organization claim and never from request input.
 3. Tenant isolation is enforced in application authorization and database policy.
-4. An authenticated account without an active organization cannot access a workspace.
-5. Access uses least privilege and separation of duties.
-6. Evidence is encrypted in transit and at rest.
-7. Logs exclude secrets, raw evidence, access tokens, and unnecessary personal information.
-8. Webhooks require signatures, bounded timestamps, replay protection, and idempotency keys.
-9. Retention and deletion rules are explicit, testable, and configurable by contract and jurisdiction.
-10. Security-sensitive operations produce structured audit events.
+4. Runtime database roles cannot own schemas and must use `NOSUPERUSER` and `NOBYPASSRLS`.
+5. An authenticated account without an active organization cannot access a workspace.
+6. Access uses least privilege and separation of duties.
+7. Evidence is encrypted in transit and at rest.
+8. Logs exclude secrets, raw evidence, access tokens, and unnecessary personal information.
+9. Webhooks require signatures, bounded timestamps, replay protection, and idempotency keys.
+10. Retention and deletion rules are explicit, testable, and configurable by contract and jurisdiction.
+11. Security-sensitive operations produce structured audit events.
 
 ## Reliability
 

@@ -8,6 +8,13 @@
       "when": 1787901927120,
       "tag": "0000_lumpy_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787903481933,
+      "tag": "0001_medical_spot",
+      "breakpoints": true
     }
   ]
 }

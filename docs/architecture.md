@@ -44,7 +44,9 @@ This shape keeps transactions, authorization, and operational reasoning in one d
 
 ### Intake
 
-Receives authenticated, replay-resistant events from a claims platform and creates an idempotent review case.
+Creates an idempotent, pending human review from a validated recommendation. The current route uses
+an authenticated WorkOS principal with `reviews:create`. Machine authentication for a direct claims
+platform integration remains undecided.
 
 ### Policy
 
@@ -77,8 +79,13 @@ after verifying their signature, issuer, client ID, expiry, and organization con
 claim maps to one tenant and cannot be overridden by request input. Route-level permissions are
 checked after authentication and before domain logic.
 
+PostgreSQL row-level security filters tenant, membership, user, case, and event access using
+transaction-local context. The runtime role cannot bypass row security, mutate review events, or
+delete review cases.
+
 ## Deferred choices
 
 Hosting, object storage, initial claims integration, retention schedules, and attestation activation
-remain open. Business endpoints stay closed until their authentication, tenant, and authorization
-checks are implemented and tested.
+remain open. Review intake is open behind its verified security boundary. Other business routes
+stay closed until their authentication, tenant, authorization, and workflow checks are implemented
+and tested.

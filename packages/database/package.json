@@ -10,6 +10,8 @@
     "build": "tsc -p tsconfig.build.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:prepare-test": "node scripts/prepare-integration-db.mjs",
+    "test:integration": "vitest run test/tenant-isolation.integration.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

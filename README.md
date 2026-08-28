@@ -4,8 +4,9 @@ Hollis is decision-control infrastructure for consequential automated decisions.
 
 The repository contains the product foundation: shared contracts, a PostgreSQL schema, an API
 service, a web application, WorkOS AuthKit integration, repository policy enforcement, and
-architecture documentation. Business workflow endpoints remain closed until their tenant and
-permission checks are implemented and tested.
+architecture documentation. The first authenticated review-intake endpoint is implemented. Other
+workflow routes remain closed until their tenant, permission, and state-transition checks are
+implemented and tested.
 
 ## Repository structure
 
@@ -34,6 +35,7 @@ scripts/               Repository policy enforcement
 pnpm install
 docker compose up -d postgres
 cp .env.example .env
+pnpm db:migrate
 pnpm dev
 ```
 
@@ -41,14 +43,28 @@ Replace the WorkOS placeholders in `.env` with credentials and URLs from the Wor
 `http://localhost:3000/callback` as a redirect URI, `http://localhost:3000/sign-in` as the sign-in
 URL, and a local logout URI in that dashboard.
 
+`DATABASE_MIGRATION_URL` belongs to the schema owner and is used only by migration commands.
+`DATABASE_URL` belongs to the restricted application role. Production application roles must be
+configured with `NOSUPERUSER` and `NOBYPASSRLS` so PostgreSQL row-level security remains effective.
+
 The web application listens on `http://localhost:3000`. The API listens on
 `http://localhost:4000`. `GET /health/live` is public. `GET /v1/session` requires a verified,
 organization-scoped bearer access token.
+
+`POST /v1/review-cases` requires the `reviews:create` permission. It creates a pending human review
+and never executes the supplied recommendation. Tenant scope comes from the verified organization,
+not from request content.
 
 ## Verification
 
 ```sh
 pnpm verify
+```
+
+Database isolation tests run in CI. To run them against the local Compose database:
+
+```sh
+DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis pnpm --filter @hollis/database test:integration
 ```
 
 This command checks repository policy, formatting, lint rules, types, tests, and production builds. Git hooks run policy checks before commits and the complete verification suite before pushes.

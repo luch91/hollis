@@ -11,9 +11,10 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
-      - hollis-postgres:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/001-roles.sql:ro
+      - hollis-postgres:/var/lib/postgresql
 
 volumes:
   hollis-postgres:

@@ -65,6 +65,7 @@ export const reviewCases = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     externalReference: text("external_reference").notNull(),
     id: uuid("id").primaryKey().defaultRandom(),
+    intakeFingerprint: text("intake_fingerprint").notNull(),
     policyVersion: text("policy_version").notNull(),
     recommendation: text("recommendation").notNull(),
     riskLevel: text("risk_level").notNull(),

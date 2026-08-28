@@ -12,6 +12,20 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: hollis
+          POSTGRES_PASSWORD: hollis
+          POSTGRES_USER: hollis
+        options: >-
+          --health-cmd "pg_isready -U hollis -d hollis"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5434:5432
     timeout-minutes: 15
     steps:
       - name: Check repository actor
@@ -51,6 +65,17 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify database isolation
+        env:
+          DATABASE_MIGRATION_URL: postgres://hollis:hollis@localhost:5434/hollis
+          DATABASE_TEST_URL: postgres://hollis:hollis@localhost:5434/hollis
+        run: |
+          pnpm --filter @hollis/database db:prepare-test
+          pnpm --filter @hollis/database db:migrate
+          pnpm --filter @hollis/database test:integration
+          DATABASE_URL=postgres://hollis_app:hollis_app@localhost:5434/hollis \
+            pnpm --filter @hollis/api test:integration
 
       - name: Verify repository
         run: pnpm verify
