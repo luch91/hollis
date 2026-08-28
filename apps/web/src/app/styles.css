@@ -102,6 +102,52 @@ li::before {
   content: "•";
 }
 
+.primary-action,
+.text-button {
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+}
+
+.primary-action {
+  display: inline-block;
+  margin-top: 32px;
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.workspace h1 {
+  font-size: clamp(40px, 7vw, 64px);
+}
+
+dl {
+  display: grid;
+  margin: 48px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+dl div {
+  display: grid;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 16px;
+  grid-template-columns: 140px minmax(0, 1fr);
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 640px) {
   main {
     padding: 16px;

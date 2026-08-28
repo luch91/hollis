@@ -70,6 +70,15 @@ Publishes privacy-safe proofs after review finality. This module is isolated fro
 
 Every integration, browser session, background process, database connection, object-store request, and attestation call is a separate trust boundary. Tenant identity and authorization must be established at each applicable boundary.
 
+## Identity and tenant boundary
+
+WorkOS AuthKit owns the browser authentication session. The API accepts bearer access tokens only
+after verifying their signature, issuer, client ID, expiry, and organization context. The verified `org_id`
+claim maps to one tenant and cannot be overridden by request input. Route-level permissions are
+checked after authentication and before domain logic.
+
 ## Deferred choices
 
-Authentication, hosting, object storage, initial claims integration, retention schedules, and attestation activation remain open. Business endpoints stay closed until the security-critical choices are resolved.
+Hosting, object storage, initial claims integration, retention schedules, and attestation activation
+remain open. Business endpoints stay closed until their authentication, tenant, and authorization
+checks are implemented and tested.

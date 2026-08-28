@@ -29,7 +29,34 @@ export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  workosOrganizationId: text("workos_organization_id").notNull().unique(),
 });
+
+export const users = pgTable("users", {
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  workosUserId: text("workos_user_id").notNull().unique(),
+});
+
+export const tenantMemberships = pgTable(
+  "tenant_memberships",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    role: text("role").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    workosMembershipId: text("workos_membership_id").notNull().unique(),
+  },
+  (table) => [
+    uniqueIndex("tenant_memberships_tenant_user_unique").on(table.tenantId, table.userId),
+    index("tenant_memberships_user_idx").on(table.userId),
+  ],
+);
 
 export const reviewCases = pgTable(
   "review_cases",

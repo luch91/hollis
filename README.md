@@ -2,7 +2,10 @@
 
 Hollis is decision-control infrastructure for consequential automated decisions. The first product workflow focuses on human review of adverse commercial property and casualty insurance claim recommendations.
 
-The repository currently contains the product foundation: shared contracts, a PostgreSQL schema, an API service, a web application, repository policy enforcement, and architecture documentation. Business endpoints remain closed until authentication and tenant authorization are explicitly selected and implemented.
+The repository contains the product foundation: shared contracts, a PostgreSQL schema, an API
+service, a web application, WorkOS AuthKit integration, repository policy enforcement, and
+architecture documentation. Business workflow endpoints remain closed until their tenant and
+permission checks are implemented and tested.
 
 ## Repository structure
 
@@ -34,7 +37,13 @@ cp .env.example .env
 pnpm dev
 ```
 
-The web application listens on `http://localhost:3000`. The API listens on `http://localhost:4000` and exposes `GET /health/live`.
+Replace the WorkOS placeholders in `.env` with credentials and URLs from the WorkOS dashboard. Add
+`http://localhost:3000/callback` as a redirect URI, `http://localhost:3000/sign-in` as the sign-in
+URL, and a local logout URI in that dashboard.
+
+The web application listens on `http://localhost:3000`. The API listens on
+`http://localhost:4000`. `GET /health/live` is public. `GET /v1/session` requires a verified,
+organization-scoped bearer access token.
 
 ## Verification
 

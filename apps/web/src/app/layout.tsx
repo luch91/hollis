@@ -10,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthKitProvider>{children}</AuthKitProvider>
+      </body>
     </html>
   );
 }
+import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";

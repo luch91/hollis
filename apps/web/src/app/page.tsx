@@ -20,6 +20,9 @@ export default function Home() {
             Hollis provides the review and evidence infrastructure required before consequential
             automated decisions become actions.
           </p>
+          <a className="primary-action" href="/sign-in">
+            Sign in to Hollis
+          </a>
           <ul>
             {foundations.map((foundation) => (
               <li key={foundation}>{foundation}</li>
