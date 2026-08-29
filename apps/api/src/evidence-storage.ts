@@ -1,4 +1,5 @@
 import { Storage } from "@google-cloud/storage";
+import { GoogleAuth, Impersonated } from "google-auth-library";
 import { createHash } from "node:crypto";
 
 export type EvidenceObject = {
@@ -31,24 +32,42 @@ export function evidenceObjectName(tenantId: string, digest: string): string {
   return `tenants/${tenantId}/evidence/${digest.slice("sha256:".length)}`;
 }
 
-export function createGoogleCloudEvidenceStorage(
+export async function createGoogleCloudEvidenceStorage(
   projectId: string,
   bucketName: string,
-): EvidenceStorage {
-  const bucket = new Storage({ projectId }).bucket(bucketName);
-  const signedUrlOptions = { version: "v4" as const, expires: Date.now() + 15 * 60 * 1000 };
+): Promise<EvidenceStorage> {
+  const sourceAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  const sourceClient = await sourceAuth.getClient();
+  const signer = new Impersonated({
+    sourceClient,
+    targetPrincipal:
+      process.env.GCS_SIGNER_SERVICE_ACCOUNT ??
+      "hollis-evidence-runtime@hollis-507001.iam.gserviceaccount.com",
+    targetScopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    lifetime: 900,
+  });
+  const bucket = new Storage({ projectId, authClient: signer }).bucket(bucketName);
+  const signedUrlOptions = () => ({
+    version: "v4" as const,
+    expires: Date.now() + 15 * 60 * 1000,
+  });
 
   return {
     async createDownloadUrl(tenantId, objectName) {
       const [url] = await bucket
         .file(assertTenantObject(tenantId, objectName))
-        .getSignedUrl({ ...signedUrlOptions, action: "read" });
+        .getSignedUrl({ ...signedUrlOptions(), action: "read" });
       return url;
     },
     async createUploadUrl(tenantId, objectName, mediaType) {
-      const [url] = await bucket
-        .file(assertTenantObject(tenantId, objectName))
-        .getSignedUrl({ ...signedUrlOptions, action: "write", contentType: mediaType });
+      const file = bucket.file(assertTenantObject(tenantId, objectName));
+      const [exists] = await file.exists();
+      if (exists) return "";
+      const [url] = await file.getSignedUrl({
+        ...signedUrlOptions(),
+        action: "write",
+        contentType: mediaType,
+      });
       return url;
     },
     async delete(tenantId, objectName) {

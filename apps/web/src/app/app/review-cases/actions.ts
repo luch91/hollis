@@ -23,12 +23,16 @@ export async function uploadEvidenceAction(formData: FormData) {
     mediaType: file.type || "application/octet-stream",
     sizeBytes: file.size,
   });
-  const stored = await fetch(upload.uploadUrl, {
-    body: bytes,
-    headers: { "content-type": file.type || "application/octet-stream" },
-    method: "PUT",
-  });
-  if (!stored.ok) throw new Error("Evidence storage upload failed.");
+  if (upload.uploadUrl) {
+    const stored = await fetch(upload.uploadUrl, {
+      body: bytes,
+      headers: { "content-type": file.type || "application/octet-stream" },
+      method: "PUT",
+    });
+    if (!stored.ok) {
+      throw new Error("Evidence storage upload failed.");
+    }
+  }
   await verifyEvidence(caseId, upload.evidenceId);
   revalidatePath(`/app/review-cases/${caseId}`);
 }

@@ -57,6 +57,13 @@
       "when": 1787975308197,
       "tag": "0007_amazing_miek",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788038000000,
+      "tag": "0008_allow_evidence_verification",
+      "breakpoints": true
     }
   ]
 }

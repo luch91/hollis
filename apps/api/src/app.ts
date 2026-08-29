@@ -43,7 +43,7 @@ type AppDependencies = {
   reviewIntakeStore?: ReviewIntakeStore;
   tenantResolver?: TenantResolver;
   workflowStore?: ReviewWorkflowStore;
-  evidenceStorage?: ReturnType<typeof createGoogleCloudEvidenceStorage>;
+  evidenceStorage?: Awaited<ReturnType<typeof createGoogleCloudEvidenceStorage>>;
   evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
   legalHoldStore?: (
     tenantId: string,
@@ -88,7 +88,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const evidenceStorage =
     dependencies.evidenceStorage ??
     (environment.GCS_BUCKET
-      ? createGoogleCloudEvidenceStorage(environment.GCS_PROJECT_ID, environment.GCS_BUCKET)
+      ? await createGoogleCloudEvidenceStorage(environment.GCS_PROJECT_ID, environment.GCS_BUCKET)
       : null);
   const app = Fastify({
     bodyLimit: 262_144,

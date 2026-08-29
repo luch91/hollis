@@ -19,7 +19,7 @@ export async function runRetentionScheduler(): Promise<{ completed: number; fail
 
   const databaseResource = createDatabase(required("DATABASE_URL"));
   try {
-    const storage = createGoogleCloudEvidenceStorage(
+    const storage = await createGoogleCloudEvidenceStorage(
       process.env.GCS_PROJECT_ID?.trim() || "hollis-507001",
       required("GCS_BUCKET"),
     );
