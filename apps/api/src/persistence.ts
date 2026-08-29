@@ -6,12 +6,19 @@ import {
   reviewCaseStatusSchema,
   reviewOutcomeSchema,
 } from "@hollis/contracts";
-import { evidenceObjects, reviewCases, reviewEvents, tenants } from "@hollis/database";
+import {
+  evidenceObjects,
+  retentionDeletionJobs,
+  reviewCases,
+  reviewEvents,
+  tenants,
+} from "@hollis/database";
 import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { createDatabase } from "@hollis/database";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
+import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
 import {
   type ReviewCaseDetail,
   type ReviewWorkflowStore,
@@ -95,7 +102,12 @@ async function appendEvent(
   record: {
     actorId: string;
     caseId: string;
-    eventType: "review_started" | "case_escalated" | "decision_recorded";
+    eventType:
+      | "review_started"
+      | "case_escalated"
+      | "decision_recorded"
+      | "retention_deletion_requested"
+      | "evidence_deleted";
     occurredAt: Date;
     payload: Record<string, unknown>;
     tenantId: string;
@@ -597,4 +609,132 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
       });
     },
   };
+}
+
+export function createPostgresRetentionDeletionJobStore(
+  database: Database,
+): RetentionDeletionJobStore {
+  return {
+    async claimNext(tenantId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [job] = await transaction.execute<RetentionDeletionJob>(sql`
+          with candidate as (
+            select id
+            from retention_deletion_jobs
+            where tenant_id = ${tenantId}::uuid
+              and status in ('pending', 'failed')
+              and available_at <= now()
+            order by available_at, created_at
+            for update skip locked
+            limit 1
+          )
+          update retention_deletion_jobs job
+          set status = 'processing', claimed_at = now(), attempts = job.attempts + 1
+          from candidate
+          where job.id = candidate.id
+          returning job.evidence_id as "evidenceId", job.id as "jobId",
+            job.object_name as "objectName", job.tenant_id as "tenantId"
+        `);
+        return job ?? null;
+      });
+    },
+    async markCompleted(tenantId, jobId) {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [job] = await transaction
+          .update(retentionDeletionJobs)
+          .set({ completedAt: new Date(), status: "completed" })
+          .where(
+            and(
+              eq(retentionDeletionJobs.tenantId, tenantId),
+              eq(retentionDeletionJobs.id, jobId),
+              eq(retentionDeletionJobs.status, "processing"),
+            ),
+          )
+          .returning({
+            caseId: retentionDeletionJobs.caseId,
+            evidenceId: retentionDeletionJobs.evidenceId,
+          });
+        if (!job) throw new Error("Retention deletion job is not claimable.");
+        await appendEvent(transaction, {
+          actorId: "retention-system",
+          caseId: job.caseId,
+          eventType: "evidence_deleted",
+          occurredAt: new Date(),
+          payload: { evidenceId: job.evidenceId, jobId },
+          tenantId,
+        });
+      });
+    },
+    async markFailed(tenantId, jobId, reason) {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        await transaction
+          .update(retentionDeletionJobs)
+          .set({
+            availableAt: new Date(Date.now() + 5 * 60 * 1000),
+            lastError: reason,
+            status: "failed",
+          })
+          .where(
+            and(
+              eq(retentionDeletionJobs.tenantId, tenantId),
+              eq(retentionDeletionJobs.id, jobId),
+              eq(retentionDeletionJobs.status, "processing"),
+            ),
+          );
+      });
+    },
+  };
+}
+
+export async function requestRetentionDeletion(
+  database: Database,
+  tenantId: string,
+  caseId: string,
+  evidenceId: string,
+): Promise<string | null> {
+  return database.transaction(async (transaction) => {
+    await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    const [candidate] = await transaction
+      .select({
+        objectName: evidenceObjects.objectName,
+        retentionUntil: evidenceObjects.retentionUntil,
+      })
+      .from(evidenceObjects)
+      .innerJoin(reviewCases, eq(reviewCases.id, evidenceObjects.caseId))
+      .where(
+        and(
+          eq(evidenceObjects.tenantId, tenantId),
+          eq(evidenceObjects.caseId, caseId),
+          eq(evidenceObjects.id, evidenceId),
+          eq(evidenceObjects.verified, true),
+          eq(evidenceObjects.legalHold, "none"),
+          eq(reviewCases.tenantId, tenantId),
+          eq(reviewCases.status, "completed"),
+          sql`${evidenceObjects.retentionUntil} <= now()`,
+        ),
+      )
+      .limit(1);
+    if (!candidate) return null;
+
+    const [job] = await transaction
+      .insert(retentionDeletionJobs)
+      .values({ caseId, evidenceId, objectName: candidate.objectName, tenantId })
+      .onConflictDoNothing({
+        target: [retentionDeletionJobs.tenantId, retentionDeletionJobs.evidenceId],
+      })
+      .returning({ id: retentionDeletionJobs.id });
+    if (!job) return null;
+    await appendEvent(transaction, {
+      actorId: "retention-system",
+      caseId,
+      eventType: "retention_deletion_requested",
+      occurredAt: new Date(),
+      payload: { evidenceId, jobId: job.id, retentionUntil: candidate.retentionUntil },
+      tenantId,
+    });
+    return job.id;
+  });
 }

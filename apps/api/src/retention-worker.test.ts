@@ -27,9 +27,11 @@ describe("retention deletion worker", () => {
     const remove = vi.fn(async () => {});
     const storage = { delete: remove } as unknown as EvidenceStorage;
 
-    await expect(processNextRetentionDeletion(jobs, storage)).resolves.toBe("completed");
+    await expect(processNextRetentionDeletion("tenant-1", jobs, storage)).resolves.toBe(
+      "completed",
+    );
     expect(remove).toHaveBeenCalledWith(job.tenantId, job.objectName);
-    expect(jobs.markCompleted).toHaveBeenCalledWith(job.jobId);
+    expect(jobs.markCompleted).toHaveBeenCalledWith("tenant-1", job.jobId);
     expect(jobs.markFailed).not.toHaveBeenCalled();
   });
 
@@ -41,8 +43,8 @@ describe("retention deletion worker", () => {
       }),
     } as unknown as EvidenceStorage;
 
-    await expect(processNextRetentionDeletion(jobs, storage)).resolves.toBe("failed");
-    expect(jobs.markFailed).toHaveBeenCalledWith(job.jobId, "storage unavailable");
+    await expect(processNextRetentionDeletion("tenant-1", jobs, storage)).resolves.toBe("failed");
+    expect(jobs.markFailed).toHaveBeenCalledWith("tenant-1", job.jobId, "storage unavailable");
     expect(jobs.markCompleted).not.toHaveBeenCalled();
   });
 
@@ -50,7 +52,7 @@ describe("retention deletion worker", () => {
     const jobs = createJobs({ claimNext: vi.fn(async () => null) });
     const storage = { delete: vi.fn(async () => {}) } as unknown as EvidenceStorage;
 
-    await expect(processNextRetentionDeletion(jobs, storage)).resolves.toBe("empty");
+    await expect(processNextRetentionDeletion("tenant-1", jobs, storage)).resolves.toBe("empty");
     expect(storage.delete).not.toHaveBeenCalled();
   });
 });

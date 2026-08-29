@@ -8,25 +8,26 @@ export type RetentionDeletionJob = {
 };
 
 export interface RetentionDeletionJobStore {
-  claimNext(): Promise<RetentionDeletionJob | null>;
-  markCompleted(jobId: string): Promise<void>;
-  markFailed(jobId: string, reason: string): Promise<void>;
+  claimNext(tenantId: string): Promise<RetentionDeletionJob | null>;
+  markCompleted(tenantId: string, jobId: string): Promise<void>;
+  markFailed(tenantId: string, jobId: string, reason: string): Promise<void>;
 }
 
 export async function processNextRetentionDeletion(
+  tenantId: string,
   jobs: RetentionDeletionJobStore,
   storage: EvidenceStorage,
 ): Promise<"completed" | "failed" | "empty"> {
-  const job = await jobs.claimNext();
+  const job = await jobs.claimNext(tenantId);
   if (!job) return "empty";
 
   try {
     await storage.delete(job.tenantId, job.objectName);
-    await jobs.markCompleted(job.jobId);
+    await jobs.markCompleted(tenantId, job.jobId);
     return "completed";
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Unknown storage deletion failure.";
-    await jobs.markFailed(job.jobId, reason);
+    await jobs.markFailed(tenantId, job.jobId, reason);
     return "failed";
   }
 }
