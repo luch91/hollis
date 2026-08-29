@@ -8,7 +8,11 @@ async function signOutAction() {
 }
 
 export default async function ApplicationPage() {
-  const { organizationId, role, user } = await withAuth({ ensureSignedIn: true });
+  const { organizationId, role, user } = await withAuth();
+
+  if (!user) {
+    redirect("/sign-in");
+  }
 
   if (!organizationId) {
     redirect("/access-required");
