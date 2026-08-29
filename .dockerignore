@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.test.ts
+.git
+.hollis
+.env
+.env.*
+!.env.example
