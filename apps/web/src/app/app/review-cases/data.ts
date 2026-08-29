@@ -33,14 +33,15 @@ export type ReviewCaseDetail = ReviewQueueItem & {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await withAuth({ ensureSignedIn: true });
+  const headers = new Headers(init?.headers);
+  headers.set("authorization", `Bearer ${session.accessToken}`);
+  if (init?.body) {
+    headers.set("content-type", "application/json");
+  }
   const response = await fetch(`${apiUrl}${path}`, {
     ...init,
     cache: "no-store",
-    headers: {
-      authorization: `Bearer ${session.accessToken}`,
-      "content-type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
