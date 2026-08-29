@@ -41,6 +41,13 @@ function createDependencies(
     provisioned?: boolean;
     store?: ReviewIntakeStore;
     workflowStore?: ReviewWorkflowStore;
+    legalHoldStore?: (
+      tenantId: string,
+      caseId: string,
+      evidenceId: string,
+      active: boolean,
+      actorId: string,
+    ) => Promise<boolean>;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -99,6 +106,7 @@ function createDependencies(
   return {
     accessTokenVerifier,
     evidenceMetadataStore,
+    legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
     workflowStore,
