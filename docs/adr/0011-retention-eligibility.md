@@ -20,3 +20,8 @@ This decision defines eligibility only. A future scheduled job must perform dele
 authorized storage adapter and append an audit event in the same controlled workflow. The storage
 adapter now exposes tenant-scoped deletion, but no scheduled job may call it until deletion intent,
 audit, retry, and reconciliation are implemented as a transactional outbox workflow.
+
+The deletion worker processes only jobs returned by that outbox store. It marks a job complete only
+after the storage adapter returns successfully, and records a failure for retry when storage is
+unavailable. The outbox store remains responsible for authorization, claiming, audit events, and
+reconciliation.
