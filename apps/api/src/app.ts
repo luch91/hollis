@@ -12,7 +12,7 @@ import { z } from "zod";
 import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./auth.js";
 import type { Environment } from "./config.js";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
-import { evidenceUploadSchema } from "./evidence.js";
+import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
 import {
   createPostgresEvidenceMetadataStore,
   createPostgresReviewIntakeStore,
@@ -148,6 +148,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         .send({ code: "invalid_transition", message: "Review case transition is not allowed." });
     }
 
+    if (error instanceof EvidenceVerificationError) {
+      return reply.code(422).send({
+        code: "evidence_verification_failed",
+        message: "Evidence object does not match its declared metadata.",
+      });
+    }
+
     app.log.error({ errorName: error instanceof Error ? error.name : "unknown" }, "request failed");
     return reply.code(500).send({ code: "internal_error", message: "Request failed." });
   });
@@ -204,6 +211,30 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         tenantId: tenant.id,
         userId: principal.userId,
       };
+    },
+  );
+
+  app.post(
+    "/v1/review-cases/:caseId/evidence/:evidenceId/verify",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
+    async (request, reply) => {
+      if (!evidenceStorage)
+        return reply
+          .code(503)
+          .send({ code: "storage_unconfigured", message: "Evidence storage is not configured." });
+      const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      const { verifyEvidenceUpload } = await import("./evidence.js");
+      const verified = await verifyEvidenceUpload(
+        tenant.id,
+        caseId,
+        evidenceId,
+        evidenceStorage,
+        evidenceMetadataStore,
+      );
+      if (!verified)
+        return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
+      return reply.code(204).send();
     },
   );
 

@@ -88,6 +88,9 @@ function createDependencies(
     async create() {
       throw new Error("Evidence metadata was not expected.");
     },
+    async markVerified() {
+      throw new Error("Evidence verification was not expected.");
+    },
     async get() {
       throw new Error("Evidence metadata was not expected.");
     },

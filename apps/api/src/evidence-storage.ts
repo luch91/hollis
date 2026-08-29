@@ -11,6 +11,11 @@ export type EvidenceObject = {
 export interface EvidenceStorage {
   createDownloadUrl(tenantId: string, objectName: string): Promise<string>;
   createUploadUrl(tenantId: string, objectName: string, mediaType: string): Promise<string>;
+  verify(
+    tenantId: string,
+    objectName: string,
+    expected: { digest: string; mediaType: string; sizeBytes: number },
+  ): Promise<EvidenceObject>;
   put(
     tenantId: string,
     objectName: string,
@@ -44,6 +49,20 @@ export function createGoogleCloudEvidenceStorage(
         .file(assertTenantObject(tenantId, objectName))
         .getSignedUrl({ ...signedUrlOptions, action: "write", contentType: mediaType });
       return url;
+    },
+    async verify(tenantId, objectName, expected) {
+      const file = bucket.file(assertTenantObject(tenantId, objectName));
+      const [metadata] = await file.getMetadata();
+      const [content] = await file.download();
+      const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
+      if (
+        digest !== expected.digest ||
+        Number(metadata.size) !== expected.sizeBytes ||
+        metadata.contentType !== expected.mediaType
+      ) {
+        throw new Error("Evidence object does not match its declared metadata.");
+      }
+      return { digest, mediaType: expected.mediaType, objectName, sizeBytes: content.byteLength };
     },
     async put(tenantId, objectName, content, mediaType, expectedDigest) {
       const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;

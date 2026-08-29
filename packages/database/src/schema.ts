@@ -1,5 +1,6 @@
 import {
   bigserial,
+  boolean,
   integer,
   index,
   jsonb,
@@ -121,6 +122,7 @@ export const evidenceObjects = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),
+    verified: boolean("verified").notNull().default(false),
   },
   (table) => [
     uniqueIndex("evidence_objects_tenant_digest_unique").on(table.tenantId, table.digest),

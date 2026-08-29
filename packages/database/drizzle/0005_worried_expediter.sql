@@ -1,0 +1,1 @@
+ALTER TABLE "evidence_objects" ADD COLUMN "verified" boolean DEFAULT false NOT NULL;

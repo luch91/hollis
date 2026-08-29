@@ -557,11 +557,33 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
         return existing;
       });
     },
+    async markVerified(tenantId, caseId, evidenceId) {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        await transaction
+          .update(evidenceObjects)
+          .set({ verified: true })
+          .where(
+            and(
+              eq(evidenceObjects.tenantId, tenantId),
+              eq(evidenceObjects.caseId, caseId),
+              eq(evidenceObjects.id, evidenceId),
+            ),
+          );
+      });
+    },
     async get(tenantId, caseId, evidenceId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         const [row] = await transaction
-          .select({ id: evidenceObjects.id, objectName: evidenceObjects.objectName })
+          .select({
+            digest: evidenceObjects.digest,
+            id: evidenceObjects.id,
+            mediaType: evidenceObjects.mediaType,
+            objectName: evidenceObjects.objectName,
+            sizeBytes: evidenceObjects.sizeBytes,
+            verified: evidenceObjects.verified,
+          })
           .from(evidenceObjects)
           .where(
             and(
