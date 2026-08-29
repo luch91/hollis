@@ -17,6 +17,7 @@ import {
   createPostgresEvidenceMetadataStore,
   createPostgresReviewIntakeStore,
   createPostgresTenantResolver,
+  setEvidenceLegalHold,
 } from "./persistence.js";
 import { createPostgresReviewWorkflowStore } from "./persistence.js";
 import {
@@ -44,6 +45,13 @@ type AppDependencies = {
   workflowStore?: ReviewWorkflowStore;
   evidenceStorage?: ReturnType<typeof createGoogleCloudEvidenceStorage>;
   evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
+  legalHoldStore?: (
+    tenantId: string,
+    caseId: string,
+    evidenceId: string,
+    active: boolean,
+    actorId: string,
+  ) => Promise<boolean>;
 };
 
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
@@ -73,6 +81,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.workflowStore ?? createPostgresReviewWorkflowStore(requireDatabase());
   const evidenceMetadataStore =
     dependencies.evidenceMetadataStore ?? createPostgresEvidenceMetadataStore(requireDatabase());
+  const legalHoldStore =
+    dependencies.legalHoldStore ??
+    ((tenantId, caseId, evidenceId, active, actorId) =>
+      setEvidenceLegalHold(requireDatabase(), tenantId, caseId, evidenceId, active, actorId));
   const evidenceStorage =
     dependencies.evidenceStorage ??
     (environment.GCS_BUCKET
@@ -256,6 +268,21 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
   const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
+  const legalHoldSchema = z.object({ active: z.boolean() }).strict();
+
+  app.post(
+    "/v1/review-cases/:caseId/evidence/:evidenceId/legal-hold",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:retain") },
+    async (request, reply) => {
+      const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
+      const { active } = legalHoldSchema.parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      const updated = await legalHoldStore(tenant.id, caseId, evidenceId, active, principal.userId);
+      if (!updated)
+        return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
+      return reply.code(204).send();
+    },
+  );
 
   app.get(
     "/v1/review-cases",
