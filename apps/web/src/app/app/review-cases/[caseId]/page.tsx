@@ -33,6 +33,11 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           </p>
         ))}
       </div>
+      <p>
+        <a className="secondary-action" href={`/app/review-cases/${caseId}/export`}>
+          Export case record
+        </a>
+      </p>
       {reviewCase.status === "pending" || reviewCase.status === "escalated" ? (
         <form action={claimAction}>
           <input name="caseId" type="hidden" value={caseId} />
