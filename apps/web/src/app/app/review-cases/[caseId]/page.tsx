@@ -38,7 +38,7 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           Export case record
         </a>
       </p>
-      <form action={uploadEvidenceAction} encType="multipart/form-data">
+      <form action={uploadEvidenceAction}>
         <input name="caseId" type="hidden" value={caseId} />
         <label htmlFor="evidence-file">Add evidence (maximum 5 MB)</label>
         <input id="evidence-file" name="file" required type="file" />
