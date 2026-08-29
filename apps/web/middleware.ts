@@ -1,10 +1,9 @@
 import { authkitProxy } from "@workos-inc/authkit-nextjs";
 
 export default authkitProxy({
-  middlewareAuth: {
-    enabled: true,
-    unauthenticatedPaths: ["/", "/callback", "/sign-in"],
-  },
+  // Route-level withAuth({ ensureSignedIn: true }) calls enforce authentication.
+  // Keep middleware focused on session refresh so AuthKit does not require a
+  // middleware marker header on every server-rendered route.
 });
 
 export const config = {
