@@ -48,6 +48,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error("The review service could not complete the request.");
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -80,6 +84,25 @@ export function decideReviewCase(
 ) {
   return request(`/v1/review-cases/${caseId}/decision`, {
     body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
+export function createEvidenceUpload(
+  caseId: string,
+  input: { digest: string; mediaType: string; sizeBytes: number },
+) {
+  return request<{ evidenceId: string; uploadUrl: string }>(
+    `/v1/review-cases/${caseId}/evidence/uploads`,
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function verifyEvidence(caseId: string, evidenceId: string) {
+  return request<void>(`/v1/review-cases/${caseId}/evidence/${evidenceId}/verify`, {
     method: "POST",
   });
 }

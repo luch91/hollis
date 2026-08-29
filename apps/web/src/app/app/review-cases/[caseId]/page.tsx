@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { claimAction, decideAction, escalateAction } from "../actions";
+import { claimAction, decideAction, escalateAction, uploadEvidenceAction } from "../actions";
 import { getReviewCase } from "../data";
 
 export default async function ReviewCasePage({ params }: { params: Promise<{ caseId: string }> }) {
@@ -38,6 +38,12 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           Export case record
         </a>
       </p>
+      <form action={uploadEvidenceAction} encType="multipart/form-data">
+        <input name="caseId" type="hidden" value={caseId} />
+        <label htmlFor="evidence-file">Add evidence (maximum 5 MB)</label>
+        <input id="evidence-file" name="file" required type="file" />
+        <button type="submit">Upload and verify evidence</button>
+      </form>
       {reviewCase.status === "pending" || reviewCase.status === "escalated" ? (
         <form action={claimAction}>
           <input name="caseId" type="hidden" value={caseId} />

@@ -1,7 +1,37 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { claimReviewCase, decideReviewCase, escalateReviewCase } from "./data";
+import {
+  createEvidenceUpload,
+  claimReviewCase,
+  decideReviewCase,
+  escalateReviewCase,
+  verifyEvidence,
+} from "./data";
+
+export async function uploadEvidenceAction(formData: FormData) {
+  const caseId = String(formData.get("caseId") ?? "");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0 || file.size > 5_242_880) {
+    throw new Error("Evidence must be a non-empty file no larger than 5 MB.");
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const digestBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = `sha256:${Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const upload = await createEvidenceUpload(caseId, {
+    digest,
+    mediaType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+  });
+  const stored = await fetch(upload.uploadUrl, {
+    body: bytes,
+    headers: { "content-type": file.type || "application/octet-stream" },
+    method: "PUT",
+  });
+  if (!stored.ok) throw new Error("Evidence storage upload failed.");
+  await verifyEvidence(caseId, upload.evidenceId);
+  revalidatePath(`/app/review-cases/${caseId}`);
+}
 
 export async function claimAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
