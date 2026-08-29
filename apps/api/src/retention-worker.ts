@@ -31,3 +31,17 @@ export async function processNextRetentionDeletion(
     return "failed";
   }
 }
+
+export async function processRetentionForTenants(
+  tenantIds: readonly string[],
+  jobs: RetentionDeletionJobStore,
+  storage: EvidenceStorage,
+): Promise<{ completed: number; failed: number }> {
+  const result = { completed: 0, failed: 0 };
+  for (const tenantId of tenantIds) {
+    const outcome = await processNextRetentionDeletion(tenantId, jobs, storage);
+    if (outcome === "completed") result.completed += 1;
+    if (outcome === "failed") result.failed += 1;
+  }
+  return result;
+}

@@ -28,6 +28,7 @@ export const eventType = pgEnum("review_event_type", [
   "attestation_recorded",
   "retention_deletion_requested",
   "evidence_deleted",
+  "legal_hold_changed",
 ]);
 
 export const retentionDeletionStatus = pgEnum("retention_deletion_status", [

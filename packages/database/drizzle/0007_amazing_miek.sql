@@ -1,0 +1,1 @@
+ALTER TYPE "public"."review_event_type" ADD VALUE 'legal_hold_changed';

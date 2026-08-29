@@ -107,7 +107,8 @@ async function appendEvent(
       | "case_escalated"
       | "decision_recorded"
       | "retention_deletion_requested"
-      | "evidence_deleted";
+      | "evidence_deleted"
+      | "legal_hold_changed";
     occurredAt: Date;
     payload: Record<string, unknown>;
     tenantId: string;
@@ -736,5 +737,39 @@ export async function requestRetentionDeletion(
       tenantId,
     });
     return job.id;
+  });
+}
+
+export async function setEvidenceLegalHold(
+  database: Database,
+  tenantId: string,
+  caseId: string,
+  evidenceId: string,
+  active: boolean,
+  actorId: string,
+): Promise<boolean> {
+  return database.transaction(async (transaction) => {
+    await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    const [updated] = await transaction
+      .update(evidenceObjects)
+      .set({ legalHold: active ? "active" : "none" })
+      .where(
+        and(
+          eq(evidenceObjects.tenantId, tenantId),
+          eq(evidenceObjects.caseId, caseId),
+          eq(evidenceObjects.id, evidenceId),
+        ),
+      )
+      .returning({ id: evidenceObjects.id });
+    if (!updated) return false;
+    await appendEvent(transaction, {
+      actorId,
+      caseId,
+      eventType: "legal_hold_changed",
+      occurredAt: new Date(),
+      payload: { active, evidenceId },
+      tenantId,
+    });
+    return true;
   });
 }

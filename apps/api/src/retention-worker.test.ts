@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { EvidenceStorage } from "./evidence-storage.js";
 import {
   processNextRetentionDeletion,
+  processRetentionForTenants,
   type RetentionDeletionJobStore,
 } from "./retention-worker.js";
 
@@ -54,5 +55,21 @@ describe("retention deletion worker", () => {
 
     await expect(processNextRetentionDeletion("tenant-1", jobs, storage)).resolves.toBe("empty");
     expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  it("processes at most one job per tenant in an explicit tenant list", async () => {
+    const jobs = createJobs({
+      claimNext: vi.fn(async (tenantId: string) => (tenantId === "tenant-1" ? job : null)),
+    });
+    const storage = { delete: vi.fn(async () => {}) } as unknown as EvidenceStorage;
+
+    await expect(
+      processRetentionForTenants(["tenant-1", "tenant-2"], jobs, storage),
+    ).resolves.toEqual({
+      completed: 1,
+      failed: 0,
+    });
+    expect(jobs.claimNext).toHaveBeenCalledWith("tenant-1");
+    expect(jobs.claimNext).toHaveBeenCalledWith("tenant-2");
   });
 });
