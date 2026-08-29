@@ -11,7 +11,13 @@ import Fastify, { LogController } from "fastify";
 import { z } from "zod";
 import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./auth.js";
 import type { Environment } from "./config.js";
-import { createPostgresReviewIntakeStore, createPostgresTenantResolver } from "./persistence.js";
+import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
+import { evidenceUploadSchema } from "./evidence.js";
+import {
+  createPostgresEvidenceMetadataStore,
+  createPostgresReviewIntakeStore,
+  createPostgresTenantResolver,
+} from "./persistence.js";
 import { createPostgresReviewWorkflowStore } from "./persistence.js";
 import {
   createReviewIntake,
@@ -36,13 +42,18 @@ type AppDependencies = {
   reviewIntakeStore?: ReviewIntakeStore;
   tenantResolver?: TenantResolver;
   workflowStore?: ReviewWorkflowStore;
+  evidenceStorage?: ReturnType<typeof createGoogleCloudEvidenceStorage>;
+  evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
 };
 
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
   const accessTokenVerifier =
     dependencies.accessTokenVerifier ?? createWorkOsAccessTokenVerifier(environment);
   const databaseResource =
-    dependencies.reviewIntakeStore && dependencies.tenantResolver && dependencies.workflowStore
+    dependencies.reviewIntakeStore &&
+    dependencies.tenantResolver &&
+    dependencies.workflowStore &&
+    dependencies.evidenceMetadataStore
       ? null
       : createDatabase(environment.DATABASE_URL);
 
@@ -60,6 +71,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.tenantResolver ?? createPostgresTenantResolver(requireDatabase());
   const workflowStore =
     dependencies.workflowStore ?? createPostgresReviewWorkflowStore(requireDatabase());
+  const evidenceMetadataStore =
+    dependencies.evidenceMetadataStore ?? createPostgresEvidenceMetadataStore(requireDatabase());
+  const evidenceStorage =
+    dependencies.evidenceStorage ??
+    (environment.GCS_BUCKET
+      ? createGoogleCloudEvidenceStorage(environment.GCS_PROJECT_ID, environment.GCS_BUCKET)
+      : null);
   const app = Fastify({
     bodyLimit: 262_144,
     logController: new LogController({ disableRequestLogging: true }),
@@ -206,6 +224,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   );
 
   const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
+  const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
 
   app.get(
     "/v1/review-cases",
@@ -218,6 +237,56 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { tenant } = requireRequestContext(request);
       const queue = await workflowStore.list(tenant.id, query.status);
       return queue.map(toQueueResponse);
+    },
+  );
+
+  app.post(
+    "/v1/review-cases/:caseId/evidence/uploads",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
+    async (request, reply) => {
+      if (!evidenceStorage)
+        return reply
+          .code(503)
+          .send({ code: "storage_unconfigured", message: "Evidence storage is not configured." });
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const input = evidenceUploadSchema.parse(request.body);
+      const { tenant } = requireRequestContext(request);
+      const { createEvidenceUpload } = await import("./evidence.js");
+      return reply
+        .code(201)
+        .send(
+          await createEvidenceUpload(
+            tenant.id,
+            caseId,
+            input,
+            evidenceStorage,
+            evidenceMetadataStore,
+          ),
+        );
+    },
+  );
+
+  app.get(
+    "/v1/review-cases/:caseId/evidence/:evidenceId/download",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request, reply) => {
+      if (!evidenceStorage)
+        return reply
+          .code(503)
+          .send({ code: "storage_unconfigured", message: "Evidence storage is not configured." });
+      const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      const { createEvidenceDownload } = await import("./evidence.js");
+      const url = await createEvidenceDownload(
+        tenant.id,
+        caseId,
+        evidenceId,
+        evidenceStorage,
+        evidenceMetadataStore,
+      );
+      if (!url)
+        return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
+      return { downloadUrl: url };
     },
   );
 

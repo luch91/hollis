@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import type { AccessTokenVerifier, AuthenticatedPrincipal } from "./auth.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
+import type { EvidenceMetadataStore } from "./evidence.js";
 import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -83,8 +84,22 @@ function createDependencies(
         throw new Error("Workflow queue was not expected.");
       },
     } satisfies ReviewWorkflowStore);
+  const evidenceMetadataStore: EvidenceMetadataStore = {
+    async create() {
+      throw new Error("Evidence metadata was not expected.");
+    },
+    async get() {
+      throw new Error("Evidence metadata was not expected.");
+    },
+  } satisfies EvidenceMetadataStore;
 
-  return { accessTokenVerifier, reviewIntakeStore, tenantResolver, workflowStore };
+  return {
+    accessTokenVerifier,
+    evidenceMetadataStore,
+    reviewIntakeStore,
+    tenantResolver,
+    workflowStore,
+  };
 }
 
 const validIntake = {

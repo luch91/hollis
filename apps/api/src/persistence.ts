@@ -6,11 +6,12 @@ import {
   reviewCaseStatusSchema,
   reviewOutcomeSchema,
 } from "@hollis/contracts";
-import { reviewCases, reviewEvents, tenants } from "@hollis/database";
+import { evidenceObjects, reviewCases, reviewEvents, tenants } from "@hollis/database";
 import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { createDatabase } from "@hollis/database";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
+import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import {
   type ReviewCaseDetail,
   type ReviewWorkflowStore,
@@ -527,6 +528,50 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
         }
 
         return { case: mapDetail(next as unknown as Record<string, unknown>), replayed: false };
+      });
+    },
+  };
+}
+
+export function createPostgresEvidenceMetadataStore(database: Database): EvidenceMetadataStore {
+  return {
+    async create(tenantId, caseId, input: EvidenceUpload & { objectName: string }) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const reviewCase = await selectCase(transaction, tenantId, caseId);
+        if (!reviewCase) throw new Error("Review case was not found.");
+        const [created] = await transaction
+          .insert(evidenceObjects)
+          .values({ ...input, caseId, tenantId })
+          .onConflictDoNothing({ target: [evidenceObjects.tenantId, evidenceObjects.digest] })
+          .returning({ id: evidenceObjects.id });
+        if (created) return created;
+        const [existing] = await transaction
+          .select({ id: evidenceObjects.id })
+          .from(evidenceObjects)
+          .where(
+            and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.digest, input.digest)),
+          )
+          .limit(1);
+        if (!existing) throw new Error("Evidence metadata could not be stored.");
+        return existing;
+      });
+    },
+    async get(tenantId, caseId, evidenceId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [row] = await transaction
+          .select({ id: evidenceObjects.id, objectName: evidenceObjects.objectName })
+          .from(evidenceObjects)
+          .where(
+            and(
+              eq(evidenceObjects.tenantId, tenantId),
+              eq(evidenceObjects.caseId, caseId),
+              eq(evidenceObjects.id, evidenceId),
+            ),
+          )
+          .limit(1);
+        return row ?? null;
       });
     },
   };

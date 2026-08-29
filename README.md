@@ -60,6 +60,9 @@ Reviewers with `reviews:read` can list the queue with `GET /v1/review-cases`. A 
 Reviewers with `reviews:read` can export a reproducible case package with
 `GET /v1/review-cases/:caseId/export`. The export contains evidence references and ordered audit
 events, never raw evidence content.
+Evidence uploads use `POST /v1/review-cases/:caseId/evidence/uploads` with `reviews:create`; the
+endpoint returns a short-lived signed upload URL. Downloads use
+`GET /v1/review-cases/:caseId/evidence/:evidenceId/download` with `reviews:read`.
 
 ## Verification
 
