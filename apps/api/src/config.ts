@@ -5,6 +5,8 @@ const environmentSchema = z
     API_HOST: z.string().default("127.0.0.1"),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
+    GCS_BUCKET: z.string().min(3).optional(),
+    GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
     DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),

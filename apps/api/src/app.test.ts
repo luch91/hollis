@@ -13,6 +13,7 @@ afterEach(async () => {
 const environment = {
   API_HOST: "127.0.0.1",
   API_PORT: 4000,
+  GCS_PROJECT_ID: "hollis-507001",
   DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
   NODE_ENV: "test" as const,
   WEB_ORIGIN: "http://localhost:3000",
