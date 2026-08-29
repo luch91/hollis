@@ -17,4 +17,6 @@ Pending, in-review, escalated, unverified, held, and undated evidence is never e
 Unknown legal hold states are rejected rather than interpreted.
 
 This decision defines eligibility only. A future scheduled job must perform deletion through an
-authorized storage adapter and append an audit event in the same controlled workflow.
+authorized storage adapter and append an audit event in the same controlled workflow. The storage
+adapter now exposes tenant-scoped deletion, but no scheduled job may call it until deletion intent,
+audit, retry, and reconciliation are implemented as a transactional outbox workflow.

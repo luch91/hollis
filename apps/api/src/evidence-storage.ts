@@ -11,6 +11,7 @@ export type EvidenceObject = {
 export interface EvidenceStorage {
   createDownloadUrl(tenantId: string, objectName: string): Promise<string>;
   createUploadUrl(tenantId: string, objectName: string, mediaType: string): Promise<string>;
+  delete(tenantId: string, objectName: string): Promise<void>;
   verify(
     tenantId: string,
     objectName: string,
@@ -49,6 +50,9 @@ export function createGoogleCloudEvidenceStorage(
         .file(assertTenantObject(tenantId, objectName))
         .getSignedUrl({ ...signedUrlOptions, action: "write", contentType: mediaType });
       return url;
+    },
+    async delete(tenantId, objectName) {
+      await bucket.file(assertTenantObject(tenantId, objectName)).delete({ ignoreNotFound: true });
     },
     async verify(tenantId, objectName, expected) {
       const file = bucket.file(assertTenantObject(tenantId, objectName));
