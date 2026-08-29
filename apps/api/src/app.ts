@@ -20,6 +20,7 @@ import {
   type TenantResolver,
 } from "./review-intake.js";
 import { createSecurityPreHandler, requireRequestContext, sendSecurityError } from "./security.js";
+import { InvalidWebhookError, claimsWebhookSchema, verifyClaimsWebhook } from "./webhook.js";
 import {
   type ReviewWorkflowStore,
   ReviewCaseNotFoundError,
@@ -87,6 +88,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       return;
     }
 
+    if (error instanceof InvalidWebhookError) {
+      return reply
+        .code(401)
+        .send({ code: "invalid_webhook", message: "Webhook authentication failed." });
+    }
+
     if (error instanceof ReviewIntakeConflictError) {
       return reply.code(409).send({
         code: "intake_conflict",
@@ -128,6 +135,44 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
+
+  app.post("/v1/webhooks/claims", async (request, reply) => {
+    if (!environment.CLAIMS_WEBHOOK_SECRET) {
+      throw new InvalidWebhookError();
+    }
+
+    const payload = claimsWebhookSchema.parse(request.body);
+    const verified = verifyClaimsWebhook(
+      payload,
+      {
+        idempotencyKey:
+          typeof request.headers["idempotency-key"] === "string"
+            ? request.headers["idempotency-key"]
+            : undefined,
+        signature:
+          typeof request.headers["x-hollis-signature"] === "string"
+            ? request.headers["x-hollis-signature"]
+            : undefined,
+        timestamp:
+          typeof request.headers["x-hollis-timestamp"] === "string"
+            ? request.headers["x-hollis-timestamp"]
+            : undefined,
+      },
+      environment.CLAIMS_WEBHOOK_SECRET,
+    );
+    const tenant = await tenantResolver.findByOrganizationId(verified.organizationId);
+    if (!tenant) {
+      throw new InvalidWebhookError();
+    }
+    const { organizationId: _organizationId, ...intake } = verified;
+    const reviewCase = await createReviewIntake(
+      intake,
+      { actorId: "claims-system", tenantId: tenant.id },
+      reviewIntakeStore,
+    );
+
+    return reply.code(reviewCase.replayed ? 200 : 201).send(reviewCase);
+  });
 
   app.get(
     "/v1/session",

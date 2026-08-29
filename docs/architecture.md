@@ -46,7 +46,8 @@ This shape keeps transactions, authorization, and operational reasoning in one d
 
 Creates an idempotent, pending human review from a validated recommendation. The current route uses
 an authenticated WorkOS principal with `reviews:create`. Machine authentication for a direct claims
-platform integration remains undecided.
+platform integration uses a signed canonical payload, a bounded timestamp window, and an
+idempotency key equal to the external claim reference.
 
 ### Policy
 
