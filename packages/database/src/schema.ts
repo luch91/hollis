@@ -26,6 +26,15 @@ export const eventType = pgEnum("review_event_type", [
   "decision_recorded",
   "case_escalated",
   "attestation_recorded",
+  "retention_deletion_requested",
+  "evidence_deleted",
+]);
+
+export const retentionDeletionStatus = pgEnum("retention_deletion_status", [
+  "pending",
+  "processing",
+  "completed",
+  "failed",
 ]);
 
 export const tenants = pgTable("tenants", {
@@ -152,5 +161,33 @@ export const reviewEvents = pgTable(
     uniqueIndex("review_events_event_hash_unique").on(table.eventHash),
     index("review_events_case_created_idx").on(table.caseId, table.createdAt),
     index("review_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ],
+);
+
+export const retentionDeletionJobs = pgTable(
+  "retention_deletion_jobs",
+  {
+    attempts: integer("attempts").notNull().default(0),
+    availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    evidenceId: uuid("evidence_id")
+      .notNull()
+      .references(() => evidenceObjects.id),
+    id: uuid("id").primaryKey().defaultRandom(),
+    lastError: text("last_error"),
+    objectName: text("object_name").notNull(),
+    status: retentionDeletionStatus("status").notNull().default("pending"),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+  },
+  (table) => [
+    uniqueIndex("retention_deletion_jobs_evidence_unique").on(table.tenantId, table.evidenceId),
+    index("retention_deletion_jobs_claim_idx").on(table.status, table.availableAt),
   ],
 );
