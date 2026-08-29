@@ -1,6 +1,7 @@
 import {
   evidenceReferenceSchema,
   recommendationSchema,
+  type ReviewExport,
   riskLevelSchema,
   reviewCaseStatusSchema,
   reviewOutcomeSchema,
@@ -231,6 +232,64 @@ export function createPostgresReviewIntakeStore(database: Database): ReviewIntak
 
 export function createPostgresReviewWorkflowStore(database: Database): ReviewWorkflowStore {
   return {
+    async exportCase(tenantId, caseId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const row = await selectCase(transaction, tenantId, caseId);
+        if (!row) {
+          return null;
+        }
+
+        const detail = mapDetail(row as unknown as Record<string, unknown>);
+        const events = await transaction
+          .select({
+            actorId: reviewEvents.actorId,
+            createdAt: reviewEvents.createdAt,
+            eventHash: reviewEvents.eventHash,
+            eventSequence: reviewEvents.eventSequence,
+            eventType: reviewEvents.eventType,
+            payload: reviewEvents.payload,
+            previousHash: reviewEvents.previousHash,
+          })
+          .from(reviewEvents)
+          .where(and(eq(reviewEvents.tenantId, tenantId), eq(reviewEvents.caseId, caseId)))
+          .orderBy(asc(reviewEvents.eventSequence));
+
+        const base = {
+          case: {
+            assignedToUserId: detail.assignedToUserId,
+            automatedSystemVersion: detail.automatedSystemVersion,
+            createdAt: detail.createdAt.toISOString(),
+            evidence: detail.evidence,
+            externalReference: detail.externalReference,
+            finalRecommendation: detail.finalRecommendation,
+            id: detail.id,
+            policyVersion: detail.policyVersion,
+            recommendation: detail.recommendation,
+            reviewDueAt: detail.reviewDueAt?.toISOString() ?? null,
+            riskLevel: detail.riskLevel,
+            ruleId: detail.ruleId,
+            status: detail.status,
+          },
+          events: events.map((event) => ({
+            actorId: event.actorId,
+            createdAt: event.createdAt.toISOString(),
+            eventHash: event.eventHash,
+            eventSequence: event.eventSequence,
+            eventType: event.eventType,
+            payload: event.payload,
+            previousHash: event.previousHash,
+          })),
+          schemaVersion: "hollis.review-export.v1" as const,
+        };
+
+        return {
+          ...base,
+          manifestHash: hashEvent(base),
+        } satisfies ReviewExport;
+      });
+    },
+
     async list(tenantId, status) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);

@@ -25,6 +25,7 @@ import {
   ReviewCaseNotFoundError,
   ReviewCaseTransitionError,
   toDetailResponse,
+  toExportResponse,
   toQueueResponse,
   toWorkflowResponse,
 } from "./workflow.js";
@@ -187,6 +188,21 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       }
 
       return toDetailResponse(reviewCase);
+    },
+  );
+
+  app.get(
+    "/v1/review-cases/:caseId/export",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request) => {
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      const exported = await workflowStore.exportCase(tenant.id, caseId);
+      if (!exported) {
+        throw new ReviewCaseNotFoundError();
+      }
+
+      return toExportResponse(exported);
     },
   );
 

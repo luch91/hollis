@@ -60,7 +60,7 @@ changes and audit events commit together.
 
 ### Evidence
 
-Stores content-addressed references, provenance, media type, integrity digest, and access metadata. Sensitive content remains outside public ledgers.
+Stores content-addressed references, provenance, media type, integrity digest, and access metadata. Sensitive content remains outside public ledgers. Authenticated reviewers can export a reproducible package containing the case references and ordered append-only events with a manifest hash.
 
 ### Audit
 

@@ -57,6 +57,9 @@ comes from the verified organization, not from request content.
 Reviewers with `reviews:read` can list the queue with `GET /v1/review-cases`. A reviewer with
 `reviews:assign` can claim a case for themselves. The assigned reviewer can escalate with
 `reviews:escalate` or record a rationale-backed final recommendation with `reviews:decide`.
+Reviewers with `reviews:read` can export a reproducible case package with
+`GET /v1/review-cases/:caseId/export`. The export contains evidence references and ordered audit
+events, never raw evidence content.
 
 ## Verification
 

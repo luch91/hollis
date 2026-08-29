@@ -3,6 +3,7 @@ import type {
   DecideReviewCase,
   EscalateReviewCase,
   ReviewCaseStatus,
+  ReviewExport,
   ReviewOutcome,
 } from "@hollis/contracts";
 
@@ -53,6 +54,7 @@ export interface ReviewWorkflowStore {
     input: EscalateReviewCase,
   ): Promise<WorkflowResult>;
   get(tenantId: string, caseId: string): Promise<ReviewCaseDetail | null>;
+  exportCase(tenantId: string, caseId: string): Promise<ReviewExport | null>;
   list(tenantId: string, status?: ReviewCaseStatus): Promise<ReviewQueueItem[]>;
 }
 
@@ -122,4 +124,8 @@ export function toDetailResponse(item: ReviewCaseDetail) {
     ruleId: item.ruleId,
     status: item.status,
   };
+}
+
+export function toExportResponse(value: ReviewExport) {
+  return value;
 }

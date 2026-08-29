@@ -63,6 +63,9 @@ function createDependencies(
   const workflowStore: ReviewWorkflowStore =
     options.workflowStore ??
     ({
+      async exportCase() {
+        throw new Error("Workflow export was not expected.");
+      },
       async claim() {
         throw new Error("Workflow claim was not expected.");
       },
@@ -253,6 +256,9 @@ describe("API boundaries", () => {
       status: "pending",
     };
     const workflowStore: ReviewWorkflowStore = {
+      async exportCase() {
+        throw new Error("Not expected.");
+      },
       async claim() {
         throw new Error("Not expected.");
       },
@@ -311,6 +317,9 @@ describe("API boundaries", () => {
       status: "in_review",
     } as ReviewCaseDetail;
     const workflowStore: ReviewWorkflowStore = {
+      async exportCase() {
+        throw new Error("Not expected.");
+      },
       async claim(resolvedTenantId, actorId, caseId) {
         expect(resolvedTenantId).toBe(tenantId);
         expect(actorId).toBe("user_01");

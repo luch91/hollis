@@ -1,4 +1,5 @@
 import { createDatabase, reviewCases, reviewEvents, tenants } from "@hollis/database";
+import { reviewExportSchema } from "@hollis/contracts";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -165,6 +166,25 @@ describe("PostgreSQL review intake", () => {
         rationale: "A second decision is not allowed.",
       }),
     ).rejects.toThrow("transition");
+  });
+
+  it("creates a reproducible tenant-scoped evidence export", async () => {
+    const exportedCase = await createReviewIntake(
+      { ...input, externalReference: `export_${randomUUID()}` },
+      { actorId: "user_01", tenantId },
+      store,
+    );
+
+    const exported = await workflowStore.exportCase(tenantId, exportedCase.id);
+    expect(exported).not.toBeNull();
+    const parsed = reviewExportSchema.parse(exported);
+    expect(parsed.schemaVersion).toBe("hollis.review-export.v1");
+    expect(parsed.case.id).toBe(exportedCase.id);
+    expect(parsed.case.evidence).toEqual(input.evidence);
+    expect(parsed.events).toHaveLength(1);
+    expect(parsed.events[0].eventType).toBe("case_created");
+    expect(parsed.events[0].previousHash).toBeNull();
+    expect(parsed.manifestHash).toMatch(/^sha256:[a-f0-9]{64}$/);
   });
 
   it("rolls back the case if its audit event cannot be inserted", async () => {

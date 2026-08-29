@@ -74,6 +74,33 @@ export const decideReviewCaseSchema = z
   })
   .strict();
 
+export const reviewExportEventSchema = z
+  .object({
+    actorId: z.string(),
+    createdAt: z.iso.datetime(),
+    eventHash: z.string(),
+    eventSequence: z.number().int().positive(),
+    eventType: z.string(),
+    payload: z.unknown(),
+    previousHash: z.string().nullable(),
+  })
+  .strict();
+
+export const reviewExportSchema = z
+  .object({
+    case: reviewQueueItemSchema.extend({
+      automatedSystemVersion: z.string(),
+      evidence: evidenceReferenceSchema.array(),
+      finalRecommendation: recommendationSchema.nullable(),
+      policyVersion: z.string(),
+      ruleId: z.string(),
+    }),
+    events: reviewExportEventSchema.array(),
+    manifestHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    schemaVersion: z.literal("hollis.review-export.v1"),
+  })
+  .strict();
+
 export type CreateReviewCase = z.infer<typeof createReviewCaseSchema>;
 export type ReviewCase = z.infer<typeof reviewCaseSchema>;
 export type DecideReviewCase = z.infer<typeof decideReviewCaseSchema>;
@@ -81,3 +108,4 @@ export type EscalateReviewCase = z.infer<typeof escalateReviewCaseSchema>;
 export type ReviewCaseStatus = z.infer<typeof reviewCaseStatusSchema>;
 export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
 export type RiskLevel = z.infer<typeof riskLevelSchema>;
+export type ReviewExport = z.infer<typeof reviewExportSchema>;
