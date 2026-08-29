@@ -23,6 +23,9 @@ boundary, not a replacement for authorization.
 Review events have a database-generated sequence used for hash-chain ordering. Timestamps are
 retained for audit display but are not used as the sole ordering key.
 
+Evidence object metadata is tenant-isolated. The runtime role can insert and read metadata but
+cannot update or delete it.
+
 ## Migration repair policy
 
 Migration `0001` adds intake fingerprints, row-level security policies, and runtime-role privilege

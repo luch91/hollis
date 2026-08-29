@@ -1,5 +1,6 @@
 import {
   bigserial,
+  integer,
   index,
   jsonb,
   pgEnum,
@@ -100,6 +101,30 @@ export const reviewCases = pgTable(
       table.reviewDueAt,
       table.createdAt,
     ),
+  ],
+);
+
+export const evidenceObjects = pgTable(
+  "evidence_objects",
+  {
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    digest: text("digest").notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    legalHold: text("legal_hold").notNull().default("none"),
+    mediaType: text("media_type").notNull(),
+    objectName: text("object_name").notNull(),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+    sizeBytes: integer("size_bytes").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+  },
+  (table) => [
+    uniqueIndex("evidence_objects_tenant_digest_unique").on(table.tenantId, table.digest),
+    index("evidence_objects_case_idx").on(table.caseId),
   ],
 );
 
