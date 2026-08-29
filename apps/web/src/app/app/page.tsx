@@ -1,5 +1,6 @@
 import { signOut, withAuth } from "@workos-inc/authkit-nextjs";
 import { redirect } from "next/navigation";
+import ReviewCasesPage from "./review-cases/page";
 
 async function signOutAction() {
   "use server";
@@ -24,28 +25,12 @@ export default async function ApplicationPage() {
             </button>
           </form>
         </header>
-        <div className="content workspace">
-          <p className="eyebrow">Review workspace</p>
-          <h1 id="workspace-title">Control room</h1>
-          <p className="summary">
-            Authentication is active. Review operations remain closed until authorization and tenant
-            data access are connected.
-          </p>
-          <dl>
-            <div>
-              <dt>User</dt>
-              <dd>{user.email}</dd>
-            </div>
-            <div>
-              <dt>Organization</dt>
-              <dd>{organizationId}</dd>
-            </div>
-            <div>
-              <dt>Role</dt>
-              <dd>{role ?? "No role assigned"}</dd>
-            </div>
-          </dl>
+        <div className="identity-bar">
+          <span>{user.email}</span>
+          <span>{role ?? "No role assigned"}</span>
+          <span>{organizationId}</span>
         </div>
+        <ReviewCasesPage />
       </section>
     </main>
   );

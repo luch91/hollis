@@ -4,9 +4,8 @@ Hollis is decision-control infrastructure for consequential automated decisions.
 
 The repository contains the product foundation: shared contracts, a PostgreSQL schema, an API
 service, a web application, WorkOS AuthKit integration, repository policy enforcement, and
-architecture documentation. The first authenticated review-intake endpoint is implemented. Other
-workflow routes remain closed until their tenant, permission, and state-transition checks are
-implemented and tested.
+architecture documentation. The authenticated reviewer queue and human decision workflow are
+implemented. Claims-system machine authentication and external action adapters remain closed.
 
 ## Repository structure
 

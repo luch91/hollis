@@ -88,6 +88,6 @@ delete review cases.
 ## Deferred choices
 
 Hosting, object storage, initial claims integration, retention schedules, and attestation activation
-remain open. Review intake is open behind its verified security boundary. Other business routes
-stay closed until their authentication, tenant, authorization, and workflow checks are implemented
-and tested.
+remain open. Review intake and the reviewer workflow are open behind their verified security
+boundaries. Claims-system machine authentication and external action adapters stay closed until
+their authentication, tenant, authorization, and workflow checks are implemented and tested.
