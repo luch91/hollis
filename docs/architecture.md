@@ -21,7 +21,10 @@ Hollis API
 PostgreSQL
     |
     +--> evidence object references
-    +--> optional attestation adapter
+    +--> attestation adapter
+              |
+              +--> GenLayer Intelligent Contract (optional, post-review)
+              +--> downstream audit and reporting systems
 ```
 
 Hollis does not replace the customer's claims system. It acts as a control plane and evidence system around high-risk decisions.
@@ -69,7 +72,44 @@ Writes append-only events linked by hashes. Corrections create new events and ne
 
 ### Attestation
 
-Publishes privacy-safe proofs after review finality. This module is isolated from the core transaction and can be disabled.
+Publishes privacy-safe process attestations after review finality. The module is isolated from the
+core transaction and can be disabled. It has three explicit boundaries:
+
+1. The interop adapter converts a finalized Hollis case manifest into a provider-neutral attestation
+   request. It sends hashes, policy identifiers, decision metadata, and the minimum case facts needed
+   for adjudication. It never sends raw evidence, secrets, or personal claim data.
+2. The GenLayer adapter submits the normalized request to a GenLayer Intelligent Contract and maps
+   the resulting validator-consensus state, appeal state, and final verdict into Hollis values.
+3. The attestation record writer appends the result to PostgreSQL as an `attestation_recorded` event
+   and exposes it through authenticated case detail and export responses.
+
+The PostgreSQL review record remains authoritative. A failed, pending, appealed, or undetermined
+attestation cannot change the human decision or block the core review transaction.
+
+### Attestation sequence
+
+```text
+Finalized Hollis case
+    |
+    v
+Privacy review and manifest digest
+    |
+    v
+Provider-neutral interop request
+    |
+    v
+GenLayer Intelligent Contract
+    |
+    +--> validator consensus
+    +--> appeal window
+    +--> final verdict
+    |
+    v
+Attestation adapter
+    |
+    v
+Append-only Hollis attestation event and export reference
+```
 
 ## Trust boundaries
 
@@ -89,6 +129,7 @@ delete review cases.
 ## Deferred choices
 
 Hosting, object storage, initial claims integration, retention schedules, and attestation activation
-remain open. Review intake and the reviewer workflow are open behind their verified security
+remain open. The GenLayer contract, interop adapter, and attestation result path are planned behind
+the accepted external-attestation boundary and a separate threat review. Review intake and the reviewer workflow are open behind their verified security
 boundaries. Claims-system machine authentication and external action adapters stay closed until
 their authentication, tenant, authorization, and workflow checks are implemented and tested.
