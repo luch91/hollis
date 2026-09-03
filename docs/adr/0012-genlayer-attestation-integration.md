@@ -32,6 +32,13 @@ off-chain.
 - Implement contract, adapter, callback or polling, retry, and idempotency tests.
 - Record an explicit activation decision before enabling publication for any tenant.
 
+## Pre-activation implementation
+
+Hollis defines versioned policy-control and adjudication-case schemas. The first GenLayer contract
+checks only deterministic process facts from a public, privacy-reviewed case file: case commitment,
+recorded human decision, and declared evidence requirements. Interpretive controls return
+`needs_review` instead of claiming semantic compliance from commitments alone.
+
 ## Consequences
 
 - Hollis remains useful if GenLayer is unavailable or disabled.

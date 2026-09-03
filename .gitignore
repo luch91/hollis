@@ -27,3 +27,8 @@ Thumbs.db
 # Test artifacts
 playwright-report/
 test-results/
+
+# Python contract tooling
+__pycache__/
+.pytest_cache/
+.venv/

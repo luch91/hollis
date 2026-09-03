@@ -86,6 +86,11 @@ core transaction and can be disabled. It has three explicit boundaries:
 The PostgreSQL review record remains authoritative. A failed, pending, appealed, or undetermined
 attestation cannot change the human decision or block the core review transaction.
 
+The pre-activation implementation uses `hollis.policy.v1` and
+`hollis.adjudication-case.v1` schemas. The GenLayer contract verifies deterministic process
+preconditions against a public, privacy-reviewed case file. Controls that require interpretation
+resolve to `needs_review` until a separately approved semantic-adjudication design exists.
+
 ### Attestation sequence
 
 ```text
