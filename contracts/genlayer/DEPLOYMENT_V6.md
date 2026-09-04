@@ -4,7 +4,20 @@ V6 preserves V5's verified deterministic process checks and stores each result u
 commitment. A later adjudication cannot overwrite an earlier case's status, verdict, or evaluation
 reason.
 
-V6 is not deployed. V5 remains the completed Studio Dev representative-validation contract.
+V6 has not yet completed a valid deployment. V5 remains the completed Studio Dev
+representative-validation contract.
+
+## Rejected deployment record
+
+| Item | Value |
+| --- | --- |
+| Transaction | `0x65165f57b7d4fc97e8d3b3e6e5ca8e81556a8b7eb91766599d8f8f430e6bd882` |
+| Result | `FINALIZED`, `MAJORITY_AGREE`, leader execution `ERROR` |
+| Verified cause | The initial V6 constructor used `TreeMap()`, which the current Studio runtime rejects for generic persistent storage. |
+
+The source now uses the documented `gl.storage.inmem_allocate(TreeMap[str, str])` form for each
+persistent map. Studio Dev schema extraction passed after this correction. Do not use the address
+associated with the rejected deployment.
 
 ## Constructor values
 

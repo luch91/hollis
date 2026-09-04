@@ -33,7 +33,7 @@ class PolicyProcessAttestationV6(gl.contract.Contract):
         interpretation: str,
     ):
         self.attestation_criterion = attestation_criterion
-        self.evaluation_reasons = TreeMap()
+        self.evaluation_reasons = gl.storage.inmem_allocate(TreeMap[str, str])
         self.evidence_requirement = evidence_requirement
         self.interpretation = interpretation
         self.policy_control_id = policy_control_id
@@ -41,8 +41,8 @@ class PolicyProcessAttestationV6(gl.contract.Contract):
         self.policy_document_digest = policy_document_digest
         self.policy_id = policy_id
         self.policy_version = policy_version
-        self.statuses = TreeMap()
-        self.verdicts = TreeMap()
+        self.statuses = gl.storage.inmem_allocate(TreeMap[str, str])
+        self.verdicts = gl.storage.inmem_allocate(TreeMap[str, str])
 
     @gl.public.view
     def get_evaluation_reason(self, case_commitment: str) -> str:
