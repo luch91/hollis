@@ -12,7 +12,7 @@ CONTROL_ID = "claims-human-review"
 CONTROL_VERSION = "2026-09"
 POLICY_DOCUMENT_DIGEST = "sha256:" + "a" * 64
 ATTESTATION_CRITERION = "A human decision and a verified evidence reference are required."
-DEPLOYMENT_ORIGIN = "https://web-1105e3dz1-oluchi-judiths-projects.vercel.app"
+DEPLOYMENT_ORIGIN = "https://thehollis.vercel.app"
 
 
 def require_explicit_operator_approval() -> None:

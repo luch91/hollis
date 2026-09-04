@@ -23,8 +23,8 @@ Record the V4 deployment, then submit exactly one final pass and one final fail 
 
 | Expected verdict | Case commitment | Public case-file URL |
 | --- | --- | --- |
-| `pass` | `sha256:1111111111111111111111111111111111111111111111111111111111` | `https://web-1105e3dz1-oluchi-judiths-projects.vercel.app/attestation-cases/v1/deterministic-pass.json` |
-| `fail` | `sha256:5555555555555555555555555555555555555555555555555555555555` | `https://web-1105e3dz1-oluchi-judiths-projects.vercel.app/attestation-cases/v1/deterministic-fail.json` |
+| `pass` | `sha256:1111111111111111111111111111111111111111111111111111111111` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
+| `fail` | `sha256:5555555555555555555555555555555555555555555555555555555555` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
 
 Wait for `FINALIZED` and verify execution result `FINISHED_WITH_RETURN`, `get_status` equals
 `finalized`, and `get_verdict` matches the expected value. Use a fresh Studio-recommended fee for
