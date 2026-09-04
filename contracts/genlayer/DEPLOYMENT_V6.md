@@ -56,10 +56,45 @@ the repeated digest characters manually.
 | `pass` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
 | `fail` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
 
-After both transactions finalize, call every V6 view twice: once with the pass commitment and once
-with the fail commitment. The pass commitment must retain `finalized`, `pass`, and
-`requirements_satisfied`; the fail commitment must retain `finalized`, `fail`, and
-`human_decision_missing`.
+## Studio execution procedure
+
+Run the following from the repository root before each Studio write. Each command copies the exact
+commitment to the clipboard and intentionally produces no terminal output.
+
+For the pass case:
+
+```powershell
+$caseFile = Get-Content -Raw .\apps\web\public\attestation-cases\v1\deterministic-pass.json
+$caseFile -match '"caseCommitment":\s*"([^"]+)"' | Out-Null
+Set-Clipboard -Value $matches[1]
+```
+
+For the fail case:
+
+```powershell
+$caseFile = Get-Content -Raw .\apps\web\public\attestation-cases\v1\deterministic-fail.json
+$caseFile -match '"caseCommitment":\s*"([^"]+)"' | Out-Null
+Set-Clipboard -Value $matches[1]
+```
+
+In GenLayer Studio, open contract `0x1fcA673F741CDE49A442E156Cfc2abE74dd25EA2` and select
+`adjudicate`. Paste the clipboard value into `case_commitment`. Enter only the corresponding URL
+from the table above into `public_case_file_url`. Do not include either field name in the input.
+Submit the pass write first and wait for its final status. Then submit the fail write.
+
+After the fail write finalizes, call each view with the pass commitment and again with the fail
+commitment:
+
+- `get_status`
+- `get_verdict`
+- `get_evaluation_reason`
+
+The expected results are:
+
+| Commitment | Status | Verdict | Evaluation reason |
+| --- | --- | --- | --- |
+| Pass fixture | `finalized` | `pass` | `requirements_satisfied` |
+| Fail fixture | `finalized` | `fail` | `human_decision_missing` |
 
 Record the address, deployment transaction, both write transactions, all six view responses, and
 fresh Studio fee estimates. Do not activate the Hollis API adapter until this evidence is complete.
