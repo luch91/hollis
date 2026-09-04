@@ -29,10 +29,10 @@ interface. V4 reads the response body as UTF-8 JSON before its strict-equivalenc
 | Stored status after pass write | `undetermined` |
 | Stored verdict after pass write | `undetermined` |
 
-The V4 write completed without a runtime error, but it did not record the expected verdict. The
-transaction receipt and decoded case facts were preserved and the mismatch has not been inferred.
-Do not submit further writes to V4. V5 adds a persisted evaluation reason so the next representative
-execution identifies the exact unmet condition.
+The V4 write completed without a runtime error, but it did not record the expected verdict. Direct
+comparison later established that the V4 calldata used `sha256:` followed by 58 `1` characters,
+while the public pass fixture uses 64. This satisfies V4's `undetermined` branch for a case
+commitment mismatch. Do not submit further writes to V4. V5 persists this reason explicitly.
 
 ## Historical representative inputs
 
@@ -40,8 +40,8 @@ Record the V4 deployment, then submit exactly one final pass and one final fail 
 
 | Expected verdict | Case commitment | Public case-file URL |
 | --- | --- | --- |
-| `pass` | `sha256:1111111111111111111111111111111111111111111111111111111111` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
-| `fail` | `sha256:5555555555555555555555555555555555555555555555555555555555` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
+| `pass` | The exact `caseCommitment` value in the pass case file | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
+| `fail` | The exact `caseCommitment` value in the fail case file | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
 
 These inputs are retained as historical V4 test vectors. Use a fresh Studio-recommended fee for
 every transaction. Do not add a fee profile to Git until its receipts and profile have been

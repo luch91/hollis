@@ -55,12 +55,21 @@ The contract correctly rejected the mismatched commitment and preserved an `unde
 Do not change the contract. Use the exact commitment value in the public pass fixture for the next
 and final pass attempt.
 
+To copy the exact pass commitment from the checked-in fixture on Windows PowerShell:
+
+```powershell
+(Get-Content -Raw .\apps\web\public\attestation-cases\v1\deterministic-pass.json | ConvertFrom-Json).caseCommitment | Set-Clipboard
+```
+
+Paste the clipboard value into Studio's `case_commitment` input unchanged. Do not type or count the
+repeated characters manually.
+
 Submit the pass case only and query all three views: `get_status`, `get_verdict`, and
 `get_evaluation_reason`.
 
 | Expected verdict | Case commitment | Public case-file URL |
 | --- | --- | --- |
-| `pass` | `sha256:1111111111111111111111111111111111111111111111111111111111` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
+| `pass` | The exact `caseCommitment` value in the pass case file | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
 
 Proceed to the fail case only if the pass transaction is `FINALIZED` with
 `FINISHED_WITH_RETURN`, `get_status` is `finalized`, `get_verdict` is `pass`, and
@@ -68,7 +77,7 @@ Proceed to the fail case only if the pass transaction is `FINALIZED` with
 
 | Expected verdict | Case commitment | Public case-file URL |
 | --- | --- | --- |
-| `fail` | `sha256:5555555555555555555555555555555555555555555555555555555555` | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
+| `fail` | The exact `caseCommitment` value in the fail case file | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
 
 For each transaction, use a fresh Studio-recommended fee and record the contract address,
 transaction hash, finalization result, returned status, verdict, and evaluation reason. Do not add a
