@@ -24,6 +24,9 @@ function metadataStore(): EvidenceMetadataStore {
     async get() {
       return evidence;
     },
+    async list() {
+      return [];
+    },
   };
 }
 

@@ -44,6 +44,10 @@ export interface EvidenceMetadataStore {
     sizeBytes: number;
     verified: boolean;
   } | null>;
+  list(
+    tenantId: string,
+    caseId: string,
+  ): Promise<Array<{ digest: string; mediaType: string; verified: boolean }>>;
 }
 
 export async function createEvidenceUpload(

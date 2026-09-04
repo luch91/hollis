@@ -31,6 +31,20 @@ export type ReviewCaseDetail = ReviewQueueItem & {
   ruleId: string;
 };
 
+export type AttestationRecord = {
+  caseCommitment: string;
+  contractAddress: string;
+  createdAt: string;
+  id: string;
+  provider: "genlayer";
+  providerSubmissionId: string;
+  publicCaseFileUrl: string;
+  status: "submitted" | "accepted" | "appealed" | "finalized" | "failed" | "undetermined";
+  transactionHash: string | null;
+  updatedAt: string;
+  verdict: "pass" | "fail" | "needs_review" | "undetermined" | null;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await withAuth({ ensureSignedIn: true });
   const headers = new Headers(init?.headers);
@@ -105,4 +119,39 @@ export function verifyEvidence(caseId: string, evidenceId: string) {
   return request<void>(`/v1/review-cases/${caseId}/evidence/${evidenceId}/verify`, {
     method: "POST",
   });
+}
+
+export function listAttestations(caseId: string) {
+  return request<AttestationRecord[]>(`/v1/review-cases/${caseId}/attestations`);
+}
+
+export function createAttestation(
+  caseId: string,
+  input: {
+    policy: {
+      control: {
+        attestationCriterion: string;
+        controlId: string;
+        controlVersion: string;
+        evidenceRequirement: "none" | "reference_required" | "verified_reference_required";
+        interpretation: "deterministic" | "judgment_required";
+        policyDocumentDigest: string;
+      };
+      policyId: string;
+      policyVersion: string;
+    };
+    publicCaseFileUrl: string;
+  },
+) {
+  return request<AttestationRecord>(`/v1/review-cases/${caseId}/attestations`, {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
+export function refreshAttestation(caseId: string, attestationId: string) {
+  return request<AttestationRecord>(
+    `/v1/review-cases/${caseId}/attestations/${attestationId}/refresh`,
+    { method: "POST" },
+  );
 }

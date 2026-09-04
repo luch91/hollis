@@ -116,6 +116,14 @@ Attestation adapter
 Append-only Hollis attestation event and export reference
 ```
 
+### GenLayer development and fees
+
+Contract development and interactive validation use the provided Studio preview at
+`https://studio-next.genlayer.com`. The exact network, chain identity, RPC endpoint, and deployed
+contract address must be recorded before activation. Fee-charging writes use a reviewed fee profile
+measured from representative Studio executions and current network pricing. Studio results do not
+establish Clarke or Mainnet pricing, and the adapter remains inactive until those values are verified.
+
 ## Trust boundaries
 
 Every integration, browser session, background process, database connection, object-store request, and attestation call is a separate trust boundary. Tenant identity and authorization must be established at each applicable boundary.
@@ -133,8 +141,9 @@ delete review cases.
 
 ## Deferred choices
 
-Hosting, object storage, initial claims integration, retention schedules, and attestation activation
-remain open. The GenLayer contract, interop adapter, and attestation result path are planned behind
-the accepted external-attestation boundary and a separate threat review. Review intake and the reviewer workflow are open behind their verified security
-boundaries. Claims-system machine authentication and external action adapters stay closed until
-their authentication, tenant, authorization, and workflow checks are implemented and tested.
+Hosting, initial claims integration, retention schedules, and production attestation activation remain
+open. The GenLayer contract, interop adapter, persistence, refresh path, and reviewer-console surface
+are implemented behind the accepted external-attestation boundary. Review intake and the reviewer
+workflow are open behind their verified security boundaries. Claims-system machine authentication and
+external action adapters stay closed until their authentication, tenant, authorization, and workflow
+checks are implemented and tested.

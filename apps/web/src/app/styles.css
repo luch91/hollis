@@ -231,7 +231,8 @@ li::before {
 }
 
 .evidence-panel h2,
-.action-card h2 {
+.action-card h2,
+.attestation-panel h2 {
   margin: 0 0 16px;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 24px;
@@ -280,18 +281,6 @@ li::before {
   resize: vertical;
 }
 
-.action-card button,
-.primary-action {
-  width: fit-content;
-  padding: 10px 14px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--surface);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-}
-
 dl {
   display: grid;
   margin: 48px 0 0;
@@ -304,6 +293,141 @@ dl div {
   border-bottom: 1px solid var(--line);
   gap: 16px;
   grid-template-columns: 140px minmax(0, 1fr);
+}
+
+.attestation-panel {
+  padding: 32px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.attestation-panel .section-heading {
+  align-items: start;
+}
+
+.attestation-panel h2 {
+  margin-bottom: 0;
+}
+
+.panel-description,
+.attestation-form > p,
+.attestation-notice {
+  max-width: 680px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.readiness-list {
+  margin: 24px 0 0;
+}
+
+.readiness-list div {
+  grid-template-columns: 180px minmax(0, 1fr);
+}
+
+.attestation-form {
+  display: grid;
+  padding: 24px;
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  gap: 16px;
+}
+
+.attestation-form h3,
+.attestation-records h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid label {
+  display: grid;
+  color: var(--muted);
+  font-size: 13px;
+  gap: 7px;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.form-grid input[readonly] {
+  color: var(--muted);
+  background: #efede7;
+}
+
+.form-grid textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.form-span {
+  grid-column: 1 / -1;
+}
+
+.attestation-form button {
+  width: fit-content;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.attestation-records {
+  display: grid;
+  margin-top: 32px;
+  gap: 12px;
+}
+
+.attestation-record {
+  display: grid;
+  padding: 18px;
+  border: 1px solid var(--line);
+  gap: 16px;
+}
+
+.attestation-record .eyebrow {
+  margin: 0 0 6px;
+}
+
+.attestation-record dl {
+  margin: 0;
+}
+
+.attestation-record dl div {
+  padding: 10px 0;
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.action-card button,
+.primary-action {
+  width: fit-content;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
 }
 
 dt {
@@ -332,5 +456,13 @@ dd {
 
   .action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-span {
+    grid-column: auto;
   }
 }

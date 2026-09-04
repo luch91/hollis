@@ -90,6 +90,7 @@ export const reviewExportSchema = z
   .object({
     case: reviewQueueItemSchema.extend({
       automatedSystemVersion: z.string(),
+      decisionOutcome: reviewOutcomeSchema.exclude(["escalated"]).nullable(),
       evidence: evidenceReferenceSchema.array(),
       finalRecommendation: recommendationSchema.nullable(),
       policyVersion: z.string(),

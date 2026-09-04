@@ -2,12 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  createAttestation,
   createEvidenceUpload,
   claimReviewCase,
   decideReviewCase,
   escalateReviewCase,
+  refreshAttestation,
   verifyEvidence,
 } from "./data";
+
+function requiredValue(formData: FormData, name: string): string {
+  const value = String(formData.get(name) ?? "").trim();
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
+}
 
 export async function uploadEvidenceAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
@@ -63,5 +71,37 @@ export async function decideAction(formData: FormData) {
   const rationale = String(formData.get("rationale") ?? "");
   await decideReviewCase(caseId, { finalRecommendation, outcome, rationale });
   revalidatePath("/app");
+  revalidatePath(`/app/review-cases/${caseId}`);
+}
+
+export async function createAttestationAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  await createAttestation(caseId, {
+    policy: {
+      control: {
+        attestationCriterion: requiredValue(formData, "attestationCriterion"),
+        controlId: requiredValue(formData, "controlId"),
+        controlVersion: requiredValue(formData, "controlVersion"),
+        evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
+          | "none"
+          | "reference_required"
+          | "verified_reference_required",
+        interpretation: requiredValue(formData, "interpretation") as
+          | "deterministic"
+          | "judgment_required",
+        policyDocumentDigest: requiredValue(formData, "policyDocumentDigest"),
+      },
+      policyId: requiredValue(formData, "policyId"),
+      policyVersion: requiredValue(formData, "policyVersion"),
+    },
+    publicCaseFileUrl: requiredValue(formData, "publicCaseFileUrl"),
+  });
+  revalidatePath(`/app/review-cases/${caseId}`);
+}
+
+export async function refreshAttestationAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  const attestationId = requiredValue(formData, "attestationId");
+  await refreshAttestation(caseId, attestationId);
   revalidatePath(`/app/review-cases/${caseId}`);
 }

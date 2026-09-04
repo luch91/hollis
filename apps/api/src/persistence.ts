@@ -1,4 +1,5 @@
 import {
+  attestationRecordSchema,
   evidenceReferenceSchema,
   recommendationSchema,
   type ReviewExport,
@@ -7,6 +8,7 @@ import {
   reviewOutcomeSchema,
 } from "@hollis/contracts";
 import {
+  attestations,
   evidenceObjects,
   retentionDeletionJobs,
   reviewCases,
@@ -18,6 +20,8 @@ import { createHash } from "node:crypto";
 import type { createDatabase } from "@hollis/database";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
+import type { AttestationReceipt } from "@hollis/contracts";
+import type { AttestationStore } from "./attestation.js";
 import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
 import {
   type ReviewCaseDetail,
@@ -108,7 +112,9 @@ async function appendEvent(
       | "decision_recorded"
       | "retention_deletion_requested"
       | "evidence_deleted"
-      | "legal_hold_changed";
+      | "legal_hold_changed"
+      | "attestation_recorded"
+      | "attestation_updated";
     occurredAt: Date;
     payload: Record<string, unknown>;
     tenantId: string;
@@ -274,6 +280,7 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
             assignedToUserId: detail.assignedToUserId,
             automatedSystemVersion: detail.automatedSystemVersion,
             createdAt: detail.createdAt.toISOString(),
+            decisionOutcome: detail.decisionOutcome,
             evidence: detail.evidence,
             externalReference: detail.externalReference,
             finalRecommendation: detail.finalRecommendation,
@@ -607,6 +614,177 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           )
           .limit(1);
         return row ?? null;
+      });
+    },
+    async list(tenantId, caseId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        return transaction
+          .select({
+            digest: evidenceObjects.digest,
+            mediaType: evidenceObjects.mediaType,
+            verified: evidenceObjects.verified,
+          })
+          .from(evidenceObjects)
+          .where(and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.caseId, caseId)))
+          .orderBy(asc(evidenceObjects.createdAt));
+      });
+    },
+  };
+}
+
+export function createPostgresAttestationStore(database: Database): AttestationStore {
+  return {
+    async create(tenantId, caseId, actorId, caseFile, publicCaseFileUrl, receipt) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const reviewCase = await selectCase(transaction, tenantId, caseId);
+        if (!reviewCase) throw new ReviewCaseNotFoundError();
+
+        const [created] = await transaction
+          .insert(attestations)
+          .values({
+            caseCommitment: caseFile.caseCommitment,
+            caseFile,
+            caseId,
+            contractAddress: receipt.contractAddress,
+            provider: receipt.provider,
+            providerSubmissionId: receipt.providerSubmissionId,
+            publicCaseFileUrl,
+            status: receipt.status,
+            tenantId,
+            transactionHash: receipt.transactionHash,
+            verdict: receipt.verdict,
+          })
+          .onConflictDoNothing({
+            target: [attestations.provider, attestations.providerSubmissionId],
+          })
+          .returning();
+        const row =
+          created ??
+          (
+            await transaction
+              .select()
+              .from(attestations)
+              .where(
+                and(
+                  eq(attestations.tenantId, tenantId),
+                  eq(attestations.provider, receipt.provider),
+                  eq(attestations.providerSubmissionId, receipt.providerSubmissionId),
+                ),
+              )
+              .limit(1)
+          )[0];
+        if (!row) throw new Error("Attestation record could not be stored.");
+
+        if (created) {
+          await appendEvent(transaction, {
+            actorId,
+            caseId,
+            eventType: "attestation_recorded",
+            occurredAt: row.createdAt,
+            payload: {
+              attestationId: row.id,
+              caseCommitment: row.caseCommitment,
+              provider: row.provider,
+              providerSubmissionId: row.providerSubmissionId,
+              status: row.status,
+              transactionHash: row.transactionHash,
+              verdict: row.verdict,
+            },
+            tenantId,
+          });
+        }
+
+        return attestationRecordSchema.parse({
+          caseCommitment: row.caseCommitment,
+          contractAddress: row.contractAddress,
+          createdAt: row.createdAt.toISOString(),
+          id: row.id,
+          provider: row.provider,
+          providerSubmissionId: row.providerSubmissionId,
+          publicCaseFileUrl: row.publicCaseFileUrl,
+          status: row.status,
+          transactionHash: row.transactionHash,
+          updatedAt: row.updatedAt.toISOString(),
+          verdict: row.verdict,
+        });
+      });
+    },
+    async list(tenantId, caseId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const rows = await transaction
+          .select()
+          .from(attestations)
+          .where(and(eq(attestations.tenantId, tenantId), eq(attestations.caseId, caseId)))
+          .orderBy(desc(attestations.createdAt));
+        return rows.map((row) =>
+          attestationRecordSchema.parse({
+            caseCommitment: row.caseCommitment,
+            contractAddress: row.contractAddress,
+            createdAt: row.createdAt.toISOString(),
+            id: row.id,
+            provider: row.provider,
+            providerSubmissionId: row.providerSubmissionId,
+            publicCaseFileUrl: row.publicCaseFileUrl,
+            status: row.status,
+            transactionHash: row.transactionHash,
+            updatedAt: row.updatedAt.toISOString(),
+            verdict: row.verdict,
+          }),
+        );
+      });
+    },
+    async update(tenantId, caseId, attestationId, receipt: AttestationReceipt) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [updated] = await transaction
+          .update(attestations)
+          .set({
+            contractAddress: receipt.contractAddress,
+            provider: receipt.provider,
+            providerSubmissionId: receipt.providerSubmissionId,
+            status: receipt.status,
+            transactionHash: receipt.transactionHash,
+            updatedAt: new Date(),
+            verdict: receipt.verdict,
+          })
+          .where(
+            and(
+              eq(attestations.tenantId, tenantId),
+              eq(attestations.caseId, caseId),
+              eq(attestations.id, attestationId),
+            ),
+          )
+          .returning();
+        if (!updated) return null;
+        await appendEvent(transaction, {
+          actorId: "attestation-provider",
+          caseId,
+          eventType: "attestation_updated",
+          occurredAt: updated.updatedAt,
+          payload: {
+            attestationId,
+            providerSubmissionId: updated.providerSubmissionId,
+            status: updated.status,
+            verdict: updated.verdict,
+          },
+          tenantId,
+        });
+        return attestationRecordSchema.parse({
+          caseCommitment: updated.caseCommitment,
+          contractAddress: updated.contractAddress,
+          createdAt: updated.createdAt.toISOString(),
+          id: updated.id,
+          provider: updated.provider,
+          providerSubmissionId: updated.providerSubmissionId,
+          publicCaseFileUrl: updated.publicCaseFileUrl,
+          status: updated.status,
+          transactionHash: updated.transactionHash,
+          updatedAt: updated.updatedAt.toISOString(),
+          verdict: updated.verdict,
+        });
       });
     },
   };

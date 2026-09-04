@@ -3,7 +3,9 @@ import { buildApp } from "./app.js";
 import type { AccessTokenVerifier, AuthenticatedPrincipal } from "./auth.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
+import type { AttestationProvider, AttestationStore } from "./attestation.js";
 import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
+import type { ReviewExport } from "@hollis/contracts";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -48,6 +50,9 @@ function createDependencies(
       active: boolean,
       actorId: string,
     ) => Promise<boolean>;
+    attestationProvider?: AttestationProvider;
+    attestationStore?: AttestationStore;
+    evidenceMetadataStore?: EvidenceMetadataStore;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -91,20 +96,27 @@ function createDependencies(
         throw new Error("Workflow queue was not expected.");
       },
     } satisfies ReviewWorkflowStore);
-  const evidenceMetadataStore: EvidenceMetadataStore = {
-    async create() {
-      throw new Error("Evidence metadata was not expected.");
-    },
-    async markVerified() {
-      throw new Error("Evidence verification was not expected.");
-    },
-    async get() {
-      throw new Error("Evidence metadata was not expected.");
-    },
-  } satisfies EvidenceMetadataStore;
+  const evidenceMetadataStore: EvidenceMetadataStore =
+    options.evidenceMetadataStore ??
+    ({
+      async create() {
+        throw new Error("Evidence metadata was not expected.");
+      },
+      async markVerified() {
+        throw new Error("Evidence verification was not expected.");
+      },
+      async get() {
+        throw new Error("Evidence metadata was not expected.");
+      },
+      async list() {
+        throw new Error("Evidence metadata was not expected.");
+      },
+    } satisfies EvidenceMetadataStore);
 
   return {
     accessTokenVerifier,
+    attestationProvider: options.attestationProvider,
+    attestationStore: options.attestationStore,
     evidenceMetadataStore,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
@@ -112,6 +124,44 @@ function createDependencies(
     workflowStore,
   };
 }
+
+const completedExport: ReviewExport = {
+  case: {
+    assignedToUserId: "user_01",
+    automatedSystemVersion: "claims-model-2026-08",
+    createdAt: "2026-08-28T08:00:00.000Z",
+    decisionOutcome: "rejected",
+    evidence: [
+      {
+        digest: `sha256:${"a".repeat(64)}`,
+        id: "evidence-001",
+        mediaType: "application/pdf",
+      },
+    ],
+    externalReference: "claim-001",
+    finalRecommendation: "deny",
+    id: "0198ef37-6216-7000-8000-000000000002",
+    policyVersion: "commercial-property-2026-01",
+    recommendation: "deny",
+    reviewDueAt: "2026-08-29T08:00:00.000Z",
+    riskLevel: "high",
+    ruleId: "human-review-adverse-action",
+    status: "completed",
+  },
+  events: [
+    {
+      actorId: "user_01",
+      createdAt: "2026-08-28T08:10:00.000Z",
+      eventHash: `sha256:${"b".repeat(64)}`,
+      eventSequence: 1,
+      eventType: "decision_recorded",
+      payload: {},
+      previousHash: null,
+    },
+  ],
+  manifestHash: `sha256:${"c".repeat(64)}`,
+  schemaVersion: "hollis.review-export.v1",
+};
 
 const validIntake = {
   automatedSystemVersion: "claims-model-2026-08",
@@ -329,6 +379,129 @@ describe("API boundaries", () => {
         status: "pending",
       },
     ]);
+  });
+
+  it("submits a completed review as a GenLayer attestation and persists its receipt", async () => {
+    let providerInput: unknown;
+    let storedCaseId: string | undefined;
+    const workflowStore: ReviewWorkflowStore = {
+      async exportCase() {
+        return completedExport;
+      },
+      async claim() {
+        throw new Error("Not expected.");
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    };
+    const attestationProvider: AttestationProvider = {
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async submit(input) {
+        providerInput = input;
+        return {
+          contractAddress: "0x1234567890123456789012345678901234567890",
+          provider: "genlayer",
+          providerSubmissionId: "submission-001",
+          status: "submitted",
+          transactionHash: null,
+          verdict: null,
+        };
+      },
+    };
+    const attestationStore: AttestationStore = {
+      async create(_tenantId, caseId, _actorId, caseFile, publicCaseFileUrl, receipt) {
+        storedCaseId = caseId;
+        return {
+          ...receipt,
+          caseCommitment: caseFile.caseCommitment,
+          createdAt: "2026-08-28T08:11:00.000Z",
+          id: "0198ef37-6216-7000-8000-000000000003",
+          publicCaseFileUrl,
+          updatedAt: "2026-08-28T08:11:00.000Z",
+        };
+      },
+      async list() {
+        return [];
+      },
+      async update() {
+        throw new Error("Not expected.");
+      },
+    };
+    const evidenceMetadataStore: EvidenceMetadataStore = {
+      async create() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        return [
+          { digest: `sha256:${"a".repeat(64)}`, mediaType: "application/pdf", verified: true },
+        ];
+      },
+      async markVerified() {
+        throw new Error("Not expected.");
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        attestationProvider,
+        attestationStore,
+        evidenceMetadataStore,
+        permissions: ["reviews:attest"],
+        workflowStore,
+      }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      payload: {
+        policy: {
+          control: {
+            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            controlId: "human-review-adverse-action",
+            controlVersion: "2026-01",
+            evidenceRequirement: "verified_reference_required",
+            interpretation: "deterministic",
+            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+          },
+          policyId: "commercial-property-governance",
+          policyVersion: "commercial-property-2026-01",
+        },
+        publicCaseFileUrl: "https://example.test/cases/claim-001.json",
+      },
+      url: `/v1/review-cases/${completedExport.case.id}/attestations`,
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      provider: "genlayer",
+      providerSubmissionId: "submission-001",
+      status: "submitted",
+    });
+    expect(storedCaseId).toBe(completedExport.case.id);
+    expect(providerInput).toMatchObject({
+      caseFile: {
+        caseCommitment: completedExport.manifestHash,
+        policy: { control: { controlId: "human-review-adverse-action" } },
+        review: { decisionRecorded: true, humanDecisionOutcome: "rejected" },
+      },
+    });
   });
 
   it("allows a reviewer with assign permission to claim a case for themselves", async () => {

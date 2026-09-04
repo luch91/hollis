@@ -26,6 +26,7 @@ export const eventType = pgEnum("review_event_type", [
   "decision_recorded",
   "case_escalated",
   "attestation_recorded",
+  "attestation_updated",
   "retention_deletion_requested",
   "evidence_deleted",
   "legal_hold_changed",
@@ -36,6 +37,15 @@ export const retentionDeletionStatus = pgEnum("retention_deletion_status", [
   "processing",
   "completed",
   "failed",
+]);
+
+export const attestationStatus = pgEnum("attestation_status", [
+  "submitted",
+  "accepted",
+  "appealed",
+  "finalized",
+  "failed",
+  "undetermined",
 ]);
 
 export const tenants = pgTable("tenants", {
@@ -162,6 +172,38 @@ export const reviewEvents = pgTable(
     uniqueIndex("review_events_event_hash_unique").on(table.eventHash),
     index("review_events_case_created_idx").on(table.caseId, table.createdAt),
     index("review_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ],
+);
+
+export const attestations = pgTable(
+  "attestations",
+  {
+    caseCommitment: text("case_commitment").notNull(),
+    caseFile: jsonb("case_file").notNull(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
+    contractAddress: text("contract_address").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("provider").notNull(),
+    providerSubmissionId: text("provider_submission_id").notNull(),
+    publicCaseFileUrl: text("public_case_file_url").notNull(),
+    status: attestationStatus("status").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    transactionHash: text("transaction_hash"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    verdict: text("verdict"),
+  },
+  (table) => [
+    uniqueIndex("attestations_provider_submission_unique").on(
+      table.provider,
+      table.providerSubmissionId,
+    ),
+    index("attestations_case_created_idx").on(table.caseId, table.createdAt),
+    index("attestations_tenant_case_idx").on(table.tenantId, table.caseId),
   ],
 );
 

@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
+  createAttestationRequestSchema,
   createReviewCaseSchema,
   decideReviewCaseSchema,
   escalateReviewCaseSchema,
@@ -13,7 +14,13 @@ import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./aut
 import type { Environment } from "./config.js";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
+import type { AttestationProvider, AttestationStore } from "./attestation.js";
 import {
+  AttestationPreconditionError,
+  buildGenLayerAttestationRequest,
+} from "./attestation-workflow.js";
+import {
+  createPostgresAttestationStore,
   createPostgresEvidenceMetadataStore,
   createPostgresReviewIntakeStore,
   createPostgresTenantResolver,
@@ -45,6 +52,8 @@ type AppDependencies = {
   workflowStore?: ReviewWorkflowStore;
   evidenceStorage?: Awaited<ReturnType<typeof createGoogleCloudEvidenceStorage>>;
   evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
+  attestationProvider?: AttestationProvider;
+  attestationStore?: AttestationStore;
   legalHoldStore?: (
     tenantId: string,
     caseId: string,
@@ -81,6 +90,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.workflowStore ?? createPostgresReviewWorkflowStore(requireDatabase());
   const evidenceMetadataStore =
     dependencies.evidenceMetadataStore ?? createPostgresEvidenceMetadataStore(requireDatabase());
+  const attestationStore =
+    dependencies.attestationStore ??
+    (databaseResource ? createPostgresAttestationStore(databaseResource.database) : null);
   const legalHoldStore =
     dependencies.legalHoldStore ??
     ((tenantId, caseId, evidenceId, active, actorId) =>
@@ -108,6 +120,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.decorateRequest("principal", null);
   app.decorateRequest("tenant", null);
+
+  const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
+  const attestationParamsSchema = z.object({ attestationId: z.uuid(), caseId: z.uuid() }).strict();
+  const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
+  const legalHoldSchema = z.object({ active: z.boolean() }).strict();
 
   if (databaseResource) {
     app.addHook("onClose", async () => databaseResource.client.end());
@@ -165,6 +182,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         code: "evidence_verification_failed",
         message: "Evidence object does not match its declared metadata.",
       });
+    }
+
+    if (error instanceof AttestationPreconditionError) {
+      return reply.code(409).send({ code: "attestation_not_ready", message: error.message });
     }
 
     app.log.error({ errorName: error instanceof Error ? error.name : "unknown" }, "request failed");
@@ -226,6 +247,56 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
+  app.get(
+    "/v1/review-cases/:caseId/attestations",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request, reply) => {
+      if (!attestationStore)
+        return reply.code(503).send({
+          code: "attestation_unconfigured",
+          message: "Attestation storage is not configured.",
+        });
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      return attestationStore.list(tenant.id, caseId);
+    },
+  );
+
+  app.post(
+    "/v1/review-cases/:caseId/attestations",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
+    async (request, reply) => {
+      if (!dependencies.attestationProvider || !attestationStore)
+        return reply.code(503).send({
+          code: "attestation_unconfigured",
+          message: "GenLayer attestation is not activated.",
+        });
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const input = createAttestationRequestSchema.parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      const exported = await workflowStore.exportCase(tenant.id, caseId);
+      if (!exported) throw new ReviewCaseNotFoundError();
+      const caseFile = buildGenLayerAttestationRequest(
+        exported,
+        await evidenceMetadataStore.list(tenant.id, caseId),
+        input,
+      );
+      const receipt = await dependencies.attestationProvider.submit(caseFile);
+      return reply
+        .code(201)
+        .send(
+          await attestationStore.create(
+            tenant.id,
+            caseId,
+            principal.userId,
+            caseFile.caseFile,
+            caseFile.publicCaseFileUrl,
+            receipt,
+          ),
+        );
+    },
+  );
+
   app.post(
     "/v1/review-cases/:caseId/evidence/:evidenceId/verify",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
@@ -266,10 +337,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
-  const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
-  const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
-  const legalHoldSchema = z.object({ active: z.boolean() }).strict();
-
   app.post(
     "/v1/review-cases/:caseId/evidence/:evidenceId/legal-hold",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:retain") },
@@ -295,6 +362,36 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { tenant } = requireRequestContext(request);
       const queue = await workflowStore.list(tenant.id, query.status);
       return queue.map(toQueueResponse);
+    },
+  );
+
+  app.post(
+    "/v1/review-cases/:caseId/attestations/:attestationId/refresh",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
+    async (request, reply) => {
+      if (!dependencies.attestationProvider || !attestationStore)
+        return reply.code(503).send({
+          code: "attestation_unconfigured",
+          message: "GenLayer attestation is not activated.",
+        });
+      const { attestationId, caseId } = attestationParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      const existing = (await attestationStore.list(tenant.id, caseId)).find(
+        (attestation) => attestation.id === attestationId,
+      );
+      if (!existing) {
+        return reply
+          .code(404)
+          .send({ code: "attestation_not_found", message: "Attestation not found." });
+      }
+      const receipt = await dependencies.attestationProvider.get(existing.providerSubmissionId);
+      const updated = await attestationStore.update(tenant.id, caseId, attestationId, receipt);
+      if (!updated) {
+        return reply
+          .code(404)
+          .send({ code: "attestation_not_found", message: "Attestation not found." });
+      }
+      return updated;
     },
   );
 

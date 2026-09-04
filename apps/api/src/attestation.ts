@@ -1,6 +1,9 @@
 import {
   attestationReceiptSchema,
+  attestationRecordSchema,
   genLayerAttestationRequestSchema,
+  type AdjudicationCaseFile,
+  type AttestationRecord,
   type AttestationReceipt,
   type GenLayerAttestationRequest,
 } from "@hollis/contracts";
@@ -8,6 +11,24 @@ import {
 export interface AttestationProvider {
   get(providerSubmissionId: string): Promise<AttestationReceipt>;
   submit(request: GenLayerAttestationRequest): Promise<AttestationReceipt>;
+}
+
+export interface AttestationStore {
+  create(
+    tenantId: string,
+    caseId: string,
+    actorId: string,
+    caseFile: AdjudicationCaseFile,
+    publicCaseFileUrl: string,
+    receipt: AttestationReceipt,
+  ): Promise<AttestationRecord>;
+  list(tenantId: string, caseId: string): Promise<AttestationRecord[]>;
+  update(
+    tenantId: string,
+    caseId: string,
+    attestationId: string,
+    receipt: AttestationReceipt,
+  ): Promise<AttestationRecord | null>;
 }
 
 export interface GenLayerIntelligentContractClient {
@@ -49,4 +70,8 @@ export class GenLayerAttestationProvider implements AttestationProvider {
       await this.client.getPolicyProcessAttestation(providerSubmissionId),
     );
   }
+}
+
+export function parseAttestationRecord(value: unknown): AttestationRecord {
+  return attestationRecordSchema.parse(value);
 }

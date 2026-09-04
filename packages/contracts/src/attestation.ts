@@ -88,6 +88,21 @@ export const genLayerAttestationRequestSchema = z
   })
   .strict();
 
+export const createAttestationRequestSchema = z
+  .object({
+    policy: z
+      .object({
+        control: policyControlSchema,
+        policyId: identifierSchema,
+        policyVersion: z.string().trim().min(1).max(128),
+      })
+      .strict(),
+    publicCaseFileUrl: z.url().refine((value) => new URL(value).protocol === "https:", {
+      message: "The public adjudication case file must use HTTPS.",
+    }),
+  })
+  .strict();
+
 export const attestationReceiptSchema = z
   .object({
     contractAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
@@ -111,7 +126,17 @@ export const attestationReceiptSchema = z
     }
   });
 
+export const attestationRecordSchema = attestationReceiptSchema.extend({
+  caseCommitment: sha256DigestSchema,
+  createdAt: z.iso.datetime(),
+  id: z.uuid(),
+  publicCaseFileUrl: z.url(),
+  updatedAt: z.iso.datetime(),
+});
+
 export type AdjudicationCaseFile = z.infer<typeof adjudicationCaseFileSchema>;
+export type AttestationRecord = z.infer<typeof attestationRecordSchema>;
 export type AttestationReceipt = z.infer<typeof attestationReceiptSchema>;
+export type CreateAttestationRequest = z.infer<typeof createAttestationRequestSchema>;
 export type GenLayerAttestationRequest = z.infer<typeof genLayerAttestationRequestSchema>;
 export type PolicyDefinition = z.infer<typeof policyDefinitionSchema>;
