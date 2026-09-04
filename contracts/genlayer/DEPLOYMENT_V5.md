@@ -19,8 +19,18 @@ outcome from an `undetermined` configuration mismatch without exposing case cont
 
 ## Required representative executions
 
-Deploy V5 as a new contract. Do not reuse V4's address. After the deployment is finalized, submit
-the pass case only and query all three views: `get_status`, `get_verdict`, and
+V5 was deployed as a new Studio Dev contract. Do not reuse V4's address.
+
+| Item | Value |
+| --- | --- |
+| Contract address | `0xCC042cf9F21021efe43C2fA111bd7Bab6816f29d` |
+| Deployment transaction | `0x48b8c351c00ec3acd089c7cb2f200fc748da7d239db3a832b202b0e35248453d` |
+| Deployment result | `FINALIZED`, `MAJORITY_AGREE` |
+
+The source retrieved from the deployed address was checked against the V5 class name, JSON
+retrieval path, dependency pin, constructor assignments, and `get_evaluation_reason` view.
+
+Submit the pass case only and query all three views: `get_status`, `get_verdict`, and
 `get_evaluation_reason`.
 
 | Expected verdict | Case commitment | Public case-file URL |
