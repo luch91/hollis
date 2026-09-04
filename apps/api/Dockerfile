@@ -14,6 +14,7 @@ COPY apps/api apps/api
 COPY packages packages
 RUN pnpm --filter @hollis/api... build
 RUN pnpm deploy --legacy --filter @hollis/api --prod /out
+RUN node apps/api/scripts/prepare-runtime-package.mjs /workspace /out
 
 FROM node:22.22.0-bookworm-slim AS runtime
 
