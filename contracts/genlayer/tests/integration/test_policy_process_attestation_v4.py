@@ -40,7 +40,7 @@ def current_fee_preset() -> dict:
 def deployed_contract():
     require_explicit_operator_approval()
     factory = get_contract_factory(
-        contract_file_path="contracts/genlayer/policy_process_attestation_v3.py"
+        contract_file_path="contracts/genlayer/policy_process_attestation_v4.py"
     )
     return factory.deploy(
         args=[
