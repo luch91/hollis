@@ -103,6 +103,12 @@ export const createAttestationRequestSchema = z
   })
   .strict();
 
+export const importFinalizedAttestationRequestSchema = createAttestationRequestSchema
+  .extend({
+    transactionHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  })
+  .strict();
+
 export const attestationReceiptSchema = z
   .object({
     contractAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
@@ -138,5 +144,8 @@ export type AdjudicationCaseFile = z.infer<typeof adjudicationCaseFileSchema>;
 export type AttestationRecord = z.infer<typeof attestationRecordSchema>;
 export type AttestationReceipt = z.infer<typeof attestationReceiptSchema>;
 export type CreateAttestationRequest = z.infer<typeof createAttestationRequestSchema>;
+export type ImportFinalizedAttestationRequest = z.infer<
+  typeof importFinalizedAttestationRequestSchema
+>;
 export type GenLayerAttestationRequest = z.infer<typeof genLayerAttestationRequestSchema>;
 export type PolicyDefinition = z.infer<typeof policyDefinitionSchema>;

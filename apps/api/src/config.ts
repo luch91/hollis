@@ -7,6 +7,10 @@ const environmentSchema = z
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
+    GENLAYER_STUDIO_CONTRACT_ADDRESS: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/)
+      .optional(),
     DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),

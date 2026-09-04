@@ -3,7 +3,11 @@ import { buildApp } from "./app.js";
 import type { AccessTokenVerifier, AuthenticatedPrincipal } from "./auth.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
-import type { AttestationProvider, AttestationStore } from "./attestation.js";
+import type {
+  AttestationProvider,
+  AttestationStore,
+  FinalizedAttestationImporter,
+} from "./attestation.js";
 import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
 import type { ReviewExport } from "@hollis/contracts";
 
@@ -51,6 +55,7 @@ function createDependencies(
       actorId: string,
     ) => Promise<boolean>;
     attestationProvider?: AttestationProvider;
+    finalizedAttestationImporter?: FinalizedAttestationImporter;
     attestationStore?: AttestationStore;
     evidenceMetadataStore?: EvidenceMetadataStore;
   } = {},
@@ -118,6 +123,7 @@ function createDependencies(
     attestationProvider: options.attestationProvider,
     attestationStore: options.attestationStore,
     evidenceMetadataStore,
+    finalizedAttestationImporter: options.finalizedAttestationImporter,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
@@ -501,6 +507,122 @@ describe("API boundaries", () => {
         policy: { control: { controlId: "human-review-adverse-action" } },
         review: { decisionRecorded: true, humanDecisionOutcome: "rejected" },
       },
+    });
+  });
+
+  it("imports a verified finalized GenLayer attestation without a server signing key", async () => {
+    let importerInput: unknown;
+    const workflowStore: ReviewWorkflowStore = {
+      async exportCase() {
+        return completedExport;
+      },
+      async claim() {
+        throw new Error("Not expected.");
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    };
+    const finalizedAttestationImporter: FinalizedAttestationImporter = {
+      async importFinalized(input) {
+        importerInput = input;
+        return {
+          contractAddress: "0x1fcA673F741CDE49A442E156Cfc2abE74dd25EA2",
+          provider: "genlayer",
+          providerSubmissionId: input.transactionHash,
+          status: "finalized",
+          transactionHash: input.transactionHash,
+          verdict: "pass",
+        };
+      },
+    };
+    const attestationStore: AttestationStore = {
+      async create(_tenantId, _caseId, _actorId, caseFile, publicCaseFileUrl, receipt) {
+        return {
+          ...receipt,
+          caseCommitment: caseFile.caseCommitment,
+          createdAt: "2026-08-28T08:11:00.000Z",
+          id: "0198ef37-6216-7000-8000-000000000003",
+          publicCaseFileUrl,
+          updatedAt: "2026-08-28T08:11:00.000Z",
+        };
+      },
+      async list() {
+        return [];
+      },
+      async update() {
+        throw new Error("Not expected.");
+      },
+    };
+    const evidenceMetadataStore: EvidenceMetadataStore = {
+      async create() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        return [
+          { digest: `sha256:${"a".repeat(64)}`, mediaType: "application/pdf", verified: true },
+        ];
+      },
+      async markVerified() {
+        throw new Error("Not expected.");
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        attestationStore,
+        evidenceMetadataStore,
+        finalizedAttestationImporter,
+        permissions: ["reviews:attest"],
+        workflowStore,
+      }),
+    );
+    apps.push(app);
+
+    const transactionHash = `0x${"b".repeat(64)}`;
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      payload: {
+        policy: {
+          control: {
+            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            controlId: "human-review-adverse-action",
+            controlVersion: "2026-01",
+            evidenceRequirement: "verified_reference_required",
+            interpretation: "deterministic",
+            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+          },
+          policyId: "commercial-property-governance",
+          policyVersion: "commercial-property-2026-01",
+        },
+        publicCaseFileUrl: "https://example.test/cases/claim-001.json",
+        transactionHash,
+      },
+      url: `/v1/review-cases/${completedExport.case.id}/attestations/import`,
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      providerSubmissionId: transactionHash,
+      status: "finalized",
+      verdict: "pass",
+    });
+    expect(importerInput).toMatchObject({
+      caseFile: { caseCommitment: completedExport.manifestHash },
+      transactionHash,
     });
   });
 

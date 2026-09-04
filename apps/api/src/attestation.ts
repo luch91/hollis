@@ -13,6 +13,14 @@ export interface AttestationProvider {
   submit(request: GenLayerAttestationRequest): Promise<AttestationReceipt>;
 }
 
+export interface FinalizedAttestationImporter {
+  importFinalized(input: {
+    caseFile: GenLayerAttestationRequest["caseFile"];
+    publicCaseFileUrl: string;
+    transactionHash: string;
+  }): Promise<AttestationReceipt>;
+}
+
 export interface AttestationStore {
   create(
     tenantId: string,

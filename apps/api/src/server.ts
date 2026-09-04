@@ -1,8 +1,13 @@
 import { buildApp } from "./app.js";
 import { readEnvironment } from "./config.js";
+import { createStudioDevAttestationVerifier } from "./studio-dev-attestation.js";
 
 const environment = readEnvironment();
-const app = await buildApp(environment);
+const app = await buildApp(environment, {
+  finalizedAttestationImporter: environment.GENLAYER_STUDIO_CONTRACT_ADDRESS
+    ? createStudioDevAttestationVerifier(environment.GENLAYER_STUDIO_CONTRACT_ADDRESS)
+    : undefined,
+});
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutdown requested");

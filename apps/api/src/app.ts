@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
   createAttestationRequestSchema,
+  importFinalizedAttestationRequestSchema,
   createReviewCaseSchema,
   decideReviewCaseSchema,
   escalateReviewCaseSchema,
@@ -14,7 +15,12 @@ import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./aut
 import type { Environment } from "./config.js";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
-import type { AttestationProvider, AttestationStore } from "./attestation.js";
+import type {
+  AttestationProvider,
+  AttestationStore,
+  FinalizedAttestationImporter,
+} from "./attestation.js";
+import { StudioDevAttestationVerificationError } from "./studio-dev-attestation.js";
 import {
   AttestationPreconditionError,
   buildGenLayerAttestationRequest,
@@ -53,6 +59,7 @@ type AppDependencies = {
   evidenceStorage?: Awaited<ReturnType<typeof createGoogleCloudEvidenceStorage>>;
   evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
   attestationProvider?: AttestationProvider;
+  finalizedAttestationImporter?: FinalizedAttestationImporter;
   attestationStore?: AttestationStore;
   legalHoldStore?: (
     tenantId: string,
@@ -188,6 +195,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       return reply.code(409).send({ code: "attestation_not_ready", message: error.message });
     }
 
+    if (error instanceof StudioDevAttestationVerificationError) {
+      return reply.code(422).send({
+        code: "attestation_verification_failed",
+        message: "The finalized GenLayer attestation could not be verified for this case.",
+      });
+    }
+
     app.log.error({ errorName: error instanceof Error ? error.name : "unknown" }, "request failed");
     return reply.code(500).send({ code: "internal_error", message: "Request failed." });
   });
@@ -291,6 +305,46 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
             principal.userId,
             caseFile.caseFile,
             caseFile.publicCaseFileUrl,
+            receipt,
+          ),
+        );
+    },
+  );
+
+  app.post(
+    "/v1/review-cases/:caseId/attestations/import",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
+    async (request, reply) => {
+      if (!dependencies.finalizedAttestationImporter || !attestationStore) {
+        return reply.code(503).send({
+          code: "attestation_unconfigured",
+          message: "Finalized GenLayer attestation import is not activated.",
+        });
+      }
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const input = importFinalizedAttestationRequestSchema.parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      const exported = await workflowStore.exportCase(tenant.id, caseId);
+      if (!exported) throw new ReviewCaseNotFoundError();
+      const attestationRequest = buildGenLayerAttestationRequest(
+        exported,
+        await evidenceMetadataStore.list(tenant.id, caseId),
+        input,
+      );
+      const receipt = await dependencies.finalizedAttestationImporter.importFinalized({
+        caseFile: attestationRequest.caseFile,
+        publicCaseFileUrl: attestationRequest.publicCaseFileUrl,
+        transactionHash: input.transactionHash,
+      });
+      return reply
+        .code(201)
+        .send(
+          await attestationStore.create(
+            tenant.id,
+            caseId,
+            principal.userId,
+            attestationRequest.caseFile,
+            attestationRequest.publicCaseFileUrl,
             receipt,
           ),
         );

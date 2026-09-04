@@ -20,6 +20,7 @@
     "@hollis/database": "workspace:*",
     "drizzle-orm": "0.45.2",
     "fastify": "5.12.1",
+    "genlayer-js": "2.0.0-rc.1",
     "google-auth-library": "9.15.1",
     "jose": "6.2.10",
     "zod": "4.4.3"
