@@ -30,6 +30,24 @@ associated with the rejected deployment.
 The source retrieved from the deployed address was checked for the V6 class, the documented
 persistent-map allocation, and all three case-commitment view methods.
 
+## Verified representative validation
+
+| Case | Transaction | Result |
+| --- | --- | --- |
+| Initial pass attempt | `0x9affb8dc30f3b0696a5e8927877c5731445c2c4667656241f73d778876101529` | Finalized successfully but paired the pass commitment with the fail URL. V6 correctly recorded `undetermined` / `undetermined` / `case_commitment_mismatch` for that pass commitment. |
+| Fail | `0xc8ef3918bf1276669ee562a73d6c1ecb46295e724b796641d216ac067b345393` | Finalized with `MAJORITY_AGREE`, leader execution `SUCCESS`. |
+| Replacement pass | `0xc0b6d2c0841c1fb831c50330e51a41ea08939d03d77995694d4b9a0b91d176bd` | Finalized with `MAJORITY_AGREE`, leader execution `SUCCESS`. |
+
+After the replacement pass transaction finalized, V6's finalized per-case views returned:
+
+| Commitment | Status | Verdict | Evaluation reason |
+| --- | --- | --- | --- |
+| Pass fixture | `finalized` | `pass` | `requirements_satisfied` |
+| Fail fixture | `finalized` | `fail` | `human_decision_missing` |
+
+This demonstrates that V6 stores the synthetic pass and fail results independently. It does not
+demonstrate legal correctness, substantive fairness, or adjudication of private evidence.
+
 ## Constructor values
 
 | Field | Value |
