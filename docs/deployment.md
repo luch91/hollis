@@ -15,7 +15,8 @@ then falls back to `4000` for local development.
 ## Cloud Run
 
 Deploy the image to Cloud Run with the dedicated service account
-`hollis-evidence-runtime@hollis-507001.iam.gserviceaccount.com`. Supply `DATABASE_URL`,
+`hollis-evidence-runtime@hollis-507001.iam.gserviceaccount.com`. Supply either `DATABASE_URL`, or
+the complete `DB_NAME`, `DB_USER`, `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set, plus
 `GCS_PROJECT_ID`, `GCS_BUCKET`, and the WorkOS settings through Secret Manager or managed runtime
 configuration. Never place connection strings, tokens, or keys in the image or repository.
 
@@ -27,8 +28,11 @@ administrative routes public.
 
 The provisioned Cloud SQL instance is `hollis-507001:europe-west1:hollis-postgres`, with database
 `hollis`. Cloud Run must attach this instance with its Cloud SQL integration and use a Unix socket
-connection. The runtime service account has `roles/cloudsql.client` and access only to the runtime
-database secrets. The migration password is reserved for controlled migration execution.
+connection. Set `INSTANCE_UNIX_SOCKET` to
+`/cloudsql/hollis-507001:europe-west1:hollis-postgres`, and map the existing runtime database user,
+password, and database-name secrets to `DB_USER`, `DB_PASS`, and `DB_NAME`. The runtime service
+account must have `roles/cloudsql.client` and access only to the runtime database secrets. The
+migration password is reserved for controlled migration execution.
 
 The Cloud Run service must use the same EU deployment region selected for the application workload.
 The region is separate from the Cloud Storage EU multi-region bucket and must be recorded before

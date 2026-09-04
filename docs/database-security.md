@@ -5,8 +5,9 @@
 Hollis uses separate PostgreSQL roles for schema migration and application traffic.
 
 - The migration role owns schema changes and is supplied through `DATABASE_MIGRATION_URL`.
-- The runtime role is supplied through `DATABASE_URL`. It must use `NOSUPERUSER` and
-  `NOBYPASSRLS`, and it must not own application tables or schemas.
+- The runtime role is supplied through `DATABASE_URL`, or through the complete `DB_NAME`, `DB_USER`,
+  `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set for Cloud SQL Unix-socket connections. It must use
+  `NOSUPERUSER` and `NOBYPASSRLS`, and it must not own application tables or schemas.
 
 The local Compose setup creates `hollis_app` as the restricted runtime role. Production role
 creation belongs in deployment infrastructure and must preserve the same restrictions.

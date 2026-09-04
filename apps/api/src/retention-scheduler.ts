@@ -1,4 +1,5 @@
 import { createDatabase } from "@hollis/database";
+import { readDatabaseConnection } from "./config.js";
 import { fileURLToPath } from "node:url";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import { createPostgresRetentionDeletionJobStore } from "./persistence.js";
@@ -17,7 +18,7 @@ export async function runRetentionScheduler(): Promise<{ completed: number; fail
     .filter(Boolean);
   if (tenantIds.length === 0) throw new Error("RETENTION_TENANT_IDS must contain a tenant ID.");
 
-  const databaseResource = createDatabase(required("DATABASE_URL"));
+  const databaseResource = createDatabase(readDatabaseConnection());
   try {
     const storage = await createGoogleCloudEvidenceStorage(
       process.env.GCS_PROJECT_ID?.trim() || "hollis-507001",

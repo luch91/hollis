@@ -1,4 +1,42 @@
 import { z } from "zod";
+import type { DatabaseConnectionOptions } from "@hollis/database";
+
+const databaseConfigurationSchema = z
+  .object({
+    DATABASE_URL: z.url().optional(),
+    DB_NAME: z.string().min(1).optional(),
+    DB_PASS: z.string().min(1).optional(),
+    DB_USER: z.string().min(1).optional(),
+    INSTANCE_UNIX_SOCKET: z.string().min(1).optional(),
+  })
+  .superRefine((value, context) => {
+    const structuredValues = [
+      value.DB_NAME,
+      value.DB_PASS,
+      value.DB_USER,
+      value.INSTANCE_UNIX_SOCKET,
+    ];
+    const hasStructuredValue = structuredValues.some((item) => item !== undefined);
+    const hasCompleteStructuredConfiguration = structuredValues.every((item) => item !== undefined);
+
+    if (value.DATABASE_URL && hasStructuredValue) {
+      context.addIssue({
+        code: "custom",
+        message: "Set DATABASE_URL or the structured Cloud SQL settings, not both.",
+        path: ["DATABASE_URL"],
+      });
+    }
+
+    if (!value.DATABASE_URL && !hasCompleteStructuredConfiguration) {
+      context.addIssue({
+        code: "custom",
+        message: "Set DATABASE_URL or all of DB_NAME, DB_PASS, DB_USER, and INSTANCE_UNIX_SOCKET.",
+        path: ["DATABASE_URL"],
+      });
+    }
+  });
+
+type DatabaseConfiguration = z.infer<typeof databaseConfigurationSchema>;
 
 const environmentSchema = z
   .object({
@@ -17,13 +55,13 @@ const environmentSchema = z
         message: "PUBLIC_ATTESTATION_ORIGIN must use HTTPS.",
       })
       .optional(),
-    DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),
     WORKOS_CLIENT_ID: z.string().min(1),
     WORKOS_ISSUER: z.url(),
     WORKOS_JWKS_URL: z.url(),
   })
+  .and(databaseConfigurationSchema)
   .superRefine((value, context) => {
     if (value.NODE_ENV !== "production") return;
 
@@ -67,4 +105,32 @@ export function readEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
     ...source,
     API_PORT: source.API_PORT ?? source.PORT ?? "4000",
   });
+}
+
+export function databaseConnectionFromEnvironment(
+  environment: DatabaseConfiguration,
+): string | DatabaseConnectionOptions {
+  if (environment.DATABASE_URL) return environment.DATABASE_URL;
+
+  if (
+    !environment.DB_NAME ||
+    !environment.DB_PASS ||
+    !environment.DB_USER ||
+    !environment.INSTANCE_UNIX_SOCKET
+  ) {
+    throw new Error("Database configuration is incomplete.");
+  }
+
+  return {
+    database: environment.DB_NAME,
+    host: environment.INSTANCE_UNIX_SOCKET,
+    password: environment.DB_PASS,
+    username: environment.DB_USER,
+  };
+}
+
+export function readDatabaseConnection(
+  source: NodeJS.ProcessEnv = process.env,
+): string | DatabaseConnectionOptions {
+  return databaseConnectionFromEnvironment(databaseConfigurationSchema.parse(source));
 }

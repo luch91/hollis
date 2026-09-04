@@ -14,7 +14,7 @@ import Fastify, { LogController } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./auth.js";
-import type { Environment } from "./config.js";
+import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
 import type {
@@ -86,7 +86,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.evidenceMetadataStore &&
     dependencies.publicAttestationCaseFileStore
       ? null
-      : createDatabase(environment.DATABASE_URL);
+      : createDatabase(databaseConnectionFromEnvironment(environment));
 
   function requireDatabase() {
     if (!databaseResource) {

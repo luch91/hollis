@@ -43,8 +43,9 @@ Replace the WorkOS placeholders in `.env` with credentials and URLs from the Wor
 URL, and a local logout URI in that dashboard.
 
 `DATABASE_MIGRATION_URL` belongs to the schema owner and is used only by migration commands.
-`DATABASE_URL` belongs to the restricted application role. Production application roles must be
-configured with `NOSUPERUSER` and `NOBYPASSRLS` so PostgreSQL row-level security remains effective.
+`DATABASE_URL`, or the complete `DB_NAME`, `DB_USER`, `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set,
+belongs to the restricted application role. Production application roles must be configured with
+`NOSUPERUSER` and `NOBYPASSRLS` so PostgreSQL row-level security remains effective.
 
 The web application listens on `http://localhost:3000`. The API listens on
 `http://localhost:4000`. `GET /health/live` is public. `GET /v1/session` requires a verified,

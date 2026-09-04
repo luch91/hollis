@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readEnvironment } from "./config.js";
+import {
+  databaseConnectionFromEnvironment,
+  readDatabaseConnection,
+  readEnvironment,
+} from "./config.js";
 
 const baseEnvironment = {
   DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
@@ -37,5 +41,32 @@ describe("readEnvironment", () => {
         WEB_ORIGIN: "https://console.hollis.test",
       }),
     ).toMatchObject({ API_HOST: "0.0.0.0", API_PORT: 8080 });
+  });
+
+  it("uses the Cloud SQL Unix socket settings without a composed database URL", () => {
+    const environment = readEnvironment({
+      ...baseEnvironment,
+      DATABASE_URL: undefined,
+      DB_NAME: "hollis",
+      DB_PASS: "runtime-password",
+      DB_USER: "hollis_app",
+      INSTANCE_UNIX_SOCKET: "/cloudsql/hollis-507001:europe-west1:hollis-postgres",
+    });
+
+    expect(databaseConnectionFromEnvironment(environment)).toEqual({
+      database: "hollis",
+      host: "/cloudsql/hollis-507001:europe-west1:hollis-postgres",
+      password: "runtime-password",
+      username: "hollis_app",
+    });
+  });
+
+  it("rejects mixed database configuration", () => {
+    expect(() =>
+      readDatabaseConnection({
+        DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
+        DB_NAME: "hollis",
+      }),
+    ).toThrow(/not both/);
   });
 });
