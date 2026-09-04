@@ -109,6 +109,21 @@ Proceed to the fail case only if the pass transaction is `FINALIZED` with leader
 | --- | --- | --- |
 | `fail` | The exact `caseCommitment` value in the fail case file | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-fail.json` |
 
+## Verified fail execution
+
+| Item | Value |
+| --- | --- |
+| Transaction | `0xd6330036746e837f16bf4e838078e1e6d842a729f83e1c0fc152c5b651079e89` |
+| Finalization | `FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS` |
+| Case-commitment comparison | Exact match with the public fail fixture: `sha256:` followed by 64 `5` characters |
+| `get_status` | `finalized` |
+| `get_verdict` | `fail` |
+| `get_evaluation_reason` | `human_decision_missing` |
+
+Together with the verified pass execution, this establishes the representative deterministic
+attestation branches for V5. The fixtures remain synthetic and public-safe. They are not evidence
+of production policy compliance.
+
 For each transaction, use a fresh Studio-recommended fee and record the contract address,
 transaction hash, finalization result, returned status, verdict, and evaluation reason. Do not add a
 fee profile to Git until these values have been independently checked.
