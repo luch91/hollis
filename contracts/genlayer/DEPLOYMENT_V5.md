@@ -86,9 +86,24 @@ Submit the pass case only and query all three views: `get_status`, `get_verdict`
 | --- | --- | --- |
 | `pass` | The exact `caseCommitment` value in the pass case file | `https://thehollis.vercel.app/attestation-cases/v1/deterministic-pass.json` |
 
-Proceed to the fail case only if the pass transaction is `FINALIZED` with
-`FINISHED_WITH_RETURN`, `get_status` is `finalized`, `get_verdict` is `pass`, and
-`get_evaluation_reason` is `requirements_satisfied`.
+## Verified pass execution
+
+| Item | Value |
+| --- | --- |
+| Transaction | `0xb0b9b7e77d23d72d0bdccd6bbde3c57e4a9fac7560e61961c5460a71302a44b3` |
+| Finalization | `FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS` |
+| Case-commitment comparison | Exact match with the public pass fixture: `sha256:` followed by 64 `1` characters |
+| `get_status` | `finalized` |
+| `get_verdict` | `pass` |
+| `get_evaluation_reason` | `requirements_satisfied` |
+
+This is the verified representative pass path. The contract evaluated the declared process facts in
+the public synthetic case file. It does not attest to legal correctness, substantive fairness, or
+private evidence contents.
+
+Proceed to the fail case only if the pass transaction is `FINALIZED` with leader execution
+`SUCCESS`, `get_status` is `finalized`, `get_verdict` is `pass`, and `get_evaluation_reason` is
+`requirements_satisfied`.
 
 | Expected verdict | Case commitment | Public case-file URL |
 | --- | --- | --- |
