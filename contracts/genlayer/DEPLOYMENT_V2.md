@@ -4,6 +4,9 @@
 control at deployment and accepts a case commitment and public case-file URL for each attestation.
 It can therefore exercise multiple case outcomes against one immutable policy binding.
 
+V2 uses the current Studio v0.3 contract format. Do not substitute the older SDK header or
+`gl.Contract` syntax from the retained V1 draft.
+
 Do not deploy until both public case files below are served over HTTPS without authentication and
 have been privacy reviewed. They contain synthetic hashes and no evidence, personal data, prompts,
 or policy documents.
@@ -54,3 +57,6 @@ Use the matching v0.6 release-candidate `gltest` tooling to run the representati
 generate `fee-profile.json`. Keep the resulting profile with the deployment record only after it has
 been generated from the finalized Studio Dev executions. The profile is Studio Dev evidence only; it
 is not a Clarke or Mainnet price commitment.
+
+The executable procedure is in `PROFILE_V2.md`. Do not add a profile to Git until a finalized
+Studio Dev run produces measured values and the recorded transactions have been checked.

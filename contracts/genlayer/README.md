@@ -1,6 +1,7 @@
 # GenLayer policy-process attestation
 
-`policy_process_attestation.py` is the pre-activation GenLayer contract for Hollis.
+`policy_process_attestation_v2.py` is the pre-activation GenLayer contract for Hollis. The
+earlier `policy_process_attestation.py` is retained only as an undeployed historical draft.
 
 It fetches a public, privacy-reviewed adjudication case file and uses GenLayer exact-match consensus
 to verify deterministic process conditions:
@@ -17,11 +18,12 @@ privacy-safe source and reviewable contract behavior.
 Validate the contract with the GenLayer linter before deployment:
 
 ```text
-genvm-lint check contracts/genlayer/policy_process_attestation.py
+genvm-lint check contracts/genlayer/policy_process_attestation_v2.py
 ```
 
-The contract uses the documented `gl.Contract`, `@gl.public`, `gl.nondet.web.get`, and
-`gl.eq_principle.strict_eq` interfaces. It is not deployed or called by the Hollis API.
+The contract follows the current Studio v0.3 source format: `gl.contract.Contract`,
+`@gl.public`, `gl.nondet.web.render`, and `gl.eq_principle.strict_eq`. It is not deployed or
+called by the Hollis API.
 
 ## Studio preview
 
@@ -33,3 +35,8 @@ Before Hollis activation, an authorized operator must deploy the contract in tha
 resulting address and contract version, and run representative finalized adjudication transactions.
 Those executions are the source for the checked-in fee profile. Studio execution results must not be
 treated as Clarke or Mainnet pricing, and no fee values are committed until they have been measured.
+
+The Studio Dev runner currently rejects this source and GenLayer's own current Studio example during
+schema extraction. The reproducible issue is tracked at
+https://github.com/genlayerlabs/genlayer-studio/issues/1757. Deployment and fee-profile execution
+remain pending that platform fix.

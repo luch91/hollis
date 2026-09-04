@@ -1,10 +1,13 @@
-# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+# v0.3.0
+# { "Depends": "py-genlayer:9b8kjyda2ycxyq4ea6g4yfpnydxhd52gqba5rb8dw7krkh5mn9p0" }
 
-from genlayer import *
 import json
 
+import genlayer as gl
+from genlayer.types import *
 
-class PolicyProcessAttestationV2(gl.Contract):
+
+class PolicyProcessAttestationV2(gl.contract.Contract):
     attestation_criterion: str
     evidence_requirement: str
     interpretation: str
@@ -53,10 +56,9 @@ class PolicyProcessAttestationV2(gl.Contract):
         return self.verdict
 
     @gl.public.write
-    def adjudicate(self, case_commitment: str, public_case_file_url: str):
-        def fetch_case_facts():
-            response = gl.nondet.web.get(public_case_file_url)
-            document = json.loads(response.body.decode("utf-8"))
+    def adjudicate(self, case_commitment: str, public_case_file_url: str) -> None:
+        def fetch_case_facts() -> str:
+            document = json.loads(gl.nondet.web.render(public_case_file_url, mode="text").text)
             policy = document["policy"]
             control = policy["control"]
             review = document["review"]

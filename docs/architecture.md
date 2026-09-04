@@ -38,7 +38,7 @@ The initial deployment is a modular monolith:
 - `packages/contracts` defines validated inputs and shared domain values.
 - `packages/database` owns persistence schema and database access.
 - PostgreSQL is the source of truth for transactional state and review history.
-- Google Cloud Storage will hold encrypted evidence in project `hollis-507001` after a bucket location is selected. PostgreSQL stores only tenant-scoped evidence object metadata.
+- Google Cloud Storage will hold encrypted evidence in GCP project number `429498177112` after a bucket location is selected. PostgreSQL stores only tenant-scoped evidence object metadata.
 - An attestation adapter may publish minimal hashes after the core review is complete.
 
 This shape keeps transactions, authorization, and operational reasoning in one deployable boundary while maintaining module separation in code.
