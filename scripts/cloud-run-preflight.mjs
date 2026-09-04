@@ -101,6 +101,16 @@ for (const role of ["roles/storage.objectCreator", "roles/storage.objectViewer"]
 for (const secret of requiredSecrets) {
   progress(`Secret ${secret}`);
   gcloudJson(["secrets", "describe", secret, "--project", project]);
+
+  const secretPolicy = gcloudJson(["secrets", "get-iam-policy", secret, "--project", project]);
+  assert(
+    hasMember(
+      secretPolicy.bindings,
+      "roles/secretmanager.secretAccessor",
+      `serviceAccount:${serviceAccount}`,
+    ),
+    `Runtime service account lacks roles/secretmanager.secretAccessor on ${secret}.`,
+  );
 }
 
 process.stdout.write(
