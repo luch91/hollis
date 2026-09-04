@@ -6,6 +6,7 @@ import {
   type AttestationRecord,
   type AttestationReceipt,
   type GenLayerAttestationRequest,
+  type PublicAttestationCaseFile,
 } from "@hollis/contracts";
 
 export interface AttestationProvider {
@@ -37,6 +38,32 @@ export interface AttestationStore {
     attestationId: string,
     receipt: AttestationReceipt,
   ): Promise<AttestationRecord | null>;
+}
+
+export interface PublicAttestationCaseFileStore {
+  create(
+    tenantId: string,
+    caseId: string,
+    actorId: string,
+    publicId: string,
+    caseFile: AdjudicationCaseFile,
+    publicCaseFileUrl: string,
+  ): Promise<PublicAttestationCaseFile>;
+  findForCase(
+    tenantId: string,
+    caseId: string,
+    publicId: string,
+    publicCaseFileUrl: string,
+  ): Promise<PublicAttestationCaseFile | null>;
+  findPublic(
+    publicId: string,
+    publicCaseFileUrl: string,
+  ): Promise<PublicAttestationCaseFile | null>;
+  list(
+    tenantId: string,
+    caseId: string,
+    publicOrigin: string,
+  ): Promise<PublicAttestationCaseFile[]>;
 }
 
 export interface GenLayerIntelligentContractClient {

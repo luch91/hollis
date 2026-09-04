@@ -45,6 +45,33 @@ export type AttestationRecord = {
   verdict: "pass" | "fail" | "needs_review" | "undetermined" | null;
 };
 
+export type PublicAttestationCaseFile = {
+  caseFile: {
+    caseCommitment: string;
+    policy: {
+      control: {
+        attestationCriterion: string;
+        controlId: string;
+        controlVersion: string;
+        evidenceRequirement: "none" | "reference_required" | "verified_reference_required";
+        interpretation: "deterministic" | "judgment_required";
+        policyDocumentDigest: string;
+      };
+      policyId: string;
+      policyVersion: string;
+    };
+  };
+  createdAt: string;
+  publicCaseFileUrl: string;
+  publicId: string;
+};
+
+type AttestationPolicy = {
+  control: PublicAttestationCaseFile["caseFile"]["policy"]["control"];
+  policyId: string;
+  policyVersion: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await withAuth({ ensureSignedIn: true });
   const headers = new Headers(init?.headers);
@@ -123,6 +150,28 @@ export function verifyEvidence(caseId: string, evidenceId: string) {
 
 export function listAttestations(caseId: string) {
   return request<AttestationRecord[]>(`/v1/review-cases/${caseId}/attestations`);
+}
+
+export function listPublicAttestationCaseFiles(caseId: string) {
+  return request<PublicAttestationCaseFile[]>(`/v1/review-cases/${caseId}/attestation-case-files`);
+}
+
+export function createPublicAttestationCaseFile(caseId: string, policy: AttestationPolicy) {
+  return request<PublicAttestationCaseFile>(`/v1/review-cases/${caseId}/attestation-case-files`, {
+    body: JSON.stringify({ policy }),
+    method: "POST",
+  });
+}
+
+export function importFinalizedAttestation(
+  caseId: string,
+  publicCaseFileId: string,
+  transactionHash: string,
+) {
+  return request<AttestationRecord>(`/v1/review-cases/${caseId}/attestations/import`, {
+    body: JSON.stringify({ publicCaseFileId, transactionHash }),
+    method: "POST",
+  });
 }
 
 export function createAttestation(

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
+import { buildAdjudicationCaseFile } from "./attestation-workflow.js";
 import type { AccessTokenVerifier, AuthenticatedPrincipal } from "./auth.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
@@ -7,6 +8,7 @@ import type {
   AttestationProvider,
   AttestationStore,
   FinalizedAttestationImporter,
+  PublicAttestationCaseFileStore,
 } from "./attestation.js";
 import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
 import type { ReviewExport } from "@hollis/contracts";
@@ -21,6 +23,7 @@ const environment = {
   API_HOST: "127.0.0.1",
   API_PORT: 4000,
   GCS_PROJECT_ID: "hollis-507001",
+  PUBLIC_ATTESTATION_ORIGIN: "https://api.hollis.test",
   DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
   NODE_ENV: "test" as const,
   WEB_ORIGIN: "http://localhost:3000",
@@ -56,6 +59,7 @@ function createDependencies(
     ) => Promise<boolean>;
     attestationProvider?: AttestationProvider;
     finalizedAttestationImporter?: FinalizedAttestationImporter;
+    publicAttestationCaseFileStore?: PublicAttestationCaseFileStore;
     attestationStore?: AttestationStore;
     evidenceMetadataStore?: EvidenceMetadataStore;
   } = {},
@@ -117,6 +121,22 @@ function createDependencies(
         throw new Error("Evidence metadata was not expected.");
       },
     } satisfies EvidenceMetadataStore);
+  const publicAttestationCaseFileStore: PublicAttestationCaseFileStore =
+    options.publicAttestationCaseFileStore ??
+    ({
+      async create() {
+        throw new Error("Public attestation case-file storage was not expected.");
+      },
+      async findForCase() {
+        throw new Error("Public attestation case-file storage was not expected.");
+      },
+      async findPublic() {
+        throw new Error("Public attestation case-file storage was not expected.");
+      },
+      async list() {
+        throw new Error("Public attestation case-file storage was not expected.");
+      },
+    } satisfies PublicAttestationCaseFileStore);
 
   return {
     accessTokenVerifier,
@@ -124,6 +144,7 @@ function createDependencies(
     attestationStore: options.attestationStore,
     evidenceMetadataStore,
     finalizedAttestationImporter: options.finalizedAttestationImporter,
+    publicAttestationCaseFileStore,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
@@ -579,12 +600,52 @@ describe("API boundaries", () => {
         throw new Error("Not expected.");
       },
     };
+    const publicCaseFileId = "0198ef37-6216-7000-8000-000000000004";
+    const publicCaseFileUrl = `https://api.hollis.test/v1/public/attestation-case-files/${publicCaseFileId}`;
+    const publicCaseFile = buildAdjudicationCaseFile(
+      completedExport,
+      [{ digest: `sha256:${"a".repeat(64)}`, mediaType: "application/pdf", verified: true }],
+      {
+        policy: {
+          control: {
+            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            controlId: "human-review-adverse-action",
+            controlVersion: "2026-01",
+            evidenceRequirement: "verified_reference_required",
+            interpretation: "deterministic",
+            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+          },
+          policyId: "commercial-property-governance",
+          policyVersion: "commercial-property-2026-01",
+        },
+      },
+    );
+    const publicAttestationCaseFileStore: PublicAttestationCaseFileStore = {
+      async create() {
+        throw new Error("Not expected.");
+      },
+      async findForCase() {
+        return {
+          caseFile: publicCaseFile,
+          createdAt: "2026-08-28T08:11:00.000Z",
+          publicCaseFileUrl,
+          publicId: publicCaseFileId,
+        };
+      },
+      async findPublic() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    };
     const app = await buildApp(
       environment,
       createDependencies({
         attestationStore,
         evidenceMetadataStore,
         finalizedAttestationImporter,
+        publicAttestationCaseFileStore,
         permissions: ["reviews:attest"],
         workflowStore,
       }),
@@ -592,6 +653,97 @@ describe("API boundaries", () => {
     apps.push(app);
 
     const transactionHash = `0x${"b".repeat(64)}`;
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      payload: {
+        publicCaseFileId,
+        transactionHash,
+      },
+      url: `/v1/review-cases/${completedExport.case.id}/attestations/import`,
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      providerSubmissionId: transactionHash,
+      status: "finalized",
+      verdict: "pass",
+    });
+    expect(importerInput).toMatchObject({
+      caseFile: { caseCommitment: completedExport.manifestHash },
+      transactionHash,
+    });
+  });
+
+  it("publishes only a generated privacy-safe case file through its public identifier", async () => {
+    let published: Awaited<ReturnType<PublicAttestationCaseFileStore["create"]>> | undefined;
+    const workflowStore: ReviewWorkflowStore = {
+      async exportCase() {
+        return completedExport;
+      },
+      async claim() {
+        throw new Error("Not expected.");
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    };
+    const evidenceMetadataStore: EvidenceMetadataStore = {
+      async create() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        return [
+          { digest: `sha256:${"a".repeat(64)}`, mediaType: "application/pdf", verified: true },
+        ];
+      },
+      async markVerified() {
+        throw new Error("Not expected.");
+      },
+    };
+    const publicAttestationCaseFileStore: PublicAttestationCaseFileStore = {
+      async create(_tenantId, _caseId, _actorId, publicId, caseFile, publicCaseFileUrl) {
+        published = {
+          caseFile,
+          createdAt: "2026-08-28T08:11:00.000Z",
+          publicCaseFileUrl,
+          publicId,
+        };
+        return published;
+      },
+      async findForCase() {
+        throw new Error("Not expected.");
+      },
+      async findPublic(publicId) {
+        return published?.publicId === publicId ? published : null;
+      },
+      async list() {
+        return published ? [published] : [];
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        evidenceMetadataStore,
+        permissions: ["reviews:attest"],
+        publicAttestationCaseFileStore,
+        workflowStore,
+      }),
+    );
+    apps.push(app);
+
     const response = await app.inject({
       headers: { authorization: "Bearer verified-token" },
       method: "POST",
@@ -608,22 +760,30 @@ describe("API boundaries", () => {
           policyId: "commercial-property-governance",
           policyVersion: "commercial-property-2026-01",
         },
-        publicCaseFileUrl: "https://example.test/cases/claim-001.json",
-        transactionHash,
       },
-      url: `/v1/review-cases/${completedExport.case.id}/attestations/import`,
+      url: `/v1/review-cases/${completedExport.case.id}/attestation-case-files`,
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json()).toMatchObject({
-      providerSubmissionId: transactionHash,
-      status: "finalized",
-      verdict: "pass",
+    const generated = response.json();
+    expect(generated).toMatchObject({
+      caseFile: {
+        caseCommitment: completedExport.manifestHash,
+        policy: { control: { controlId: "human-review-adverse-action" } },
+      },
+      publicCaseFileUrl: expect.stringMatching(
+        /^https:\/\/api\.hollis\.test\/v1\/public\/attestation-case-files\//,
+      ),
     });
-    expect(importerInput).toMatchObject({
-      caseFile: { caseCommitment: completedExport.manifestHash },
-      transactionHash,
+    expect(generated.caseFile).not.toHaveProperty("externalReference");
+
+    const publicResponse = await app.inject({
+      method: "GET",
+      url: `/v1/public/attestation-case-files/${generated.publicId}`,
     });
+    expect(publicResponse.statusCode).toBe(200);
+    expect(publicResponse.headers["cache-control"]).toBe("no-store");
+    expect(publicResponse.json()).toEqual(generated.caseFile);
   });
 
   it("allows a reviewer with assign permission to claim a case for themselves", async () => {

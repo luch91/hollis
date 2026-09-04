@@ -103,9 +103,31 @@ export const createAttestationRequestSchema = z
   })
   .strict();
 
-export const importFinalizedAttestationRequestSchema = createAttestationRequestSchema
-  .extend({
+export const createPublicAttestationCaseFileRequestSchema = z
+  .object({
+    policy: z
+      .object({
+        control: policyControlSchema,
+        policyId: identifierSchema,
+        policyVersion: z.string().trim().min(1).max(128),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const importFinalizedAttestationRequestSchema = z
+  .object({
+    publicCaseFileId: z.uuid(),
     transactionHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  })
+  .strict();
+
+export const publicAttestationCaseFileSchema = z
+  .object({
+    caseFile: adjudicationCaseFileSchema,
+    createdAt: z.iso.datetime(),
+    publicCaseFileUrl: z.url(),
+    publicId: z.uuid(),
   })
   .strict();
 
@@ -144,8 +166,12 @@ export type AdjudicationCaseFile = z.infer<typeof adjudicationCaseFileSchema>;
 export type AttestationRecord = z.infer<typeof attestationRecordSchema>;
 export type AttestationReceipt = z.infer<typeof attestationReceiptSchema>;
 export type CreateAttestationRequest = z.infer<typeof createAttestationRequestSchema>;
+export type CreatePublicAttestationCaseFileRequest = z.infer<
+  typeof createPublicAttestationCaseFileRequestSchema
+>;
 export type ImportFinalizedAttestationRequest = z.infer<
   typeof importFinalizedAttestationRequestSchema
 >;
 export type GenLayerAttestationRequest = z.infer<typeof genLayerAttestationRequestSchema>;
 export type PolicyDefinition = z.infer<typeof policyDefinitionSchema>;
+export type PublicAttestationCaseFile = z.infer<typeof publicAttestationCaseFileSchema>;

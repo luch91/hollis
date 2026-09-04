@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   claimAction,
-  createAttestationAction,
+  createPublicAttestationCaseFileAction,
   decideAction,
   escalateAction,
+  importFinalizedAttestationAction,
   uploadEvidenceAction,
   refreshAttestationAction,
 } from "../actions";
-import { getReviewCase, listAttestations } from "../data";
+import { getReviewCase, listAttestations, listPublicAttestationCaseFiles } from "../data";
 
 export default async function ReviewCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await params;
@@ -19,6 +20,10 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
     notFound();
   }
   const attestations = await listAttestations(caseId).catch(() => []);
+  const publicCaseFileResult = await listPublicAttestationCaseFiles(caseId)
+    .then((caseFiles) => ({ caseFiles, available: true }))
+    .catch(() => ({ caseFiles: [], available: false }));
+  const publicCaseFiles = publicCaseFileResult.caseFiles;
 
   return (
     <section className="content case-detail" aria-labelledby="case-title">
@@ -75,14 +80,14 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
             </dd>
           </div>
         </dl>
-        {reviewCase.status === "completed" ? (
-          <form action={createAttestationAction} className="attestation-form">
+        {reviewCase.status === "completed" && publicCaseFileResult.available ? (
+          <form action={createPublicAttestationCaseFileAction} className="attestation-form">
             <input name="caseId" type="hidden" value={caseId} />
-            <h3>Submit declared control</h3>
+            <h3>Generate controlled case file</h3>
             <p>
-              Provide the approved policy control. The case file URL must expose only the public,
-              privacy-reviewed adjudication case file. Do not include source evidence or personal
-              data.
+              Provide the approved policy control. Hollis will generate an immutable, public-safe
+              case file containing only the process facts required by GenLayer. Raw evidence and
+              personal data remain private.
             </p>
             <div className="form-grid">
               <label>
@@ -111,10 +116,6 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
                 />
               </label>
               <label className="form-span">
-                Public adjudication case file URL
-                <input name="publicCaseFileUrl" required type="url" placeholder="https://..." />
-              </label>
-              <label className="form-span">
                 Attestation criterion
                 <textarea name="attestationCriterion" required maxLength={1000} />
               </label>
@@ -136,13 +137,60 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
                 </select>
               </label>
             </div>
-            <button type="submit">Submit to GenLayer</button>
+            <button type="submit">Generate case file</button>
           </form>
+        ) : reviewCase.status === "completed" ? (
+          <p className="attestation-notice">
+            The controlled public case-file publisher is not configured for this environment.
+          </p>
         ) : (
           <p className="attestation-notice">
             Complete the case and record the human decision before submitting an attestation.
           </p>
         )}
+        {publicCaseFiles.length > 0 ? (
+          <div className="attestation-records">
+            <h3>Generated case files</h3>
+            {publicCaseFiles.map((publicCaseFile) => (
+              <article key={publicCaseFile.publicId} className="attestation-record">
+                <div>
+                  <p className="eyebrow">Public-safe case file</p>
+                  <strong>{publicCaseFile.caseFile.caseCommitment}</strong>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Case file</dt>
+                    <dd>
+                      <a href={publicCaseFile.publicCaseFileUrl} target="_blank" rel="noreferrer">
+                        Open generated file
+                      </a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Policy control</dt>
+                    <dd>{publicCaseFile.caseFile.policy.control.controlId}</dd>
+                  </div>
+                </dl>
+                <form action={importFinalizedAttestationAction} className="attestation-form">
+                  <input name="caseId" type="hidden" value={caseId} />
+                  <input name="publicCaseFileId" type="hidden" value={publicCaseFile.publicId} />
+                  <label>
+                    Finalized GenLayer transaction hash
+                    <input
+                      name="transactionHash"
+                      required
+                      pattern="0x[a-fA-F0-9]{64}"
+                      placeholder="0x..."
+                    />
+                  </label>
+                  <button className="secondary-action" type="submit">
+                    Verify and import finalized attestation
+                  </button>
+                </form>
+              </article>
+            ))}
+          </div>
+        ) : null}
         {attestations.length > 0 ? (
           <div className="attestation-records">
             <h3>Recorded attestations</h3>

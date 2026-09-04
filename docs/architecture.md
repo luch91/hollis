@@ -132,6 +132,23 @@ Attestation adapter
 Append-only Hollis attestation event and export reference
 ```
 
+### Public case-file publisher
+
+Hollis publishes a separate immutable case-file record before any GenLayer write. The record is
+addressed by a random UUID and the public route returns only the validated
+`hollis.adjudication-case.v1` document. It does not return case identifiers, claimant or reviewer
+identities, raw evidence, source policy documents, model output, prompts, or audit events.
+
+The publisher requires `PUBLIC_ATTESTATION_ORIGIN`, an HTTPS public origin for the API. The public
+route is deliberately unavailable when that origin is not configured. Its database table uses both
+tenant-scoped application access and a distinct, identifier-scoped read policy for public fetches.
+The public identifier is not an authorization mechanism for private data: the record is designed to
+be public-safe before publication.
+
+Finalized Studio Dev import accepts only a public case-file ID that Hollis generated for the same
+tenant and case. It does not accept caller-provided case-file URLs or reconstruct a case file at
+import time.
+
 ### GenLayer development and fees
 
 Contract development and interactive validation use the provided Studio preview at

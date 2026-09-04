@@ -11,6 +11,12 @@ const environmentSchema = z
       .string()
       .regex(/^0x[a-fA-F0-9]{40}$/)
       .optional(),
+    PUBLIC_ATTESTATION_ORIGIN: z
+      .url()
+      .refine((value) => new URL(value).protocol === "https:", {
+        message: "PUBLIC_ATTESTATION_ORIGIN must use HTTPS.",
+      })
+      .optional(),
     DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),

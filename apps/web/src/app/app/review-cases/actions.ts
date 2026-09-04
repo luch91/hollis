@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  createAttestation,
+  createPublicAttestationCaseFile,
   createEvidenceUpload,
   claimReviewCase,
   decideReviewCase,
   escalateReviewCase,
   refreshAttestation,
+  importFinalizedAttestation,
   verifyEvidence,
 } from "./data";
 
@@ -74,28 +75,39 @@ export async function decideAction(formData: FormData) {
   revalidatePath(`/app/review-cases/${caseId}`);
 }
 
-export async function createAttestationAction(formData: FormData) {
-  const caseId = requiredValue(formData, "caseId");
-  await createAttestation(caseId, {
-    policy: {
-      control: {
-        attestationCriterion: requiredValue(formData, "attestationCriterion"),
-        controlId: requiredValue(formData, "controlId"),
-        controlVersion: requiredValue(formData, "controlVersion"),
-        evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
-          | "none"
-          | "reference_required"
-          | "verified_reference_required",
-        interpretation: requiredValue(formData, "interpretation") as
-          | "deterministic"
-          | "judgment_required",
-        policyDocumentDigest: requiredValue(formData, "policyDocumentDigest"),
-      },
-      policyId: requiredValue(formData, "policyId"),
-      policyVersion: requiredValue(formData, "policyVersion"),
+function policyFromForm(formData: FormData) {
+  return {
+    control: {
+      attestationCriterion: requiredValue(formData, "attestationCriterion"),
+      controlId: requiredValue(formData, "controlId"),
+      controlVersion: requiredValue(formData, "controlVersion"),
+      evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
+        | "none"
+        | "reference_required"
+        | "verified_reference_required",
+      interpretation: requiredValue(formData, "interpretation") as
+        | "deterministic"
+        | "judgment_required",
+      policyDocumentDigest: requiredValue(formData, "policyDocumentDigest"),
     },
-    publicCaseFileUrl: requiredValue(formData, "publicCaseFileUrl"),
-  });
+    policyId: requiredValue(formData, "policyId"),
+    policyVersion: requiredValue(formData, "policyVersion"),
+  };
+}
+
+export async function createPublicAttestationCaseFileAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  await createPublicAttestationCaseFile(caseId, policyFromForm(formData));
+  revalidatePath(`/app/review-cases/${caseId}`);
+}
+
+export async function importFinalizedAttestationAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  await importFinalizedAttestation(
+    caseId,
+    requiredValue(formData, "publicCaseFileId"),
+    requiredValue(formData, "transactionHash"),
+  );
   revalidatePath(`/app/review-cases/${caseId}`);
 }
 

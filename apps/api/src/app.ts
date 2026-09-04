@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
   createAttestationRequestSchema,
+  createPublicAttestationCaseFileRequestSchema,
   importFinalizedAttestationRequestSchema,
   createReviewCaseSchema,
   decideReviewCaseSchema,
@@ -11,6 +12,7 @@ import {
 import { createDatabase } from "@hollis/database";
 import Fastify, { LogController } from "fastify";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./auth.js";
 import type { Environment } from "./config.js";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
@@ -19,14 +21,17 @@ import type {
   AttestationProvider,
   AttestationStore,
   FinalizedAttestationImporter,
+  PublicAttestationCaseFileStore,
 } from "./attestation.js";
 import { StudioDevAttestationVerificationError } from "./studio-dev-attestation.js";
 import {
   AttestationPreconditionError,
   buildGenLayerAttestationRequest,
+  buildAdjudicationCaseFile,
 } from "./attestation-workflow.js";
 import {
   createPostgresAttestationStore,
+  createPostgresPublicAttestationCaseFileStore,
   createPostgresEvidenceMetadataStore,
   createPostgresReviewIntakeStore,
   createPostgresTenantResolver,
@@ -60,6 +65,7 @@ type AppDependencies = {
   evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
   attestationProvider?: AttestationProvider;
   finalizedAttestationImporter?: FinalizedAttestationImporter;
+  publicAttestationCaseFileStore?: PublicAttestationCaseFileStore;
   attestationStore?: AttestationStore;
   legalHoldStore?: (
     tenantId: string,
@@ -77,7 +83,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.reviewIntakeStore &&
     dependencies.tenantResolver &&
     dependencies.workflowStore &&
-    dependencies.evidenceMetadataStore
+    dependencies.evidenceMetadataStore &&
+    dependencies.publicAttestationCaseFileStore
       ? null
       : createDatabase(environment.DATABASE_URL);
 
@@ -100,6 +107,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const attestationStore =
     dependencies.attestationStore ??
     (databaseResource ? createPostgresAttestationStore(databaseResource.database) : null);
+  const publicAttestationCaseFileStore =
+    dependencies.publicAttestationCaseFileStore ??
+    (databaseResource
+      ? createPostgresPublicAttestationCaseFileStore(databaseResource.database)
+      : null);
   const legalHoldStore =
     dependencies.legalHoldStore ??
     ((tenantId, caseId, evidenceId, active, actorId) =>
@@ -130,6 +142,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
   const attestationParamsSchema = z.object({ attestationId: z.uuid(), caseId: z.uuid() }).strict();
+  const publicCaseFileParamsSchema = z.object({ publicCaseFileId: z.uuid() }).strict();
   const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
   const legalHoldSchema = z.object({ active: z.boolean() }).strict();
 
@@ -208,6 +221,24 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.get("/health/live", async () => ({ status: "ok" }));
 
+  app.get("/v1/public/attestation-case-files/:publicCaseFileId", async (request, reply) => {
+    if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
+      return reply.code(404).send({ code: "not_found", message: "Not found." });
+    }
+    const { publicCaseFileId } = publicCaseFileParamsSchema.parse(request.params);
+    const publicCaseFileUrl = publicAttestationCaseFileUrl(
+      environment.PUBLIC_ATTESTATION_ORIGIN,
+      publicCaseFileId,
+    );
+    const record = await publicAttestationCaseFileStore.findPublic(
+      publicCaseFileId,
+      publicCaseFileUrl,
+    );
+    if (!record) return reply.code(404).send({ code: "not_found", message: "Not found." });
+
+    return reply.header("cache-control", "no-store").type("application/json").send(record.caseFile);
+  });
+
   app.post("/v1/webhooks/claims", async (request, reply) => {
     if (!environment.CLAIMS_WEBHOOK_SECRET) {
       throw new InvalidWebhookError();
@@ -276,6 +307,26 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
+  app.get(
+    "/v1/review-cases/:caseId/attestation-case-files",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request, reply) => {
+      if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
+        return reply.code(503).send({
+          code: "attestation_publisher_unconfigured",
+          message: "The public attestation case-file publisher is not configured.",
+        });
+      }
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      return publicAttestationCaseFileStore.list(
+        tenant.id,
+        caseId,
+        environment.PUBLIC_ATTESTATION_ORIGIN,
+      );
+    },
+  );
+
   app.post(
     "/v1/review-cases/:caseId/attestations",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
@@ -312,6 +363,46 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   );
 
   app.post(
+    "/v1/review-cases/:caseId/attestation-case-files",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
+    async (request, reply) => {
+      if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
+        return reply.code(503).send({
+          code: "attestation_publisher_unconfigured",
+          message: "The public attestation case-file publisher is not configured.",
+        });
+      }
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const input = createPublicAttestationCaseFileRequestSchema.parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      const exported = await workflowStore.exportCase(tenant.id, caseId);
+      if (!exported) throw new ReviewCaseNotFoundError();
+      const publicId = randomUUID();
+      const publicCaseFileUrl = publicAttestationCaseFileUrl(
+        environment.PUBLIC_ATTESTATION_ORIGIN,
+        publicId,
+      );
+      const caseFile = buildAdjudicationCaseFile(
+        exported,
+        await evidenceMetadataStore.list(tenant.id, caseId),
+        input,
+      );
+      return reply
+        .code(201)
+        .send(
+          await publicAttestationCaseFileStore.create(
+            tenant.id,
+            caseId,
+            principal.userId,
+            publicId,
+            caseFile,
+            publicCaseFileUrl,
+          ),
+        );
+    },
+  );
+
+  app.post(
     "/v1/review-cases/:caseId/attestations/import",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
     async (request, reply) => {
@@ -324,16 +415,31 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { caseId } = caseParamsSchema.parse(request.params);
       const input = importFinalizedAttestationRequestSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
-      const exported = await workflowStore.exportCase(tenant.id, caseId);
-      if (!exported) throw new ReviewCaseNotFoundError();
-      const attestationRequest = buildGenLayerAttestationRequest(
-        exported,
-        await evidenceMetadataStore.list(tenant.id, caseId),
-        input,
+      if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
+        return reply.code(503).send({
+          code: "attestation_publisher_unconfigured",
+          message: "The public attestation case-file publisher is not configured.",
+        });
+      }
+      const publicCaseFileUrl = publicAttestationCaseFileUrl(
+        environment.PUBLIC_ATTESTATION_ORIGIN,
+        input.publicCaseFileId,
       );
+      const publicCaseFile = await publicAttestationCaseFileStore.findForCase(
+        tenant.id,
+        caseId,
+        input.publicCaseFileId,
+        publicCaseFileUrl,
+      );
+      if (!publicCaseFile) {
+        return reply.code(404).send({
+          code: "public_attestation_case_file_not_found",
+          message: "Public attestation case file not found.",
+        });
+      }
       const receipt = await dependencies.finalizedAttestationImporter.importFinalized({
-        caseFile: attestationRequest.caseFile,
-        publicCaseFileUrl: attestationRequest.publicCaseFileUrl,
+        caseFile: publicCaseFile.caseFile,
+        publicCaseFileUrl: publicCaseFile.publicCaseFileUrl,
         transactionHash: input.transactionHash,
       });
       return reply
@@ -343,8 +449,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
             tenant.id,
             caseId,
             principal.userId,
-            attestationRequest.caseFile,
-            attestationRequest.publicCaseFileUrl,
+            publicCaseFile.caseFile,
+            publicCaseFile.publicCaseFileUrl,
             receipt,
           ),
         );
@@ -567,4 +673,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   );
 
   return app;
+}
+
+function publicAttestationCaseFileUrl(origin: string, publicId: string): string {
+  return new URL(`/v1/public/attestation-case-files/${publicId}`, origin).toString();
 }

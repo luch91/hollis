@@ -1,6 +1,7 @@
 import {
   attestationRecordSchema,
   evidenceReferenceSchema,
+  publicAttestationCaseFileSchema,
   recommendationSchema,
   type ReviewExport,
   riskLevelSchema,
@@ -13,6 +14,7 @@ import {
   retentionDeletionJobs,
   reviewCases,
   reviewEvents,
+  publicAttestationCaseFiles,
   tenants,
 } from "@hollis/database";
 import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
@@ -21,7 +23,7 @@ import type { createDatabase } from "@hollis/database";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { AttestationReceipt } from "@hollis/contracts";
-import type { AttestationStore } from "./attestation.js";
+import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
 import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
 import {
   type ReviewCaseDetail,
@@ -114,7 +116,8 @@ async function appendEvent(
       | "evidence_deleted"
       | "legal_hold_changed"
       | "attestation_recorded"
-      | "attestation_updated";
+      | "attestation_updated"
+      | "attestation_case_file_published";
     occurredAt: Date;
     payload: Record<string, unknown>;
     tenantId: string;
@@ -785,6 +788,123 @@ export function createPostgresAttestationStore(database: Database): AttestationS
           updatedAt: updated.updatedAt.toISOString(),
           verdict: updated.verdict,
         });
+      });
+    },
+  };
+}
+
+export function createPostgresPublicAttestationCaseFileStore(
+  database: Database,
+): PublicAttestationCaseFileStore {
+  return {
+    async create(tenantId, caseId, actorId, publicId, caseFile, publicCaseFileUrl) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const reviewCase = await selectCase(transaction, tenantId, caseId);
+        if (!reviewCase) throw new ReviewCaseNotFoundError();
+
+        const [created] = await transaction
+          .insert(publicAttestationCaseFiles)
+          .values({
+            caseCommitment: caseFile.caseCommitment,
+            caseFile,
+            caseId,
+            publicId,
+            tenantId,
+          })
+          .returning();
+        if (!created) throw new Error("Public attestation case file could not be stored.");
+
+        await appendEvent(transaction, {
+          actorId,
+          caseId,
+          eventType: "attestation_case_file_published",
+          occurredAt: created.createdAt,
+          payload: {
+            caseCommitment: created.caseCommitment,
+            publicId: created.publicId,
+          },
+          tenantId,
+        });
+
+        return publicAttestationCaseFileSchema.parse({
+          caseFile: created.caseFile,
+          createdAt: created.createdAt.toISOString(),
+          publicCaseFileUrl,
+          publicId: created.publicId,
+        });
+      });
+    },
+    async findForCase(tenantId, caseId, publicId, publicCaseFileUrl) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [row] = await transaction
+          .select()
+          .from(publicAttestationCaseFiles)
+          .where(
+            and(
+              eq(publicAttestationCaseFiles.tenantId, tenantId),
+              eq(publicAttestationCaseFiles.caseId, caseId),
+              eq(publicAttestationCaseFiles.publicId, publicId),
+              sql`${publicAttestationCaseFiles.revokedAt} is null`,
+            ),
+          )
+          .limit(1);
+        if (!row) return null;
+
+        return publicAttestationCaseFileSchema.parse({
+          caseFile: row.caseFile,
+          createdAt: row.createdAt.toISOString(),
+          publicCaseFileUrl,
+          publicId: row.publicId,
+        });
+      });
+    },
+    async findPublic(publicId, publicCaseFileUrl) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`select set_config('app.public_attestation_case_file_id', ${publicId}, true)`,
+        );
+        const [row] = await transaction
+          .select()
+          .from(publicAttestationCaseFiles)
+          .where(eq(publicAttestationCaseFiles.publicId, publicId))
+          .limit(1);
+        if (!row) return null;
+
+        return publicAttestationCaseFileSchema.parse({
+          caseFile: row.caseFile,
+          createdAt: row.createdAt.toISOString(),
+          publicCaseFileUrl,
+          publicId: row.publicId,
+        });
+      });
+    },
+    async list(tenantId, caseId, publicOrigin) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const rows = await transaction
+          .select()
+          .from(publicAttestationCaseFiles)
+          .where(
+            and(
+              eq(publicAttestationCaseFiles.tenantId, tenantId),
+              eq(publicAttestationCaseFiles.caseId, caseId),
+              sql`${publicAttestationCaseFiles.revokedAt} is null`,
+            ),
+          )
+          .orderBy(desc(publicAttestationCaseFiles.createdAt));
+        return rows.map((row) =>
+          publicAttestationCaseFileSchema.parse({
+            caseFile: row.caseFile,
+            createdAt: row.createdAt.toISOString(),
+            publicCaseFileUrl: new URL(
+              `/v1/public/attestation-case-files/${row.publicId}`,
+              publicOrigin,
+            ).toString(),
+            publicId: row.publicId,
+          }),
+        );
       });
     },
   };

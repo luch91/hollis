@@ -17,6 +17,12 @@ Deploy the image to Cloud Run with the dedicated service account
 `GCS_PROJECT_ID`, `GCS_BUCKET`, and the WorkOS settings through Secret Manager or managed runtime
 configuration. Never place connection strings, tokens, or keys in the image or repository.
 
+If GenLayer public case-file publishing is enabled, set `PUBLIC_ATTESTATION_ORIGIN` to the Cloud
+Run service's externally reachable HTTPS origin. It must route
+`GET /v1/public/attestation-case-files/:publicCaseFileId` without WorkOS authentication. This is a
+public-safe document route only. Do not make authenticated review, evidence, export, retention, or
+administrative routes public.
+
 The provisioned Cloud SQL instance is `hollis-507001:europe-west1:hollis-postgres`, with database
 `hollis`. Cloud Run must attach this instance with its Cloud SQL integration and use a Unix socket
 connection. The runtime service account has `roles/cloudsql.client` and access only to the runtime

@@ -2,6 +2,8 @@ import {
   adjudicationCaseFileSchema,
   genLayerAttestationRequestSchema,
   type CreateAttestationRequest,
+  type CreatePublicAttestationCaseFileRequest,
+  type AdjudicationCaseFile,
   type GenLayerAttestationRequest,
   type ReviewExport,
 } from "@hollis/contracts";
@@ -20,11 +22,11 @@ function hash(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
 
-export function buildGenLayerAttestationRequest(
+export function buildAdjudicationCaseFile(
   exported: ReviewExport,
   evidence: EvidenceForAttestation[],
-  input: CreateAttestationRequest,
-): GenLayerAttestationRequest {
+  input: CreateAttestationRequest | CreatePublicAttestationCaseFileRequest,
+): AdjudicationCaseFile {
   if (exported.case.status !== "completed" || !exported.case.decisionOutcome) {
     throw new AttestationPreconditionError(
       "Only completed cases with a recorded human decision can be attested.",
@@ -46,7 +48,7 @@ export function buildGenLayerAttestationRequest(
     );
   }
 
-  const caseFile = adjudicationCaseFileSchema.parse({
+  return adjudicationCaseFileSchema.parse({
     auditManifestHash: exported.manifestHash,
     caseCommitment: exported.manifestHash,
     evidence,
@@ -64,6 +66,14 @@ export function buildGenLayerAttestationRequest(
     },
     schemaVersion: "hollis.adjudication-case.v1",
   });
+}
+
+export function buildGenLayerAttestationRequest(
+  exported: ReviewExport,
+  evidence: EvidenceForAttestation[],
+  input: CreateAttestationRequest,
+): GenLayerAttestationRequest {
+  const caseFile = buildAdjudicationCaseFile(exported, evidence, input);
 
   return genLayerAttestationRequestSchema.parse({
     caseFile,

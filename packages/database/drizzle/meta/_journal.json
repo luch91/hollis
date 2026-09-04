@@ -78,6 +78,27 @@
       "when": 1788526800000,
       "tag": "0010_add_attestation_updated_event",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788537000000,
+      "tag": "0011_add_public_attestation_case_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788537600000,
+      "tag": "0012_prevent_public_attestation_case_file_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788538200000,
+      "tag": "0013_add_attestation_case_file_published_event",
+      "breakpoints": true
     }
   ]
 }

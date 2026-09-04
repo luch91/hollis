@@ -27,6 +27,7 @@ export const eventType = pgEnum("review_event_type", [
   "case_escalated",
   "attestation_recorded",
   "attestation_updated",
+  "attestation_case_file_published",
   "retention_deletion_requested",
   "evidence_deleted",
   "legal_hold_changed",
@@ -204,6 +205,27 @@ export const attestations = pgTable(
     ),
     index("attestations_case_created_idx").on(table.caseId, table.createdAt),
     index("attestations_tenant_case_idx").on(table.tenantId, table.caseId),
+  ],
+);
+
+export const publicAttestationCaseFiles = pgTable(
+  "public_attestation_case_files",
+  {
+    caseCommitment: text("case_commitment").notNull(),
+    caseFile: jsonb("case_file").notNull(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    publicId: uuid("public_id").primaryKey(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+  },
+  (table) => [
+    index("public_attestation_case_files_case_idx").on(table.caseId, table.createdAt),
+    index("public_attestation_case_files_tenant_case_idx").on(table.tenantId, table.caseId),
   ],
 );
 

@@ -64,6 +64,11 @@ Evidence uploads use `POST /v1/review-cases/:caseId/evidence/uploads` with `revi
 endpoint returns a short-lived signed upload URL. Downloads use
 `GET /v1/review-cases/:caseId/evidence/:evidenceId/download` with `reviews:read`.
 
+For GenLayer, Hollis can generate immutable public-safe adjudication case files only when
+`PUBLIC_ATTESTATION_ORIGIN` is configured as a public HTTPS API origin. The public endpoint serves
+only the versioned attestation schema. It does not expose evidence exports or review records. See
+[public attestation case files](docs/public-attestation-case-files.md).
+
 ## Verification
 
 ```sh
