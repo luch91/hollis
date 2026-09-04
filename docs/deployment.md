@@ -14,6 +14,9 @@ then falls back to `4000` for local development.
 
 ## Cloud Run
 
+Before deployment, run the read-only [Cloud Run preflight](cloud-run-preflight.md). It checks the
+approved resources and permissions without reading secret values or changing cloud state.
+
 Deploy the image to Cloud Run with the dedicated service account
 `hollis-evidence-runtime@hollis-507001.iam.gserviceaccount.com`. Supply either `DATABASE_URL`, or
 the complete `DB_NAME`, `DB_USER`, `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set, plus

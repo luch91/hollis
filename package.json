@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "pnpm --recursive build",
+    "cloud:preflight": "node scripts/cloud-run-preflight.mjs",
     "db:migrate": "dotenv -e .env -- pnpm --filter @hollis/database db:migrate",
     "dev": "dotenv -e .env -- pnpm --parallel --filter @hollis/api --filter @hollis/web dev",
     "format": "biome format .",
