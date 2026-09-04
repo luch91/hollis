@@ -54,8 +54,8 @@ After public hosting is available, use the exact deployment origin in these URLs
 
 | Expected verdict | Case commitment | Case-file path |
 | --- | --- | --- |
-| `pass` | `sha256:1111111111111111111111111111111111111111111111111111111111111111` | `/attestation-cases/v1/deterministic-pass.json` |
-| `fail` | `sha256:5555555555555555555555555555555555555555555555555555555555555555` | `/attestation-cases/v1/deterministic-fail.json` |
+| `pass` | The exact `caseCommitment` in the pass case file | `/attestation-cases/v1/deterministic-pass.json` |
+| `fail` | The exact `caseCommitment` in the fail case file | `/attestation-cases/v1/deterministic-fail.json` |
 
 Call `adjudicate(case_commitment, public_case_file_url)` once for each row. Wait for finalization,
 then verify `get_last_case_commitment`, `get_status`, and `get_verdict`. Record the transaction hash,

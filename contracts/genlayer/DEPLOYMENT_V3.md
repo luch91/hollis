@@ -45,5 +45,5 @@ declared `5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng` dependency pin.
 
 | Expected verdict | Case commitment | Public case-file URL |
 | --- | --- | --- |
-| `pass` | `sha256:1111111111111111111111111111111111111111111111111111111111` | `https://web-1105e3dz1-oluchi-judiths-projects.vercel.app/attestation-cases/v1/deterministic-pass.json` |
-| `fail` | `sha256:5555555555555555555555555555555555555555555555555555555555` | `https://web-1105e3dz1-oluchi-judiths-projects.vercel.app/attestation-cases/v1/deterministic-fail.json` |
+| `pass` | The exact `caseCommitment` in the pass case file | `https://web-1105e3dz1-oluchi-judiths-projects.vercel.app/attestation-cases/v1/deterministic-pass.json` |
+| `fail` | The exact `caseCommitment` in the fail case file | `https://web-1105e3dz1-oluchi-judiths-projects.vercel.app/attestation-cases/v1/deterministic-fail.json` |
