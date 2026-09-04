@@ -44,7 +44,7 @@ def case_file(case_commitment: str, decision_recorded: bool):
 
 def deploy(direct_deploy):
     return direct_deploy(
-        "contracts/genlayer/policy_process_attestation_v2.py",
+        "contracts/genlayer/policy_process_attestation_v3.py",
         POLICY_ID,
         POLICY_VERSION,
         CONTROL_ID,

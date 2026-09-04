@@ -1,7 +1,8 @@
 # GenLayer policy-process attestation
 
-`policy_process_attestation_v2.py` is the pre-activation GenLayer contract for Hollis. The
-earlier `policy_process_attestation.py` is retained only as an undeployed historical draft.
+`policy_process_attestation_v3.py` is the pre-activation GenLayer contract for Hollis. V1 is an
+undeployed historical draft and V2 is an immutable Studio Dev deployment record with a failed
+adjudication execution.
 
 It fetches a public, privacy-reviewed adjudication case file and uses GenLayer exact-match consensus
 to verify deterministic process conditions:
@@ -18,7 +19,7 @@ privacy-safe source and reviewable contract behavior.
 Validate the contract with the GenLayer linter before deployment:
 
 ```text
-genvm-lint check contracts/genlayer/policy_process_attestation_v2.py
+genvm-lint check contracts/genlayer/policy_process_attestation_v3.py
 ```
 
 The contract follows the current Studio v0.3 source format: `gl.contract.Contract`,
@@ -32,11 +33,10 @@ Validate this contract in the provided Studio preview at
 `https://studio-next.genlayer.com`. The preview currently identifies itself as `GenLayer Studio
 Dev` on chain ID `61997`, with JSON-RPC at `https://studio-dev.genlayer.com/api`.
 
-V2 was deployed to Studio Dev at
-`0x4cfc03E884466D123346fD6fb76A041eAaabDEed`. The finalized deployment transaction is recorded in
-`DEPLOYMENT_V2.md`. Representative finalized adjudication transactions remain required before a
-fee profile may be checked in. Studio execution results must not be treated as Clarke or Mainnet
-pricing.
+V2 was deployed to Studio Dev at `0x4cfc03E884466D123346fD6fb76A041eAaabDEed`, but its finalized
+pass write exposed an incorrect runtime assumption. Its full record is in `DEPLOYMENT_V2.md`.
+Deploy V3 only after Studio Dev accepts its schema, then follow `DEPLOYMENT_V3.md` and
+`PROFILE_V3.md`. Studio execution results must not be treated as Clarke or Mainnet pricing.
 
-Studio Dev schema extraction has been verified for V2. Before deployment, rerun that check from the
+Studio Dev schema extraction has been verified for V3. Before deployment, rerun that check from the
 exact source revision being deployed and record the result with the deployment evidence.

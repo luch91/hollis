@@ -1,12 +1,12 @@
-# V2 Studio Dev fee-profile procedure
+# V3 Studio Dev fee-profile procedure
 
 This procedure does not authorize using or sharing a personal wallet private key.
 
 ## Preconditions
 
-- `policy_process_attestation_v2.py` is accepted by Studio Dev schema extraction using its declared
+- `policy_process_attestation_v3.py` is accepted by Studio Dev schema extraction using its declared
   `py-genlayer` dependency pin.
-- The pass and fail fixtures in `DEPLOYMENT_V2.md` return HTTP 200 from their immutable deployment
+- The pass and fail fixtures in `DEPLOYMENT_V3.md` return HTTP 200 from their immutable deployment
   URL.
 - An operator configures a separate funded Studio Dev test account only on their own machine. Its
   private key stays in an ignored `gltest.config.yaml` and is never added to this repository, a
@@ -27,13 +27,13 @@ python -m venv .venv
 Set `HOLLIS_ENABLE_STUDIO_DEVNET_INTEGRATION=1` in the operator's current process, then run:
 
 ```text
-.venv\Scripts\python -m pytest contracts/genlayer/tests/integration/test_policy_process_attestation_v2.py --network studio_devnet --fee-profile contracts/genlayer/artifacts/studio-dev-fee-profile.json
+.venv\Scripts\python -m pytest contracts/genlayer/tests/integration/test_policy_process_attestation_v3.py --network studio_devnet --fee-profile contracts/genlayer/artifacts/studio-dev-fee-profile.json
 ```
 
-The test deploys V2 and finalizes the representative pass and fail writes. It obtains a current
+The test deploys V3 and finalizes the representative pass and fail writes. It obtains a current
 transaction fee preset through the GenLayer client for each write. Do not reuse an old preset and do
 not hardcode the profile into application code.
 
 After the run, record the contract address, deployment transaction, both write transactions,
-finalization times, returned verdicts, and the profile contents in `DEPLOYMENT_V2.md`. Commit the
+finalization times, returned verdicts, and the profile contents in `DEPLOYMENT_V3.md`. Commit the
 profile only after the entries are complete and independently checked against the Studio receipts.

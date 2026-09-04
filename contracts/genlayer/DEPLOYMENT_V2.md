@@ -42,6 +42,12 @@ The deployment finalized with a successful `MAJORITY_AGREE` consensus result. Al
 validators completed the round. The deployment used the constructor values listed above and the
 source pin declared in V2.
 
+V2 is not an active Hollis attestation contract. Its pass-case write transaction
+`0xe3b8a79a612120653df2429ccbec08b81cb4fbed34bbc50833c76203003aa2a6` finalized with
+`FINISHED_WITH_ERROR`: Studio Dev returned a string from `gl.nondet.web.render(..., mode="text")`,
+while V2 incorrectly accessed `.text`. Preserve V2 as deployed evidence. Use V3 for all future
+deployment and adjudication activity.
+
 ## Representative writes
 
 After public hosting is available, use the exact deployment origin in these URLs:
@@ -63,5 +69,5 @@ generate `fee-profile.json`. Keep the resulting profile with the deployment reco
 been generated from the finalized Studio Dev executions. The profile is Studio Dev evidence only; it
 is not a Clarke or Mainnet price commitment.
 
-The executable procedure is in `PROFILE_V2.md`. Do not add a profile to Git until a finalized
+The executable procedure is in `PROFILE_V3.md`. Do not add a profile to Git until a finalized
 Studio Dev run produces measured values and the recorded transactions have been checked.
