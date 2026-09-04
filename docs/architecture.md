@@ -119,8 +119,10 @@ Append-only Hollis attestation event and export reference
 ### GenLayer development and fees
 
 Contract development and interactive validation use the provided Studio preview at
-`https://studio-next.genlayer.com`. The exact network, chain identity, RPC endpoint, and deployed
-contract address must be recorded before activation. Fee-charging writes use a reviewed fee profile
+`https://studio-next.genlayer.com`. Its verified runtime configuration is `studionet`, chain ID
+`61997`, chain name `GenLayer Studio Dev`, and JSON-RPC endpoint
+`https://studio-dev.genlayer.com/api`. The deployed contract address must be recorded before
+activation. Fee-charging writes use a reviewed fee profile
 measured from representative Studio executions and current network pricing. Studio results do not
 establish Clarke or Mainnet pricing, and the adapter remains inactive until those values are verified.
 
