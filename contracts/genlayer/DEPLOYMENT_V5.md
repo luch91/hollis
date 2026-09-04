@@ -30,6 +30,18 @@ V5 was deployed as a new Studio Dev contract. Do not reuse V4's address.
 The source retrieved from the deployed address was checked against the V5 class name, JSON
 retrieval path, dependency pin, constructor assignments, and `get_evaluation_reason` view.
 
+## Rejected write record
+
+| Item | Value |
+| --- | --- |
+| Transaction | `0xed399a5e549cc6dba102bad2d0bb0a0221bf5e029b874ec075bad73fa5433722` |
+| Finalization | `FINALIZED`, `MAJORITY_AGREE`, leader execution `ERROR` |
+| Verified cause | The second calldata argument included the literal field label `public_case_file_url ` before the URL. GenLayer rejected the resulting value as `MALFORMED_URL`. |
+
+This write did not invoke the contract's decision logic and did not change its initial state. Do not
+alter the contract for this rejected input. Submit the public URL alone, without a field label,
+whitespace prefix, or quotation marks.
+
 Submit the pass case only and query all three views: `get_status`, `get_verdict`, and
 `get_evaluation_reason`.
 
