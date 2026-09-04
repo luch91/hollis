@@ -14,12 +14,13 @@ const outputRootRealPath = await realpath(outputRoot);
 await copyRequiredDirectory(join(workspaceRoot, "apps", "api", "dist"), join(outputRoot, "dist"));
 
 for (const packageName of packages) {
-  const sourceDirectory = join(workspaceRoot, "packages", packageName.split("/").at(-1), "dist");
   const installedDirectory = await realpath(join(outputRoot, "node_modules", packageName));
 
   assertWithinOutput(installedDirectory, outputRootRealPath);
-
-  await copyRequiredDirectory(sourceDirectory, join(installedDirectory, "dist"));
+  await access(join(installedDirectory, "dist", "index.js"), constants.R_OK);
+  if (packageName === "@hollis/database") {
+    await access(join(installedDirectory, "drizzle"), constants.R_OK);
+  }
   await setRuntimeExport(installedDirectory);
 }
 
