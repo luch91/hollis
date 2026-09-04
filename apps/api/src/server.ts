@@ -3,10 +3,16 @@ import { readEnvironment } from "./config.js";
 import { createStudioDevAttestationVerifier } from "./studio-dev-attestation.js";
 
 const environment = readEnvironment();
+const finalizedAttestationImporter = environment.GENLAYER_STUDIO_CONTRACT_ADDRESS
+  ? createStudioDevAttestationVerifier(environment.GENLAYER_STUDIO_CONTRACT_ADDRESS)
+  : undefined;
+
+if (finalizedAttestationImporter) {
+  await finalizedAttestationImporter.assertV6RepresentativeState();
+}
+
 const app = await buildApp(environment, {
-  finalizedAttestationImporter: environment.GENLAYER_STUDIO_CONTRACT_ADDRESS
-    ? createStudioDevAttestationVerifier(environment.GENLAYER_STUDIO_CONTRACT_ADDRESS)
-    : undefined,
+  finalizedAttestationImporter,
 });
 
 const shutdown = async (signal: string) => {

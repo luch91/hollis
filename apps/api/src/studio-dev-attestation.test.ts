@@ -57,12 +57,19 @@ function createClient(overrides: Partial<StudioDevReadClient> = {}): StudioDevRe
         to_address: contractAddress,
       };
     },
-    async readContract({ functionName }) {
-      const results = {
-        get_evaluation_reason: "requirements_satisfied",
-        get_status: "finalized",
-        get_verdict: "pass",
-      } as const;
+    async readContract({ args, functionName }) {
+      const results =
+        args[0] === `sha256:${"5".repeat(64)}`
+          ? {
+              get_evaluation_reason: "human_decision_missing",
+              get_status: "finalized",
+              get_verdict: "fail",
+            }
+          : {
+              get_evaluation_reason: "requirements_satisfied",
+              get_status: "finalized",
+              get_verdict: "pass",
+            };
       return results[functionName];
     },
     ...overrides,
@@ -70,6 +77,24 @@ function createClient(overrides: Partial<StudioDevReadClient> = {}): StudioDevRe
 }
 
 describe("StudioDevAttestationVerifier", () => {
+  it("requires retained representative results before the importer can be activated", async () => {
+    const verifier = new StudioDevAttestationVerifier(createClient(), contractAddress);
+
+    await expect(verifier.assertV6RepresentativeState()).resolves.toBeUndefined();
+  });
+
+  it("rejects activation when the representative results are absent", async () => {
+    const client = createClient({
+      async readContract() {
+        return "not_found";
+      },
+    });
+
+    await expect(
+      new StudioDevAttestationVerifier(client, contractAddress).assertV6RepresentativeState(),
+    ).rejects.toThrow("has not retained the required representative pass and fail results");
+  });
+
   it("imports only a finalized V6 attestation that matches the case and public case file", async () => {
     const receipt = await new StudioDevAttestationVerifier(
       createClient(),

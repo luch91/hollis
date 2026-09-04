@@ -95,7 +95,9 @@ configured. It rejects transactions unless all of the following are true:
   report a finalized result.
 
 The importer records a verified external result. It neither submits transactions nor changes the
-review decision.
+review decision. Configuration does not activate the importer by itself: at API startup, the
+configured contract must return both prescribed V6 synthetic outcomes from its finalized per-case
+views. Startup fails if that retained-state check does not pass.
 
 The PostgreSQL review record remains authoritative. A failed, pending, appealed, or undetermined
 attestation cannot change the human decision or block the core review transaction.

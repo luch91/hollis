@@ -10,6 +10,8 @@ import {
 
 const addressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 const transactionHashSchema = z.string().regex(/^0x[a-fA-F0-9]{64}$/);
+const representativePassCommitment = `sha256:${"1".repeat(64)}`;
+const representativeFailCommitment = `sha256:${"5".repeat(64)}`;
 
 const studioTransactionSchema = z
   .object({
@@ -139,6 +141,31 @@ export class StudioDevAttestationVerifier {
       transactionHash,
       verdict,
     });
+  }
+
+  async assertV6RepresentativeState(): Promise<void> {
+    const [passStatus, passVerdict, passReason, failStatus, failVerdict, failReason] =
+      await Promise.all([
+        this.read("get_status", representativePassCommitment),
+        this.read("get_verdict", representativePassCommitment),
+        this.read("get_evaluation_reason", representativePassCommitment),
+        this.read("get_status", representativeFailCommitment),
+        this.read("get_verdict", representativeFailCommitment),
+        this.read("get_evaluation_reason", representativeFailCommitment),
+      ]);
+
+    if (
+      passStatus !== "finalized" ||
+      passVerdict !== "pass" ||
+      passReason !== "requirements_satisfied" ||
+      failStatus !== "finalized" ||
+      failVerdict !== "fail" ||
+      failReason !== "human_decision_missing"
+    ) {
+      throw new StudioDevAttestationVerificationError(
+        "The configured V6 contract has not retained the required representative pass and fail results.",
+      );
+    }
   }
 
   private async read(
