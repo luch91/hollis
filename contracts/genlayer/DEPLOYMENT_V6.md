@@ -4,8 +4,8 @@ V6 preserves V5's verified deterministic process checks and stores each result u
 commitment. A later adjudication cannot overwrite an earlier case's status, verdict, or evaluation
 reason.
 
-V6 has not yet completed a valid deployment. V5 remains the completed Studio Dev
-representative-validation contract.
+V6 has completed a valid Studio Dev deployment, but it has not yet completed representative
+validation. V5 remains the completed Studio Dev representative-validation contract.
 
 ## Rejected deployment record
 
