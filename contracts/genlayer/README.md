@@ -32,10 +32,11 @@ Validate this contract in the provided Studio preview at
 `https://studio-next.genlayer.com`. The preview currently identifies itself as `GenLayer Studio
 Dev` on chain ID `61997`, with JSON-RPC at `https://studio-dev.genlayer.com/api`.
 
-Before Hollis activation, an authorized operator must deploy the contract in that Studio, record the
-resulting address and contract version, and run representative finalized adjudication transactions.
-Those executions are the source for the checked-in fee profile. Studio execution results must not be
-treated as Clarke or Mainnet pricing, and no fee values are committed until they have been measured.
+V2 was deployed to Studio Dev at
+`0x4cfc03E884466D123346fD6fb76A041eAaabDEed`. The finalized deployment transaction is recorded in
+`DEPLOYMENT_V2.md`. Representative finalized adjudication transactions remain required before a
+fee profile may be checked in. Studio execution results must not be treated as Clarke or Mainnet
+pricing.
 
 Studio Dev schema extraction has been verified for V2. Before deployment, rerun that check from the
 exact source revision being deployed and record the result with the deployment evidence.

@@ -34,9 +34,13 @@ Record the finalized deployment before making a write:
 | --- | --- |
 | Network | `studio-dev` / `61997` |
 | Contract source | `policy_process_attestation_v2.py` |
-| Contract address | pending |
-| Deployment transaction | pending |
-| Finalization time | pending |
+| Contract address | `0x4cfc03E884466D123346fD6fb76A041eAaabDEed` |
+| Deployment transaction | `0x0d40017edd0cc1923814647d4f9fbd8703b18d0b6c30666158932e3ccbfbb456` |
+| Finalization time | `2026-09-04T08:38:05Z` |
+
+The deployment finalized with a successful `MAJORITY_AGREE` consensus result. All five selected
+validators completed the round. The deployment used the constructor values listed above and the
+source pin declared in V2.
 
 ## Representative writes
 
