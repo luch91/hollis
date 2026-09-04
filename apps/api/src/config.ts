@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const environmentSchema = z
   .object({
-    API_HOST: z.string().default("127.0.0.1"),
+    API_HOST: z.string().default("0.0.0.0"),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
@@ -25,11 +25,37 @@ const environmentSchema = z
     WORKOS_JWKS_URL: z.url(),
   })
   .superRefine((value, context) => {
-    if (value.NODE_ENV === "production" && !value.CLAIMS_WEBHOOK_SECRET) {
+    if (value.NODE_ENV !== "production") return;
+
+    if (!value.CLAIMS_WEBHOOK_SECRET) {
       context.addIssue({
         code: "custom",
         message: "CLAIMS_WEBHOOK_SECRET is required in production.",
         path: ["CLAIMS_WEBHOOK_SECRET"],
+      });
+    }
+
+    if (!value.GCS_BUCKET) {
+      context.addIssue({
+        code: "custom",
+        message: "GCS_BUCKET is required in production.",
+        path: ["GCS_BUCKET"],
+      });
+    }
+
+    if (new URL(value.WEB_ORIGIN).protocol !== "https:") {
+      context.addIssue({
+        code: "custom",
+        message: "WEB_ORIGIN must use HTTPS in production.",
+        path: ["WEB_ORIGIN"],
+      });
+    }
+
+    if (value.API_HOST !== "0.0.0.0") {
+      context.addIssue({
+        code: "custom",
+        message: "API_HOST must be 0.0.0.0 in production.",
+        path: ["API_HOST"],
       });
     }
   });
@@ -37,5 +63,8 @@ const environmentSchema = z
 export type Environment = z.infer<typeof environmentSchema>;
 
 export function readEnvironment(source: NodeJS.ProcessEnv = process.env): Environment {
-  return environmentSchema.parse(source);
+  return environmentSchema.parse({
+    ...source,
+    API_PORT: source.API_PORT ?? source.PORT ?? "4000",
+  });
 }

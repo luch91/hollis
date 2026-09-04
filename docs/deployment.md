@@ -8,7 +8,9 @@ Build the API image from the repository root:
 docker build -f apps/api/Dockerfile -t hollis-api:local .
 ```
 
-The image listens on port `4000` and runs as the non-root `node` user. It contains no credentials.
+The image runs as the non-root `node` user and contains no credentials. At runtime, the API binds to
+`0.0.0.0`. It uses `API_PORT` when supplied, otherwise it honors the platform-provided `PORT` value,
+then falls back to `4000` for local development.
 
 ## Cloud Run
 
@@ -30,7 +32,11 @@ database secrets. The migration password is reserved for controlled migration ex
 
 The Cloud Run service must use the same EU deployment region selected for the application workload.
 The region is separate from the Cloud Storage EU multi-region bucket and must be recorded before
-deployment.
+deployment. Do not set `API_HOST` in Cloud Run. The API defaults to `0.0.0.0`, and Cloud Run's
+injected `PORT` is honored when `API_PORT` is absent.
+
+Production configuration fails closed unless the claims webhook secret and evidence bucket are set,
+the console origin uses HTTPS, and the API host is `0.0.0.0`.
 
 ## Retention scheduler
 
