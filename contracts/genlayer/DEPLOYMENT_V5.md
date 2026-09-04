@@ -42,6 +42,19 @@ This write did not invoke the contract's decision logic and did not change its i
 alter the contract for this rejected input. Submit the public URL alone, without a field label,
 whitespace prefix, or quotation marks.
 
+## Undetermined write record
+
+| Item | Value |
+| --- | --- |
+| Transaction | `0x6df05ce557485d97b39ef3a57609705cd5fc2fb9d4aea72e5a5eae37fee9981e` |
+| Finalization | `FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS` |
+| Stored evaluation reason | `case_commitment_mismatch` |
+| Verified cause | The transaction supplied `sha256:` followed by 58 `1` characters. The public pass fixture contains `sha256:` followed by 64 `1` characters. |
+
+The contract correctly rejected the mismatched commitment and preserved an `undetermined` state.
+Do not change the contract. Use the exact commitment value in the public pass fixture for the next
+and final pass attempt.
+
 Submit the pass case only and query all three views: `get_status`, `get_verdict`, and
 `get_evaluation_reason`.
 
