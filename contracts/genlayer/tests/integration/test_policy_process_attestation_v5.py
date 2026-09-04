@@ -40,7 +40,7 @@ def current_fee_preset() -> dict:
 def deployed_contract():
     require_explicit_operator_approval()
     factory = get_contract_factory(
-        contract_file_path="contracts/genlayer/policy_process_attestation_v4.py"
+        contract_file_path="contracts/genlayer/policy_process_attestation_v5.py"
     )
     return factory.deploy(
         args=[
@@ -59,22 +59,28 @@ def deployed_contract():
 
 
 @pytest.mark.parametrize(
-    ("case_commitment", "case_file", "expected_verdict"),
+    ("case_commitment", "case_file", "expected_verdict", "expected_reason"),
     [
         (
             "sha256:" + "1" * 64,
             "/attestation-cases/v1/deterministic-pass.json",
             "pass",
+            "requirements_satisfied",
         ),
         (
             "sha256:" + "5" * 64,
             "/attestation-cases/v1/deterministic-fail.json",
             "fail",
+            "human_decision_missing",
         ),
     ],
 )
 def test_finalized_adjudication_branches(
-    deployed_contract, case_commitment: str, case_file: str, expected_verdict: str
+    deployed_contract,
+    case_commitment: str,
+    case_file: str,
+    expected_verdict: str,
+    expected_reason: str,
 ):
     receipt = deployed_contract.adjudicate(
         args=[case_commitment, f"{DEPLOYMENT_ORIGIN}{case_file}"]
@@ -84,3 +90,4 @@ def test_finalized_adjudication_branches(
     assert deployed_contract.get_last_case_commitment().call() == case_commitment
     assert deployed_contract.get_status().call() == "finalized"
     assert deployed_contract.get_verdict().call() == expected_verdict
+    assert deployed_contract.get_evaluation_reason().call() == expected_reason

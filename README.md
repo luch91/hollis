@@ -82,6 +82,15 @@ This command checks repository policy, formatting, lint rules, types, tests, and
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes. Product invariants are defined in [docs/non-negotiables.md](docs/non-negotiables.md). Architecture decisions are recorded in [docs/adr](docs/adr).
 
+## GenLayer attestation prototype
+
+The privacy-safe case-file schema and GenLayer contract sources are in
+[`contracts/genlayer`](contracts/genlayer). The current diagnostic contract is
+`policy_process_attestation_v5.py`. It evaluates declared process facts from a public synthetic case
+file and records `pass`, `fail`, `needs_review`, or `undetermined` with a reason code. It does not
+adjudicate legal correctness, substantive fairness, or private evidence. Deployment records and
+operator procedures are maintained beside the contract sources.
+
 ## License
 
 Hollis is available under the [MIT License](LICENSE).

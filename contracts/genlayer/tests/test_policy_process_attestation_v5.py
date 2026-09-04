@@ -44,7 +44,7 @@ def case_file(case_commitment: str, decision_recorded: bool):
 
 def deploy(direct_deploy):
     return direct_deploy(
-        "contracts/genlayer/policy_process_attestation_v4.py",
+        "contracts/genlayer/policy_process_attestation_v5.py",
         POLICY_ID,
         POLICY_VERSION,
         CONTROL_ID,
@@ -71,6 +71,7 @@ def test_adjudicate_finalizes_a_satisfied_process(direct_vm, direct_deploy):
     assert contract.get_last_case_commitment() == case_commitment
     assert contract.get_status() == "finalized"
     assert contract.get_verdict() == "pass"
+    assert contract.get_evaluation_reason() == "requirements_satisfied"
 
 
 def test_adjudicate_finalizes_a_missing_human_decision_as_fail(direct_vm, direct_deploy):
@@ -88,3 +89,4 @@ def test_adjudicate_finalizes_a_missing_human_decision_as_fail(direct_vm, direct
     assert contract.get_last_case_commitment() == case_commitment
     assert contract.get_status() == "finalized"
     assert contract.get_verdict() == "fail"
+    assert contract.get_evaluation_reason() == "human_decision_missing"
