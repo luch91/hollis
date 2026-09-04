@@ -1,0 +1,30 @@
+{
+  "auditManifestHash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "caseCommitment": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  "evidence": [
+    {
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "mediaType": "application/json",
+      "verified": true
+    }
+  ],
+  "policy": {
+    "control": {
+      "attestationCriterion": "A human decision and a verified evidence reference are required.",
+      "controlId": "claims-human-review",
+      "controlVersion": "2026-09",
+      "evidenceRequirement": "verified_reference_required",
+      "interpretation": "deterministic",
+      "policyDocumentDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "policyId": "claims",
+    "policyVersion": "2026-09"
+  },
+  "review": {
+    "decisionRecorded": false,
+    "escalationRecorded": true,
+    "humanDecisionOutcome": null,
+    "reviewerActionCommitment": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "schemaVersion": "hollis.adjudication-case.v1"
+}
