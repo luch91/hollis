@@ -58,11 +58,26 @@ and final pass attempt.
 To copy the exact pass commitment from the checked-in fixture on Windows PowerShell:
 
 ```powershell
-(Get-Content -Raw .\apps\web\public\attestation-cases\v1\deterministic-pass.json | ConvertFrom-Json).caseCommitment | Set-Clipboard
+$caseFile = gc -Raw .\apps\web\public\attestation-cases\v1\deterministic-pass.json
+$pattern = '"caseCommitment":\s*"([^"]+)"'
+$caseFile -match $pattern | Out-Null
+Set-Clipboard -Value $matches[1]
 ```
 
-Paste the clipboard value into Studio's `case_commitment` input unchanged. Do not type or count the
-repeated characters manually.
+If a separate verification command reports `71`, that number is only the character count. Do not
+enter or copy `71` into Studio. Paste the clipboard value directly into Studio's
+`case_commitment` input unchanged. Do not type or count the repeated characters manually.
+
+## Rejected literal-count write record
+
+| Item | Value |
+| --- | --- |
+| Transaction | `0xe8614f30dd369049a127525a8b5869c308fafa492e4a11fdf891992e8e8c7620` |
+| Finalization | `FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS` |
+| Verified cause | The first calldata argument was the literal string `71`, rather than the case commitment. |
+
+This write correctly persisted `case_commitment_mismatch`. It does not indicate a contract or
+fixture defect.
 
 Submit the pass case only and query all three views: `get_status`, `get_verdict`, and
 `get_evaluation_reason`.
