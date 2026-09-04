@@ -1,12 +1,11 @@
 # V2 Studio Dev fee-profile procedure
 
-This procedure is deliberately inactive until GenLayer resolves the Studio Dev runner issue tracked
-in https://github.com/genlayerlabs/genlayer-studio/issues/1757. It does not authorize using or
-sharing a personal wallet private key.
+This procedure does not authorize using or sharing a personal wallet private key.
 
 ## Preconditions
 
-- `policy_process_attestation_v2.py` is accepted by Studio Dev schema extraction.
+- `policy_process_attestation_v2.py` is accepted by Studio Dev schema extraction using its declared
+  `py-genlayer` dependency pin.
 - The pass and fail fixtures in `DEPLOYMENT_V2.md` return HTTP 200 from their immutable deployment
   URL.
 - An operator configures a separate funded Studio Dev test account only on their own machine. Its

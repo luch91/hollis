@@ -5,7 +5,8 @@ control at deployment and accepts a case commitment and public case-file URL for
 It can therefore exercise multiple case outcomes against one immutable policy binding.
 
 V2 uses the current Studio v0.3 contract format. Do not substitute the older SDK header or
-`gl.Contract` syntax from the retained V1 draft.
+`gl.Contract` syntax from the retained V1 draft. The source header must retain the current
+`py-genlayer` pin: `5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng`.
 
 Do not deploy until both public case files below are served over HTTPS without authentication and
 have been privacy reviewed. They contain synthetic hashes and no evidence, personal data, prompts,
