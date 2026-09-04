@@ -19,6 +19,17 @@ The source now uses the documented `gl.storage.inmem_allocate(TreeMap[str, str])
 persistent map. Studio Dev schema extraction passed after this correction. Do not use the address
 associated with the rejected deployment.
 
+## Verified deployment
+
+| Item | Value |
+| --- | --- |
+| Contract address | `0x1fcA673F741CDE49A442E156Cfc2abE74dd25EA2` |
+| Deployment transaction | `0xba6bd0f9e92039d95057fc267dc108947a4b1db415863a9bb3dee6f8eb9098a0` |
+| Result | `FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS` |
+
+The source retrieved from the deployed address was checked for the V6 class, the documented
+persistent-map allocation, and all three case-commitment view methods.
+
 ## Constructor values
 
 | Field | Value |
