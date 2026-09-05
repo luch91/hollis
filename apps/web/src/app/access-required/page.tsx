@@ -32,14 +32,28 @@ async function createWorkspaceAction(formData: FormData) {
     },
     method: "POST",
   });
-  if (!response.ok) throw new Error("Workspace creation could not be completed.");
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => null)) as { code?: string } | null;
+    const error =
+      failure?.code === "organization_creation_failed" ||
+      failure?.code === "membership_assignment_failed" ||
+      failure?.code === "tenant_provisioning_failed"
+        ? failure.code
+        : "workspace_creation_failed";
+    redirect(`/access-required?error=${error}`);
+  }
 
   const workspace = (await response.json()) as { organizationId: string };
   await switchToOrganization(workspace.organizationId);
   redirect("/app");
 }
 
-export default async function AccessRequiredPage() {
+export default async function AccessRequiredPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const { organizationId, user } = await withAuth();
 
   if (!user) {
@@ -77,6 +91,12 @@ export default async function AccessRequiredPage() {
               Create workspace
             </button>
           </form>
+          {error ? (
+            <p className="workspace-error" role="alert">
+              Workspace setup could not be completed. Please retry. If it persists, send the error
+              reference: {error}.
+            </p>
+          ) : null}
           <p className="workspace-note">
             Invitations, verified-domain join rules, and directory sync remain controlled by the
             workspace administrator.

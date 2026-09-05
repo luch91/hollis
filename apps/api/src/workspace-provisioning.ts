@@ -12,6 +12,18 @@ export type WorkspaceProvisioningRecord = {
   tenantId: string;
 };
 
+export class WorkspaceProvisioningError extends Error {
+  constructor(
+    readonly code:
+      | "organization_creation_failed"
+      | "membership_assignment_failed"
+      | "tenant_provisioning_failed",
+  ) {
+    super("Workspace provisioning could not be completed.");
+    this.name = "WorkspaceProvisioningError";
+  }
+}
+
 export interface WorkspaceProvisioningStore {
   provision(input: {
     creatorUserId: string;
@@ -39,30 +51,45 @@ export function createWorkOsWorkspaceProvisioner(
 
   return {
     async create(input) {
-      const organization = await workos.organizations.createOrganization(
-        { name: input.name },
-        { idempotencyKey: input.idempotencyKey },
-      );
-      const memberships = await workos.userManagement.listOrganizationMemberships({
-        organizationId: organization.id,
-        statuses: ["active"],
-        userId: input.userId,
-      });
-      const membership =
-        memberships.data[0] ??
-        (await workos.userManagement.createOrganizationMembership({
-          organizationId: organization.id,
-          roleSlug: initialAdminRoleSlug,
-          userId: input.userId,
-        }));
+      let organization;
+      try {
+        organization = await workos.organizations.createOrganization(
+          { name: input.name },
+          { idempotencyKey: input.idempotencyKey },
+        );
+      } catch {
+        throw new WorkspaceProvisioningError("organization_creation_failed");
+      }
 
-      return store.provision({
-        creatorUserId: input.userId,
-        membershipId: membership.id,
-        organizationId: organization.id,
-        organizationName: organization.name,
-        role: initialAdminRoleSlug,
-      });
+      let membership;
+      try {
+        const memberships = await workos.userManagement.listOrganizationMemberships({
+          organizationId: organization.id,
+          statuses: ["active"],
+          userId: input.userId,
+        });
+        membership =
+          memberships.data[0] ??
+          (await workos.userManagement.createOrganizationMembership({
+            organizationId: organization.id,
+            roleSlug: initialAdminRoleSlug,
+            userId: input.userId,
+          }));
+      } catch {
+        throw new WorkspaceProvisioningError("membership_assignment_failed");
+      }
+
+      try {
+        return await store.provision({
+          creatorUserId: input.userId,
+          membershipId: membership.id,
+          organizationId: organization.id,
+          organizationName: organization.name,
+          role: initialAdminRoleSlug,
+        });
+      } catch {
+        throw new WorkspaceProvisioningError("tenant_provisioning_failed");
+      }
     },
   };
 }

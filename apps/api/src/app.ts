@@ -65,6 +65,7 @@ import {
 import {
   createWorkspaceSchema,
   createWorkOsWorkspaceProvisioner,
+  WorkspaceProvisioningError,
   type WorkspaceProvisioner,
 } from "./workspace-provisioning.js";
 
@@ -238,6 +239,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       return reply.code(422).send({
         code: "attestation_verification_failed",
         message: "The finalized GenLayer attestation could not be verified for this case.",
+      });
+    }
+
+    if (error instanceof WorkspaceProvisioningError) {
+      return reply.code(502).send({
+        code: error.code,
+        message: "Workspace provisioning could not be completed.",
       });
     }
 

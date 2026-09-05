@@ -149,9 +149,10 @@ li::before {
 
 .workspace-setup .primary-action {
   width: fit-content;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--surface);
   cursor: pointer;
 }
 
@@ -160,6 +161,14 @@ li::before {
   margin: 24px 0 0;
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspace-error {
+  max-width: 620px;
+  margin: 24px 0 0;
+  color: #9a3d2f;
+  font-size: 14px;
   line-height: 1.5;
 }
 
