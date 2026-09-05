@@ -1,4 +1,4 @@
-import { WorkOS } from "@workos-inc/node";
+import { type Organization, type OrganizationMembership, WorkOS } from "@workos-inc/node";
 import { z } from "zod";
 
 export const createWorkspaceSchema = z
@@ -51,7 +51,7 @@ export function createWorkOsWorkspaceProvisioner(
 
   return {
     async create(input) {
-      let organization;
+      let organization: Organization;
       try {
         organization = await workos.organizations.createOrganization(
           { name: input.name },
@@ -61,7 +61,7 @@ export function createWorkOsWorkspaceProvisioner(
         throw new WorkspaceProvisioningError("organization_creation_failed");
       }
 
-      let membership;
+      let membership: OrganizationMembership;
       try {
         const memberships = await workos.userManagement.listOrganizationMemberships({
           organizationId: organization.id,
