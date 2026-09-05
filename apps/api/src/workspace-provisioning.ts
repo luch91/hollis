@@ -18,10 +18,25 @@ export class WorkspaceProvisioningError extends Error {
       | "organization_creation_failed"
       | "membership_assignment_failed"
       | "tenant_provisioning_failed",
+    readonly diagnostic: string,
   ) {
     super("Workspace provisioning could not be completed.");
     this.name = "WorkspaceProvisioningError";
   }
+}
+
+function databaseDiagnostic(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    /^[0-9A-Z]{5}$/.test(error.code)
+  ) {
+    return `postgres:${error.code}`;
+  }
+
+  return "postgres:unknown";
 }
 
 export interface WorkspaceProvisioningStore {
@@ -58,7 +73,7 @@ export function createWorkOsWorkspaceProvisioner(
           { idempotencyKey: input.idempotencyKey },
         );
       } catch {
-        throw new WorkspaceProvisioningError("organization_creation_failed");
+        throw new WorkspaceProvisioningError("organization_creation_failed", "workos:unknown");
       }
 
       let membership: OrganizationMembership;
@@ -76,7 +91,7 @@ export function createWorkOsWorkspaceProvisioner(
             userId: input.userId,
           }));
       } catch {
-        throw new WorkspaceProvisioningError("membership_assignment_failed");
+        throw new WorkspaceProvisioningError("membership_assignment_failed", "workos:unknown");
       }
 
       try {
@@ -87,8 +102,11 @@ export function createWorkOsWorkspaceProvisioner(
           organizationName: organization.name,
           role: initialAdminRoleSlug,
         });
-      } catch {
-        throw new WorkspaceProvisioningError("tenant_provisioning_failed");
+      } catch (error) {
+        throw new WorkspaceProvisioningError(
+          "tenant_provisioning_failed",
+          databaseDiagnostic(error),
+        );
       }
     },
   };

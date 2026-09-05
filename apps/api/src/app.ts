@@ -243,6 +243,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     }
 
     if (error instanceof WorkspaceProvisioningError) {
+      app.log.error(
+        { diagnostic: error.diagnostic, provisioningCode: error.code },
+        "workspace provisioning failed",
+      );
       return reply.code(502).send({
         code: error.code,
         message: "Workspace provisioning could not be completed.",
