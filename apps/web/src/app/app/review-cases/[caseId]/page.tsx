@@ -10,6 +10,7 @@ import {
   refreshAttestationAction,
 } from "../actions";
 import { getReviewCase, listAttestations, listPublicAttestationCaseFiles } from "../data";
+import { AttestationHorizon, EvidenceFlow } from "../attestation-visuals";
 
 export default async function ReviewCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await params;
@@ -19,34 +20,72 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
   } catch {
     notFound();
   }
-  const attestations = await listAttestations(caseId).catch(() => []);
-  const publicCaseFileResult = await listPublicAttestationCaseFiles(caseId)
-    .then((caseFiles) => ({ caseFiles, available: true }))
-    .catch(() => ({ caseFiles: [], available: false }));
+  const [attestations, publicCaseFileResult] = await Promise.all([
+    listAttestations(caseId).catch(() => []),
+    listPublicAttestationCaseFiles(caseId)
+      .then((caseFiles) => ({ caseFiles, available: true }))
+      .catch(() => ({ caseFiles: [], available: false })),
+  ]);
   const publicCaseFiles = publicCaseFileResult.caseFiles;
 
   return (
     <section className="content case-detail" aria-labelledby="case-title">
-      <Link className="back-link" href="/app">
-        Back to queue
-      </Link>
-      <p className="eyebrow">{reviewCase.status.replace("_", " ")}</p>
-      <h1 id="case-title">{reviewCase.externalReference}</h1>
+      <div className="detail-toolbar">
+        <Link className="back-link" href={`/app?caseId=${caseId}`}>
+          Back to case workspace
+        </Link>
+        <nav aria-label="Case actions and export formats" className="detail-export-links">
+          <a className="detail-add-evidence" href="#add-evidence">
+            Add evidence
+          </a>
+          <a href={`/app/review-cases/${caseId}/export?format=json`}>JSON</a>
+          <a href={`/app/review-cases/${caseId}/export?format=md`}>MD</a>
+          <a href={`/app/review-cases/${caseId}/export?format=docx`}>DOCX</a>
+          <a href={`/app/review-cases/${caseId}/export?format=pdf`}>PDF</a>
+        </nav>
+      </div>
+      <header className="detail-hero">
+        <p className="eyebrow">{reviewCase.status.replace("_", " ")}</p>
+        <h1 id="case-title">{reviewCase.externalReference}</h1>
+        <p>
+          Detailed review record, evidence trace, policy binding, human action, and attestation
+          controls.
+        </p>
+      </header>
       <div className="case-summary">
         <span className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel} risk</span>
         <span>Recommendation: {reviewCase.recommendation}</span>
         <span>Policy {reviewCase.policyVersion}</span>
         <span>Rule {reviewCase.ruleId}</span>
       </div>
-      <div className="evidence-panel">
-        <h2>Evidence references</h2>
-        {reviewCase.evidence.map((evidence) => (
-          <p key={evidence.id}>
-            {evidence.id} · {evidence.mediaType} · {evidence.digest}
-          </p>
-        ))}
+      <div className="case-workspace-grid">
+        <div className="case-workspace-main">
+          <EvidenceFlow
+            decisionOutcome={reviewCase.decisionOutcome}
+            evidenceCount={reviewCase.evidence.length}
+            policyLabel={`${reviewCase.policyVersion} / ${reviewCase.ruleId}`}
+            recommendation={reviewCase.recommendation}
+            status={reviewCase.status}
+          />
+          <div className="evidence-panel">
+            <h2>Evidence references</h2>
+            {reviewCase.evidence.map((evidence) => (
+              <p key={evidence.id}>
+                {evidence.id} · {evidence.mediaType} · {evidence.digest}
+              </p>
+            ))}
+          </div>
+        </div>
+        <div className="case-workspace-side">
+          <div className="detail-horizon-heading">
+            <p className="eyebrow">Process state</p>
+            <h2>Attestation Horizon</h2>
+            <p>Evidence layers align with the human decision and portable receipt.</p>
+          </div>
+          <AttestationHorizon attestations={attestations} reviewCase={reviewCase} />
+        </div>
       </div>
-      <section className="attestation-panel" aria-labelledby="attestation-title">
+      <section className="attestation-panel" aria-labelledby="attestation-title" id="attestation">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Onchain Justice</p>
@@ -76,7 +115,8 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           <div>
             <dt>Managed evidence</dt>
             <dd>
-              {reviewCase.evidence.length} reference{reviewCase.evidence.length === 1 ? "" : "s"}
+              {reviewCase.evidence.length} reference
+              {reviewCase.evidence.length === 1 ? "" : "s"}
             </dd>
           </div>
         </dl>
@@ -228,17 +268,22 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           </div>
         ) : null}
       </section>
-      <p>
-        <a className="secondary-action" href={`/app/review-cases/${caseId}/export`}>
-          Export case record
-        </a>
-      </p>
-      <form action={uploadEvidenceAction}>
-        <input name="caseId" type="hidden" value={caseId} />
-        <label htmlFor="evidence-file">Add evidence (maximum 5 MB)</label>
-        <input id="evidence-file" name="file" required type="file" />
-        <button type="submit">Upload and verify evidence</button>
-      </form>
+      <section className="detail-evidence-upload" id="add-evidence">
+        <div>
+          <p className="eyebrow">Controlled evidence</p>
+          <h2>Add evidence</h2>
+          <p>
+            Files are integrity checked and stored outside the public attestation record. Maximum
+            file size is 5 MB.
+          </p>
+        </div>
+        <form action={uploadEvidenceAction}>
+          <input name="caseId" type="hidden" value={caseId} />
+          <label htmlFor="evidence-file">Select evidence file</label>
+          <input id="evidence-file" name="file" required type="file" />
+          <button type="submit">Upload and verify evidence</button>
+        </form>
+      </section>
       {reviewCase.status === "pending" || reviewCase.status === "escalated" ? (
         <form action={claimAction}>
           <input name="caseId" type="hidden" value={caseId} />

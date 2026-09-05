@@ -38,6 +38,10 @@ export function createSecurityPreHandler(
 
     const tenant = await tenantResolver.findByOrganizationId(principal.organizationId);
     if (!tenant) {
+      request.log.warn(
+        { organizationId: principal.organizationId },
+        "organization is not provisioned",
+      );
       throw new TenantAccessError();
     }
 

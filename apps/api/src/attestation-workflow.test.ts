@@ -6,12 +6,19 @@ const digest = `sha256:${"a".repeat(64)}`;
 
 const exported: ReviewExport = {
   case: {
+    assignedAt: "2026-09-03T12:01:00.000Z",
     assignedToUserId: "user_01",
     automatedSystemVersion: "claims-model-2026-09",
     createdAt: "2026-09-03T12:00:00.000Z",
     decisionOutcome: "modified",
+    decisionRationale: "The reviewer modified the automated recommendation.",
+    decidedAt: "2026-09-03T12:02:00.000Z",
+    decidedByUserId: "user_01",
     evidence: [],
     externalReference: "claim-001",
+    escalatedAt: null,
+    escalatedByUserId: null,
+    escalationReason: null,
     finalRecommendation: "refer",
     id: "0198ef37-6216-7000-8000-000000000002",
     policyVersion: "2026-09",

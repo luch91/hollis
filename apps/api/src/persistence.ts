@@ -305,11 +305,18 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
 
         const base = {
           case: {
+            assignedAt: detail.assignedAt?.toISOString() ?? null,
             assignedToUserId: detail.assignedToUserId,
             automatedSystemVersion: detail.automatedSystemVersion,
             createdAt: detail.createdAt.toISOString(),
             decisionOutcome: detail.decisionOutcome,
+            decisionRationale: detail.decisionRationale,
+            decidedAt: detail.decidedAt?.toISOString() ?? null,
+            decidedByUserId: detail.decidedByUserId,
             evidence: detail.evidence,
+            escalatedAt: detail.escalatedAt?.toISOString() ?? null,
+            escalatedByUserId: detail.escalatedByUserId,
+            escalationReason: detail.escalationReason,
             externalReference: detail.externalReference,
             finalRecommendation: detail.finalRecommendation,
             id: detail.id,

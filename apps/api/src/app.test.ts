@@ -173,10 +173,14 @@ function createDependencies(
 
 const completedExport: ReviewExport = {
   case: {
+    assignedAt: "2026-08-28T08:05:00.000Z",
     assignedToUserId: "user_01",
     automatedSystemVersion: "claims-model-2026-08",
     createdAt: "2026-08-28T08:00:00.000Z",
     decisionOutcome: "rejected",
+    decisionRationale: "The required human review rejected the recommendation.",
+    decidedAt: "2026-08-28T08:10:00.000Z",
+    decidedByUserId: "user_01",
     evidence: [
       {
         digest: `sha256:${"a".repeat(64)}`,
@@ -185,6 +189,9 @@ const completedExport: ReviewExport = {
       },
     ],
     externalReference: "claim-001",
+    escalatedAt: null,
+    escalatedByUserId: null,
+    escalationReason: null,
     finalRecommendation: "deny",
     id: "0198ef37-6216-7000-8000-000000000002",
     policyVersion: "commercial-property-2026-01",

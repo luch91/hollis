@@ -1,4 +1,6 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import type { ReviewExport } from "@hollis/contracts/review-case";
+import { redirect } from "next/navigation";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -73,7 +75,10 @@ type AttestationPolicy = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const session = await withAuth({ ensureSignedIn: true });
+  const session = await withAuth();
+  if (!session.accessToken) {
+    redirect("/sign-in");
+  }
   const headers = new Headers(init?.headers);
   headers.set("authorization", `Bearer ${session.accessToken}`);
   if (init?.body) {
@@ -96,12 +101,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function listReviewCases() {
-  return request<ReviewQueueItem[]>("/v1/review-cases");
+export function listReviewCases(status?: ReviewQueueItem["status"]) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request<ReviewQueueItem[]>(`/v1/review-cases${query}`);
 }
 
 export function getReviewCase(caseId: string) {
   return request<ReviewCaseDetail>(`/v1/review-cases/${caseId}`);
+}
+
+export function getReviewExport(caseId: string) {
+  return request<ReviewExport>(`/v1/review-cases/${caseId}/export`);
 }
 
 export function claimReviewCase(caseId: string) {

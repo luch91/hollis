@@ -18,6 +18,16 @@ function requiredValue(formData: FormData, name: string): string {
   return value;
 }
 
+function revalidateWorkspace(caseId: string) {
+  revalidatePath("/app");
+  revalidatePath("/app/cases");
+  revalidatePath("/app/evidence");
+  revalidatePath("/app/exports");
+  revalidatePath("/app/policy");
+  revalidatePath("/app/receipts");
+  revalidatePath(`/app/review-cases/${caseId}`);
+}
+
 export async function uploadEvidenceAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const file = formData.get("file");
@@ -43,22 +53,20 @@ export async function uploadEvidenceAction(formData: FormData) {
     }
   }
   await verifyEvidence(caseId, upload.evidenceId);
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }
 
 export async function claimAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   await claimReviewCase(caseId);
-  revalidatePath("/app");
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }
 
 export async function escalateAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const reason = String(formData.get("reason") ?? "");
   await escalateReviewCase(caseId, reason);
-  revalidatePath("/app");
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }
 
 export async function decideAction(formData: FormData) {
@@ -71,8 +79,7 @@ export async function decideAction(formData: FormData) {
   >[1]["outcome"];
   const rationale = String(formData.get("rationale") ?? "");
   await decideReviewCase(caseId, { finalRecommendation, outcome, rationale });
-  revalidatePath("/app");
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }
 
 function policyFromForm(formData: FormData) {
@@ -98,7 +105,7 @@ function policyFromForm(formData: FormData) {
 export async function createPublicAttestationCaseFileAction(formData: FormData) {
   const caseId = requiredValue(formData, "caseId");
   await createPublicAttestationCaseFile(caseId, policyFromForm(formData));
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }
 
 export async function importFinalizedAttestationAction(formData: FormData) {
@@ -108,12 +115,12 @@ export async function importFinalizedAttestationAction(formData: FormData) {
     requiredValue(formData, "publicCaseFileId"),
     requiredValue(formData, "transactionHash"),
   );
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }
 
 export async function refreshAttestationAction(formData: FormData) {
   const caseId = requiredValue(formData, "caseId");
   const attestationId = requiredValue(formData, "attestationId");
   await refreshAttestation(caseId, attestationId);
-  revalidatePath(`/app/review-cases/${caseId}`);
+  revalidateWorkspace(caseId);
 }

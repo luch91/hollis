@@ -18,6 +18,8 @@ import {
   type UnscopedAccessTokenVerifier,
   createWorkOsAccessTokenVerifier,
   createWorkOsUnscopedAccessTokenVerifier,
+  InsufficientPermissionError,
+  InvalidAccessTokenError,
   readBearerToken,
 } from "./auth.js";
 import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
@@ -51,7 +53,12 @@ import {
   ReviewIntakeConflictError,
   type TenantResolver,
 } from "./review-intake.js";
-import { createSecurityPreHandler, requireRequestContext, sendSecurityError } from "./security.js";
+import {
+  createSecurityPreHandler,
+  requireRequestContext,
+  sendSecurityError,
+  TenantAccessError,
+} from "./security.js";
 import { InvalidWebhookError, claimsWebhookSchema, verifyClaimsWebhook } from "./webhook.js";
 import {
   type ReviewWorkflowStore,
@@ -167,6 +174,20 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   app.decorateRequest("principal", null);
   app.decorateRequest("tenant", null);
 
+  app.addHook("onResponse", (request, reply, done) => {
+    if (reply.statusCode >= 400) {
+      app.log.warn(
+        {
+          method: request.method,
+          path: request.routeOptions.url ?? request.url,
+          statusCode: reply.statusCode,
+        },
+        "request rejected",
+      );
+    }
+    done();
+  });
+
   const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
   const attestationParamsSchema = z.object({ attestationId: z.uuid(), caseId: z.uuid() }).strict();
   const publicCaseFileParamsSchema = z.object({ publicCaseFileId: z.uuid() }).strict();
@@ -178,6 +199,14 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   }
 
   app.setErrorHandler((error, _request, reply) => {
+    if (
+      error instanceof InvalidAccessTokenError ||
+      error instanceof InsufficientPermissionError ||
+      error instanceof TenantAccessError
+    ) {
+      app.log.warn({ securityError: error.name }, "request rejected by security policy");
+    }
+
     if (sendSecurityError(error, reply)) {
       return;
     }

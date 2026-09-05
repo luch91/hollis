@@ -89,9 +89,16 @@ export const reviewExportEventSchema = z
 export const reviewExportSchema = z
   .object({
     case: reviewQueueItemSchema.extend({
+      assignedAt: z.iso.datetime().nullable(),
       automatedSystemVersion: z.string(),
       decisionOutcome: reviewOutcomeSchema.exclude(["escalated"]).nullable(),
+      decisionRationale: z.string().nullable(),
+      decidedAt: z.iso.datetime().nullable(),
+      decidedByUserId: z.string().nullable(),
       evidence: evidenceReferenceSchema.array(),
+      escalatedAt: z.iso.datetime().nullable(),
+      escalatedByUserId: z.string().nullable(),
+      escalationReason: z.string().nullable(),
       finalRecommendation: recommendationSchema.nullable(),
       policyVersion: z.string(),
       ruleId: z.string(),
