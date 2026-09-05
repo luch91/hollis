@@ -125,6 +125,44 @@ li::before {
   font-size: clamp(40px, 7vw, 64px);
 }
 
+.workspace-setup {
+  display: grid;
+  max-width: 440px;
+  margin-top: 32px;
+  gap: 10px;
+}
+
+.workspace-setup label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workspace-setup input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+  color: var(--foreground);
+  font: inherit;
+}
+
+.workspace-setup .primary-action {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.workspace-note {
+  max-width: 620px;
+  margin: 24px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .identity-bar {
   display: flex;
   padding: 12px 24px;

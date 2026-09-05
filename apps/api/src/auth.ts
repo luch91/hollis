@@ -11,6 +11,13 @@ const accessTokenClaimsSchema = z.object({
   sub: z.string().min(1),
 });
 
+const unscopedAccessTokenClaimsSchema = z.object({
+  client_id: z.string().min(1),
+  org_id: z.string().min(1).optional(),
+  sid: z.string().min(1),
+  sub: z.string().min(1),
+});
+
 export type AuthenticatedPrincipal = {
   organizationId: string;
   permissions: readonly string[];
@@ -18,6 +25,16 @@ export type AuthenticatedPrincipal = {
   sessionId: string;
   userId: string;
 };
+
+export type UnscopedAuthenticatedPrincipal = {
+  organizationId: string | null;
+  sessionId: string;
+  userId: string;
+};
+
+export interface UnscopedAccessTokenVerifier {
+  verify(token: string): Promise<UnscopedAuthenticatedPrincipal>;
+}
 
 export interface AccessTokenVerifier {
   verify(token: string): Promise<AuthenticatedPrincipal>;
@@ -66,6 +83,33 @@ export async function verifyAccessToken(
   }
 }
 
+export async function verifyUnscopedAccessToken(
+  token: string,
+  keySet: JWTVerifyGetKey,
+  options: { clientId: string; issuer: string },
+): Promise<UnscopedAuthenticatedPrincipal> {
+  try {
+    const { payload } = await jwtVerify(token, keySet, { issuer: options.issuer });
+    const claims = unscopedAccessTokenClaimsSchema.parse(payload);
+
+    if (claims.client_id !== options.clientId) {
+      throw new InvalidAccessTokenError();
+    }
+
+    return {
+      organizationId: claims.org_id ?? null,
+      sessionId: claims.sid,
+      userId: claims.sub,
+    };
+  } catch (error) {
+    if (error instanceof errors.JOSEError || error instanceof z.ZodError) {
+      throw new InvalidAccessTokenError();
+    }
+
+    throw error;
+  }
+}
+
 export function requirePermission(principal: AuthenticatedPrincipal, permission: string): void {
   if (!principal.permissions.includes(permission)) {
     throw new InsufficientPermissionError();
@@ -80,6 +124,21 @@ export function createWorkOsAccessTokenVerifier(
   return {
     async verify(token) {
       return verifyAccessToken(token, keySet, {
+        clientId: environment.WORKOS_CLIENT_ID,
+        issuer: environment.WORKOS_ISSUER,
+      });
+    },
+  };
+}
+
+export function createWorkOsUnscopedAccessTokenVerifier(
+  environment: Pick<Environment, "WORKOS_CLIENT_ID" | "WORKOS_ISSUER" | "WORKOS_JWKS_URL">,
+) {
+  const keySet = createRemoteJWKSet(new URL(environment.WORKOS_JWKS_URL));
+
+  return {
+    async verify(token: string) {
+      return verifyUnscopedAccessToken(token, keySet, {
         clientId: environment.WORKOS_CLIENT_ID,
         issuer: environment.WORKOS_ISSUER,
       });

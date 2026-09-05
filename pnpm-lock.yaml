@@ -41,6 +41,9 @@ importers:
       '@hollis/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@workos-inc/node':
+        specifier: 10.12.0
+        version: 10.12.0
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)

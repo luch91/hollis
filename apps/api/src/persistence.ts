@@ -25,6 +25,10 @@ import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { AttestationReceipt } from "@hollis/contracts";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
 import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
+import type {
+  WorkspaceProvisioningRecord,
+  WorkspaceProvisioningStore,
+} from "./workspace-provisioning.js";
 import {
   type ReviewCaseDetail,
   type ReviewWorkflowStore,
@@ -161,6 +165,27 @@ export function createPostgresTenantResolver(database: Database): TenantResolver
       });
 
       return tenant ?? null;
+    },
+  };
+}
+
+export function createPostgresWorkspaceProvisioningStore(
+  database: Database,
+): WorkspaceProvisioningStore {
+  return {
+    async provision(input) {
+      const [record] = await database.execute<WorkspaceProvisioningRecord>(sql`
+        select *
+        from provision_hollis_tenant(
+          ${input.organizationName},
+          ${input.organizationId},
+          ${input.creatorUserId},
+          ${input.membershipId},
+          ${input.role}
+        )
+      `);
+      if (!record) throw new Error("Workspace provisioning did not return a tenant.");
+      return record;
     },
   };
 }

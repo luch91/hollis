@@ -39,6 +39,8 @@ describe("readEnvironment", () => {
         NODE_ENV: "production",
         PORT: "8080",
         WEB_ORIGIN: "https://console.hollis.test",
+        WORKOS_API_KEY: "sk_test",
+        WORKOS_INITIAL_ADMIN_ROLE_SLUG: "workspace-admin",
       }),
     ).toMatchObject({ API_HOST: "0.0.0.0", API_PORT: 8080 });
   });

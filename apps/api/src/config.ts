@@ -58,6 +58,8 @@ const environmentSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),
     WORKOS_CLIENT_ID: z.string().min(1),
+    WORKOS_API_KEY: z.string().min(1).optional(),
+    WORKOS_INITIAL_ADMIN_ROLE_SLUG: z.string().min(1).optional(),
     WORKOS_ISSUER: z.url(),
     WORKOS_JWKS_URL: z.url(),
   })
@@ -94,6 +96,22 @@ const environmentSchema = z
         code: "custom",
         message: "API_HOST must be 0.0.0.0 in production.",
         path: ["API_HOST"],
+      });
+    }
+
+    if (!value.WORKOS_API_KEY) {
+      context.addIssue({
+        code: "custom",
+        message: "WORKOS_API_KEY is required in production.",
+        path: ["WORKOS_API_KEY"],
+      });
+    }
+
+    if (!value.WORKOS_INITIAL_ADMIN_ROLE_SLUG) {
+      context.addIssue({
+        code: "custom",
+        message: "WORKOS_INITIAL_ADMIN_ROLE_SLUG is required in production.",
+        path: ["WORKOS_INITIAL_ADMIN_ROLE_SLUG"],
       });
     }
   });

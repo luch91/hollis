@@ -14,6 +14,9 @@ const caseId = randomUUID();
 const publicCaseFileId = randomUUID();
 const organizationOneId = `org_${randomUUID()}`;
 const organizationTwoId = `org_${randomUUID()}`;
+const provisionedOrganizationId = `org_${randomUUID()}`;
+const provisionedUserId = `user_${randomUUID()}`;
+const provisionedMembershipId = `om_${randomUUID()}`;
 const evidence = [
   { digest: `sha256:${"a".repeat(64)}`, id: "isolation", mediaType: "application/json" },
 ];
@@ -30,6 +33,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await owner`delete from public_attestation_case_files where public_id = ${publicCaseFileId}`;
   await owner`delete from review_cases where id = ${caseId}`;
+  await owner`delete from tenant_memberships where workos_membership_id = ${provisionedMembershipId}`;
+  await owner`delete from users where workos_user_id = ${provisionedUserId}`;
+  await owner`delete from tenants where workos_organization_id = ${provisionedOrganizationId}`;
   await owner`delete from tenants where id in (${tenantOneId}, ${tenantTwoId})`;
   await owner.end();
 });
@@ -180,5 +186,33 @@ describe("PostgreSQL tenant isolation", () => {
       can_update_events: false,
       can_update_public_case_files: false,
     });
+  });
+
+  it("allows the runtime role to provision only through the dedicated function", async () => {
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      const [provisioned] = await transaction`
+        select *
+        from provision_hollis_tenant(
+          'Provisioned tenant',
+          ${provisionedOrganizationId},
+          ${provisionedUserId},
+          ${provisionedMembershipId},
+          'workspace-admin'
+        )
+      `;
+
+      expect(provisioned?.organizationId).toBe(provisionedOrganizationId);
+      expect(provisioned?.tenantId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+    });
+
+    const [membership] = await owner`
+      select role
+      from tenant_memberships
+      where workos_membership_id = ${provisionedMembershipId}
+    `;
+    expect(membership).toEqual({ role: "workspace-admin" });
   });
 });

@@ -13,7 +13,13 @@ import { createDatabase } from "@hollis/database";
 import Fastify, { LogController } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { type AccessTokenVerifier, createWorkOsAccessTokenVerifier } from "./auth.js";
+import {
+  type AccessTokenVerifier,
+  type UnscopedAccessTokenVerifier,
+  createWorkOsAccessTokenVerifier,
+  createWorkOsUnscopedAccessTokenVerifier,
+  readBearerToken,
+} from "./auth.js";
 import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
 import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
@@ -35,6 +41,7 @@ import {
   createPostgresEvidenceMetadataStore,
   createPostgresReviewIntakeStore,
   createPostgresTenantResolver,
+  createPostgresWorkspaceProvisioningStore,
   setEvidenceLegalHold,
 } from "./persistence.js";
 import { createPostgresReviewWorkflowStore } from "./persistence.js";
@@ -55,6 +62,11 @@ import {
   toQueueResponse,
   toWorkflowResponse,
 } from "./workflow.js";
+import {
+  createWorkspaceSchema,
+  createWorkOsWorkspaceProvisioner,
+  type WorkspaceProvisioner,
+} from "./workspace-provisioning.js";
 
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
@@ -74,6 +86,8 @@ type AppDependencies = {
     active: boolean,
     actorId: string,
   ) => Promise<boolean>;
+  workspaceProvisioner?: WorkspaceProvisioner;
+  unscopedAccessTokenVerifier?: UnscopedAccessTokenVerifier;
 };
 
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
@@ -116,6 +130,18 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.legalHoldStore ??
     ((tenantId, caseId, evidenceId, active, actorId) =>
       setEvidenceLegalHold(requireDatabase(), tenantId, caseId, evidenceId, active, actorId));
+  const workspaceProvisioner =
+    dependencies.workspaceProvisioner ??
+    (environment.WORKOS_API_KEY && environment.WORKOS_INITIAL_ADMIN_ROLE_SLUG
+      ? createWorkOsWorkspaceProvisioner(
+          environment.WORKOS_API_KEY,
+          environment.WORKOS_INITIAL_ADMIN_ROLE_SLUG,
+          createPostgresWorkspaceProvisioningStore(requireDatabase()),
+        )
+      : null);
+  const unscopedAccessTokenVerifier =
+    dependencies.unscopedAccessTokenVerifier ??
+    createWorkOsUnscopedAccessTokenVerifier(environment);
   const evidenceStorage =
     dependencies.evidenceStorage ??
     (environment.GCS_BUCKET
@@ -220,6 +246,44 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
+
+  app.post("/v1/workspaces", async (request, reply) => {
+    if (!workspaceProvisioner) {
+      return reply.code(503).send({
+        code: "workspace_provisioning_unconfigured",
+        message: "Workspace provisioning is not configured.",
+      });
+    }
+
+    const idempotencyKey =
+      typeof request.headers["idempotency-key"] === "string"
+        ? request.headers["idempotency-key"]
+        : undefined;
+    if (!idempotencyKey || idempotencyKey.length > 255) {
+      return reply.code(400).send({
+        code: "invalid_request",
+        message: "An Idempotency-Key header is required.",
+      });
+    }
+
+    const principal = await unscopedAccessTokenVerifier.verify(
+      readBearerToken(request.headers.authorization),
+    );
+    if (principal.organizationId) {
+      return reply.code(409).send({
+        code: "organization_context_present",
+        message: "Leave the active organization before creating another workspace.",
+      });
+    }
+
+    const input = createWorkspaceSchema.parse(request.body);
+    const workspace = await workspaceProvisioner.create({
+      idempotencyKey,
+      name: input.name,
+      userId: principal.userId,
+    });
+    return reply.code(201).send(workspace);
+  });
 
   app.get("/v1/public/attestation-case-files/:publicCaseFileId", async (request, reply) => {
     if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {

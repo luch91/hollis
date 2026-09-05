@@ -23,6 +23,11 @@ the complete `DB_NAME`, `DB_USER`, `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set, pl
 `GCS_PROJECT_ID`, `GCS_BUCKET`, and the WorkOS settings through Secret Manager or managed runtime
 configuration. Never place connection strings, tokens, or keys in the image or repository.
 
+Self-service workspace provisioning additionally requires `WORKOS_API_KEY` and
+`WORKOS_INITIAL_ADMIN_ROLE_SLUG` in the API runtime. Store the API key in Secret Manager. Set the
+role slug to a preconfigured WorkOS organization role that grants the intended Hollis administrator
+permissions. Do not infer the role name or use a personal user credential for this setting.
+
 If GenLayer public case-file publishing is enabled, set `PUBLIC_ATTESTATION_ORIGIN` to the Cloud
 Run service's externally reachable HTTPS origin. It must route
 `GET /v1/public/attestation-case-files/:publicCaseFileId` without WorkOS authentication. This is a
@@ -42,8 +47,9 @@ The region is separate from the Cloud Storage EU multi-region bucket and must be
 deployment. Do not set `API_HOST` in Cloud Run. The API defaults to `0.0.0.0`, and Cloud Run's
 injected `PORT` is honored when `API_PORT` is absent.
 
-Production configuration fails closed unless the claims webhook secret and evidence bucket are set,
-the console origin uses HTTPS, and the API host is `0.0.0.0`.
+Production configuration fails closed unless the claims webhook secret, evidence bucket, WorkOS API
+key, and initial administrator role slug are set, the console origin uses HTTPS, and the API host is
+`0.0.0.0`.
 
 ## Retention scheduler
 

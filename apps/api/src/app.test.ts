@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { buildAdjudicationCaseFile } from "./attestation-workflow.js";
-import type { AccessTokenVerifier, AuthenticatedPrincipal } from "./auth.js";
+import type {
+  AccessTokenVerifier,
+  AuthenticatedPrincipal,
+  UnscopedAccessTokenVerifier,
+} from "./auth.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
 import type {
@@ -12,6 +16,7 @@ import type {
 } from "./attestation.js";
 import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
 import type { ReviewExport } from "@hollis/contracts";
+import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -62,6 +67,8 @@ function createDependencies(
     publicAttestationCaseFileStore?: PublicAttestationCaseFileStore;
     attestationStore?: AttestationStore;
     evidenceMetadataStore?: EvidenceMetadataStore;
+    workspaceProvisioner?: WorkspaceProvisioner;
+    unscopedOrganizationId?: string | null;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -74,6 +81,16 @@ function createDependencies(
     async findByOrganizationId(organizationId) {
       expect(organizationId).toBe("org_01");
       return options.provisioned === false ? null : { id: tenantId, organizationId };
+    },
+  };
+  const unscopedAccessTokenVerifier: UnscopedAccessTokenVerifier = {
+    async verify(token) {
+      expect(token).toBe("unscoped-token");
+      return {
+        organizationId: options.unscopedOrganizationId ?? null,
+        sessionId: "session_01",
+        userId: "user_01",
+      };
     },
   };
   const reviewIntakeStore: ReviewIntakeStore =
@@ -148,6 +165,8 @@ function createDependencies(
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
+    unscopedAccessTokenVerifier,
+    workspaceProvisioner: options.workspaceProvisioner,
     workflowStore,
   };
 }
@@ -216,6 +235,70 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
+  });
+
+  it("creates a first workspace only from an unscoped authenticated session", async () => {
+    let received: unknown;
+    const workspaceProvisioner: WorkspaceProvisioner = {
+      async create(input) {
+        received = input;
+        return {
+          organizationId: "org_workspace",
+          tenantId,
+        };
+      },
+    };
+    const app = await buildApp(environment, createDependencies({ workspaceProvisioner }));
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer unscoped-token",
+        "idempotency-key": "workspace-create-001",
+      },
+      method: "POST",
+      payload: { name: "Northstar Claims" },
+      url: "/v1/workspaces",
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({ organizationId: "org_workspace", tenantId });
+    expect(received).toEqual({
+      idempotencyKey: "workspace-create-001",
+      name: "Northstar Claims",
+      userId: "user_01",
+    });
+  });
+
+  it("does not create a workspace from an active organization session", async () => {
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        unscopedOrganizationId: "org_01",
+        workspaceProvisioner: {
+          async create() {
+            throw new Error("Not expected.");
+          },
+        },
+      }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer unscoped-token",
+        "idempotency-key": "workspace-create-001",
+      },
+      method: "POST",
+      payload: { name: "Northstar Claims" },
+      url: "/v1/workspaces",
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      code: "organization_context_present",
+      message: "Leave the active organization before creating another workspace.",
+    });
   });
 
   it("rejects a protected request without a bearer token", async () => {
