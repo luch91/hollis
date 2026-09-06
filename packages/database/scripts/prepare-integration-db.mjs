@@ -24,6 +24,22 @@ try {
     END
     $$
   `);
+  await client.unsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hollis_migrator') THEN
+        CREATE ROLE hollis_migrator
+          NOLOGIN
+          NOSUPERUSER
+          NOCREATEDB
+          NOCREATEROLE
+          NOINHERIT
+          NOREPLICATION
+          NOBYPASSRLS;
+      END IF;
+    END
+    $$
+  `);
   await client.unsafe("GRANT USAGE ON SCHEMA public TO hollis_app");
   await client.unsafe(`
     ALTER ROLE hollis_app WITH

@@ -53,14 +53,40 @@ export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  workosOrganizationId: text("workos_organization_id").notNull().unique(),
+  legacyWorkosOrganizationId: text("workos_organization_id").unique(),
 });
 
 export const users = pgTable("users", {
+  avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  displayName: text("display_name"),
+  email: text("email"),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   id: uuid("id").primaryKey().defaultRandom(),
-  workosUserId: text("workos_user_id").notNull().unique(),
+  legacyWorkosUserId: text("workos_user_id").unique(),
 });
+
+export const identityAccounts = pgTable(
+  "identity_accounts",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    email: text("email").notNull(),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("provider").notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    uniqueIndex("identity_accounts_provider_subject_unique").on(
+      table.provider,
+      table.providerSubject,
+    ),
+    index("identity_accounts_user_idx").on(table.userId),
+  ],
+);
 
 export const tenantMemberships = pgTable(
   "tenant_memberships",
@@ -74,11 +100,55 @@ export const tenantMemberships = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
-    workosMembershipId: text("workos_membership_id").notNull().unique(),
+    legacyWorkosMembershipId: text("workos_membership_id").unique(),
   },
   (table) => [
     uniqueIndex("tenant_memberships_tenant_user_unique").on(table.tenantId, table.userId),
     index("tenant_memberships_user_idx").on(table.userId),
+  ],
+);
+
+export const applicationSessions = pgTable(
+  "application_sessions",
+  {
+    activeTenantId: uuid("active_tenant_id").references(() => tenants.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    tokenDigest: text("token_digest").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    index("application_sessions_user_idx").on(table.userId),
+    index("application_sessions_active_tenant_idx").on(table.activeTenantId),
+  ],
+);
+
+export const workspaceInvitations = pgTable(
+  "workspace_invitations",
+  {
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    invitedByUserId: uuid("invited_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    role: text("role").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    tokenDigest: text("token_digest").notNull().unique(),
+  },
+  (table) => [
+    index("workspace_invitations_tenant_email_idx").on(table.tenantId, table.email),
+    index("workspace_invitations_expiry_idx").on(table.expiresAt),
   ],
 );
 

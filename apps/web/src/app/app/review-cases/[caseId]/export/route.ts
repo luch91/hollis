@@ -1,6 +1,6 @@
-import { withAuth } from "@workos-inc/authkit-nextjs";
 import { reviewExportSchema, type ReviewExport } from "@hollis/contracts/review-case";
 import { NextResponse } from "next/server";
+import { readHollisSessionToken } from "@/lib/hollis-session";
 import type { AttestationRecord } from "../../data";
 import { buildDocxReport, buildMarkdownReport, buildPdfReport } from "./export-document";
 
@@ -20,15 +20,15 @@ function asArrayBuffer(value: Uint8Array): ArrayBuffer {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ caseId: string }> }) {
-  const session = await withAuth();
-  if (!session.user || !session.accessToken) {
+  const sessionToken = await readHollisSessionToken();
+  if (!sessionToken) {
     return NextResponse.json({ code: "unauthorized" }, { status: 401 });
   }
 
   const { caseId } = await params;
   const requestedFormat = new URL(request.url).searchParams.get("format");
   const format: ExportFormat = isExportFormat(requestedFormat) ? requestedFormat : "json";
-  const headers = { authorization: `Bearer ${session.accessToken}` };
+  const headers = { authorization: `Bearer ${sessionToken}` };
   const [response, attestationResponse] = await Promise.all([
     fetch(`${apiUrl}/v1/review-cases/${caseId}/export`, { cache: "no-store", headers }),
     fetch(`${apiUrl}/v1/review-cases/${caseId}/attestations`, { cache: "no-store", headers }),

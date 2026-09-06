@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { ReviewExport } from "@hollis/contracts/review-case";
-import { withAuth } from "@workos-inc/authkit-nextjs";
-import { claimAction, decideAction, escalateAction, recoverWorkspaceAction } from "./actions";
+import { readHollisSession } from "@/lib/hollis-session";
+import { claimAction, decideAction, escalateAction } from "./actions";
 import {
   getReviewCase,
   getReviewExport,
@@ -768,15 +768,12 @@ function WorkspaceProvisioningRequired() {
         <span>Workspace setup</span>
         <h1>Finish connecting this Hollis workspace.</h1>
         <p>
-          This organization was created, but its protected Hollis workspace record was not
-          completed. A workspace administrator can finish the connection without changing any case
-          record.
+          This workspace is unavailable to the current session. Sign in again or select a workspace
+          you have been invited to.
         </p>
-        <form action={recoverWorkspaceAction}>
-          <button className="reference-primary" type="submit">
-            Complete workspace setup <span>›</span>
-          </button>
-        </form>
+        <Link className="reference-primary" href="/onboarding">
+          Workspace setup <span>›</span>
+        </Link>
       </div>
     </section>
   );
@@ -790,8 +787,8 @@ export default async function ReviewCasesPage({
   searchParams?: Promise<WorkspaceQuery>;
 } = {}) {
   const query = explicitQuery ?? (searchParams ? await searchParams : {});
-  const { user } = await withAuth();
-  if (!user) throw new Error("An authenticated reviewer profile is required.");
+  const session = await readHollisSession();
+  if (!session) throw new Error("An authenticated reviewer profile is required.");
 
   const [activeCasesResult, completedCasesResult] = await Promise.allSettled([
     listReviewCases(),
@@ -803,8 +800,7 @@ export default async function ReviewCasesPage({
       .map((result) => result.reason);
     if (
       queueErrors.some(
-        (error) =>
-          error instanceof ReviewServiceError && error.code === "organization_not_provisioned",
+        (error) => error instanceof ReviewServiceError && error.code === "workspace_not_provisioned",
       )
     ) {
       return <WorkspaceProvisioningRequired />;
@@ -815,10 +811,10 @@ export default async function ReviewCasesPage({
   const activeCases = activeCasesResult.value;
   const completedCases = completedCasesResult.value;
   const reviewer: ReviewerProfile = {
-    email: user.email,
-    id: user.id,
-    imageUrl: user.profilePictureUrl,
-    name: [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email,
+    email: "",
+    id: session.session.userId,
+    imageUrl: null,
+    name: "Workspace member",
   };
   const allCases = [...activeCases, ...completedCases];
   const statusCases =

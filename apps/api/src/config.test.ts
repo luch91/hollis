@@ -7,11 +7,9 @@ import {
 
 const baseEnvironment = {
   DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
+  IDENTITY_PLATFORM_PROJECT_ID: "hollis-507001",
   NODE_ENV: "test",
   WEB_ORIGIN: "http://localhost:3000",
-  WORKOS_CLIENT_ID: "client_test",
-  WORKOS_ISSUER: "https://api.workos.com",
-  WORKOS_JWKS_URL: "https://api.workos.com/sso/jwks/client_test",
 };
 
 describe("readEnvironment", () => {
@@ -39,8 +37,6 @@ describe("readEnvironment", () => {
         NODE_ENV: "production",
         PORT: "8080",
         WEB_ORIGIN: "https://console.hollis.test",
-        WORKOS_API_KEY: "sk_test",
-        WORKOS_INITIAL_ADMIN_ROLE_SLUG: "workspace-admin",
       }),
     ).toMatchObject({ API_HOST: "0.0.0.0", API_PORT: 8080 });
   });

@@ -15,9 +15,10 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import {
   type AccessTokenVerifier,
+  type ApplicationSessionStore,
   type UnscopedAccessTokenVerifier,
-  createWorkOsAccessTokenVerifier,
-  createWorkOsUnscopedAccessTokenVerifier,
+  createHollisAccessTokenVerifier,
+  createHollisUnscopedAccessTokenVerifier,
   InsufficientPermissionError,
   InvalidAccessTokenError,
   readBearerToken,
@@ -44,6 +45,7 @@ import {
   createPostgresReviewIntakeStore,
   createPostgresTenantResolver,
   createPostgresWorkspaceProvisioningStore,
+  createPostgresApplicationSessionStore,
   setEvidenceLegalHold,
 } from "./persistence.js";
 import { createPostgresReviewWorkflowStore } from "./persistence.js";
@@ -71,10 +73,16 @@ import {
 } from "./workflow.js";
 import {
   createWorkspaceSchema,
-  createWorkOsWorkspaceProvisioner,
+  createHollisWorkspaceProvisioner,
   WorkspaceProvisioningError,
   type WorkspaceProvisioner,
 } from "./workspace-provisioning.js";
+import {
+  createApplicationSessionToken,
+  createIdentityPlatformTokenVerifier,
+  digestApplicationSessionToken,
+  type IdentityPlatformTokenVerifier,
+} from "./identity-platform.js";
 
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
@@ -96,17 +104,18 @@ type AppDependencies = {
   ) => Promise<boolean>;
   workspaceProvisioner?: WorkspaceProvisioner;
   unscopedAccessTokenVerifier?: UnscopedAccessTokenVerifier;
+  applicationSessionStore?: ApplicationSessionStore;
+  identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
 };
 
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
-  const accessTokenVerifier =
-    dependencies.accessTokenVerifier ?? createWorkOsAccessTokenVerifier(environment);
   const databaseResource =
     dependencies.reviewIntakeStore &&
     dependencies.tenantResolver &&
     dependencies.workflowStore &&
     dependencies.evidenceMetadataStore &&
-    dependencies.publicAttestationCaseFileStore
+    dependencies.publicAttestationCaseFileStore &&
+    dependencies.applicationSessionStore
       ? null
       : createDatabase(databaseConnectionFromEnvironment(environment));
 
@@ -140,16 +149,16 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       setEvidenceLegalHold(requireDatabase(), tenantId, caseId, evidenceId, active, actorId));
   const workspaceProvisioner =
     dependencies.workspaceProvisioner ??
-    (environment.WORKOS_API_KEY && environment.WORKOS_INITIAL_ADMIN_ROLE_SLUG
-      ? createWorkOsWorkspaceProvisioner(
-          environment.WORKOS_API_KEY,
-          environment.WORKOS_INITIAL_ADMIN_ROLE_SLUG,
-          createPostgresWorkspaceProvisioningStore(requireDatabase()),
-        )
-      : null);
+    createHollisWorkspaceProvisioner(createPostgresWorkspaceProvisioningStore(requireDatabase()));
+  const applicationSessionStore =
+    dependencies.applicationSessionStore ?? createPostgresApplicationSessionStore(requireDatabase());
+  const accessTokenVerifier =
+    dependencies.accessTokenVerifier ?? createHollisAccessTokenVerifier(applicationSessionStore);
   const unscopedAccessTokenVerifier =
     dependencies.unscopedAccessTokenVerifier ??
-    createWorkOsUnscopedAccessTokenVerifier(environment);
+    createHollisUnscopedAccessTokenVerifier(applicationSessionStore);
+  const identityPlatformTokenVerifier =
+    dependencies.identityPlatformTokenVerifier ?? createIdentityPlatformTokenVerifier(environment);
   const evidenceStorage =
     dependencies.evidenceStorage ??
     (environment.GCS_BUCKET
@@ -167,7 +176,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
   await app.register(cors, {
     credentials: true,
-    methods: ["GET", "POST"],
+    methods: ["DELETE", "GET", "POST"],
     origin: environment.WEB_ORIGIN,
   });
 
@@ -193,6 +202,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const publicCaseFileParamsSchema = z.object({ publicCaseFileId: z.uuid() }).strict();
   const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
   const legalHoldSchema = z.object({ active: z.boolean() }).strict();
+  const identitySessionSchema = z.object({ identityToken: z.string().min(1) }).strict();
+  const activateWorkspaceSchema = z.object({ tenantId: z.uuid() }).strict();
 
   if (databaseResource) {
     app.addHook("onClose", async () => databaseResource.client.end());
@@ -276,7 +287,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         { diagnostic: error.diagnostic, provisioningCode: error.code },
         "workspace provisioning failed",
       );
-      return reply.code(error.code === "workspace_recovery_forbidden" ? 403 : 502).send({
+      return reply.code(502).send({
         code: error.code,
         message: "Workspace provisioning could not be completed.",
       });
@@ -288,60 +299,74 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.get("/health/live", async () => ({ status: "ok" }));
 
-  app.post("/v1/workspaces", async (request, reply) => {
-    if (!workspaceProvisioner) {
-      return reply.code(503).send({
-        code: "workspace_provisioning_unconfigured",
-        message: "Workspace provisioning is not configured.",
-      });
-    }
+  app.post("/v1/auth/sessions", async (request, reply) => {
+    const input = identitySessionSchema.parse(request.body);
+    const identity = await identityPlatformTokenVerifier.verify(input.identityToken);
+    const sessionToken = createApplicationSessionToken();
+    const session = await applicationSessionStore.establish({
+      ...identity,
+      expiresAt: new Date(Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000),
+      tokenDigest: digestApplicationSessionToken(sessionToken),
+    });
+    return reply.code(201).send({
+      activeWorkspace: session.tenantId
+        ? { id: session.tenantId, name: session.workspaceName, role: session.role }
+        : null,
+      sessionToken,
+      userId: session.userId,
+    });
+  });
 
-    const idempotencyKey =
-      typeof request.headers["idempotency-key"] === "string"
-        ? request.headers["idempotency-key"]
-        : undefined;
-    if (!idempotencyKey || idempotencyKey.length > 255) {
-      return reply.code(400).send({
-        code: "invalid_request",
-        message: "An Idempotency-Key header is required.",
-      });
-    }
+  app.delete("/v1/auth/sessions/current", async (request, reply) => {
+    const token = readBearerToken(request.headers.authorization);
+    await applicationSessionStore.revoke(digestApplicationSessionToken(token));
+    return reply.code(204).send();
+  });
 
+  app.get("/v1/auth/me", async (request) => {
     const principal = await unscopedAccessTokenVerifier.verify(
       readBearerToken(request.headers.authorization),
     );
-    if (principal.organizationId) {
-      return reply.code(409).send({
-        code: "organization_context_present",
-        message: "Leave the active organization before creating another workspace.",
-      });
-    }
-
-    const input = createWorkspaceSchema.parse(request.body);
-    const workspace = await workspaceProvisioner.create({
-      idempotencyKey,
-      name: input.name,
+    return {
+      activeWorkspace: principal.activeWorkspace,
+      sessionId: principal.sessionId,
       userId: principal.userId,
-    });
-    return reply.code(201).send(workspace);
+    };
   });
 
-  app.post("/v1/workspaces/recover", async (request, reply) => {
-    if (!workspaceProvisioner?.recover) {
-      return reply.code(503).send({
-        code: "workspace_recovery_unconfigured",
-        message: "Workspace recovery is not configured.",
-      });
+  app.post("/v1/auth/active-workspace", async (request, reply) => {
+    const token = readBearerToken(request.headers.authorization);
+    const input = activateWorkspaceSchema.parse(request.body);
+    const session = await applicationSessionStore.activate(
+      digestApplicationSessionToken(token),
+      input.tenantId,
+    );
+    if (!session?.tenantId || !session.workspaceName || !session.role) {
+      throw new InvalidAccessTokenError();
     }
+    return reply.send({
+      activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
+      userId: session.userId,
+    });
+  });
 
-    const principal = await accessTokenVerifier.verify(
+  app.post("/v1/workspaces", async (request, reply) => {
+    const principal = await unscopedAccessTokenVerifier.verify(
       readBearerToken(request.headers.authorization),
     );
-    const workspace = await workspaceProvisioner.recover({
-      organizationId: principal.organizationId,
-      userId: principal.userId,
+    const input = createWorkspaceSchema.parse(request.body);
+    const workspace = await workspaceProvisioner.create({ name: input.name, userId: principal.userId });
+    const token = readBearerToken(request.headers.authorization);
+    const session = await applicationSessionStore.activate(
+      digestApplicationSessionToken(token),
+      workspace.tenantId,
+    );
+    if (!session?.tenantId || !session.workspaceName || !session.role) {
+      throw new WorkspaceProvisioningError("tenant_provisioning_failed", "session:activation");
+    }
+    return reply.code(201).send({
+      activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
     });
-    return reply.code(201).send(workspace);
   });
 
   app.get("/v1/public/attestation-case-files/:publicCaseFileId", async (request, reply) => {
@@ -368,7 +393,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     }
 
     const payload = claimsWebhookSchema.parse(request.body);
-    const verified = verifyClaimsWebhook(
+    verifyClaimsWebhook(
       payload,
       {
         idempotencyKey:
@@ -386,18 +411,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       },
       environment.CLAIMS_WEBHOOK_SECRET,
     );
-    const tenant = await tenantResolver.findByOrganizationId(verified.organizationId);
-    if (!tenant) {
-      throw new InvalidWebhookError();
-    }
-    const { organizationId: _organizationId, ...intake } = verified;
-    const reviewCase = await createReviewIntake(
-      intake,
-      { actorId: "claims-system", tenantId: tenant.id },
-      reviewIntakeStore,
-    );
-
-    return reply.code(reviewCase.replayed ? 200 : 201).send(reviewCase);
+    return reply.code(503).send({
+      code: "claims_workspace_resolution_unconfigured",
+      message: "Claims intake is not configured for public workspaces.",
+    });
   });
 
   app.get(
@@ -406,7 +423,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     async (request) => {
       const { principal, tenant } = requireRequestContext(request);
       return {
-        organizationId: principal.organizationId,
         permissions: principal.permissions,
         role: principal.role,
         tenantId: tenant.id,

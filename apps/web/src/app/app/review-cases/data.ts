@@ -1,6 +1,6 @@
-import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { ReviewExport } from "@hollis/contracts/review-case";
 import { redirect } from "next/navigation";
+import { readHollisSessionToken } from "@/lib/hollis-session";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -85,12 +85,10 @@ export class ReviewServiceError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const session = await withAuth();
-  if (!session.accessToken) {
-    redirect("/sign-in");
-  }
+  const sessionToken = await readHollisSessionToken();
+  if (!sessionToken) redirect("/sign-in");
   const headers = new Headers(init?.headers);
-  headers.set("authorization", `Bearer ${session.accessToken}`);
+  headers.set("authorization", `Bearer ${sessionToken}`);
   if (init?.body) {
     headers.set("content-type", "application/json");
   }

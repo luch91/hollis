@@ -57,11 +57,8 @@ const environmentSchema = z
       .optional(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),
-    WORKOS_CLIENT_ID: z.string().min(1),
-    WORKOS_API_KEY: z.string().min(1).optional(),
-    WORKOS_INITIAL_ADMIN_ROLE_SLUG: z.string().min(1).optional(),
-    WORKOS_ISSUER: z.url(),
-    WORKOS_JWKS_URL: z.url(),
+    HOLLIS_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24).default(8),
+    IDENTITY_PLATFORM_PROJECT_ID: z.string().min(1).default("hollis-507001"),
   })
   .and(databaseConfigurationSchema)
   .superRefine((value, context) => {
@@ -99,21 +96,6 @@ const environmentSchema = z
       });
     }
 
-    if (!value.WORKOS_API_KEY) {
-      context.addIssue({
-        code: "custom",
-        message: "WORKOS_API_KEY is required in production.",
-        path: ["WORKOS_API_KEY"],
-      });
-    }
-
-    if (!value.WORKOS_INITIAL_ADMIN_ROLE_SLUG) {
-      context.addIssue({
-        code: "custom",
-        message: "WORKOS_INITIAL_ADMIN_ROLE_SLUG is required in production.",
-        path: ["WORKOS_INITIAL_ADMIN_ROLE_SLUG"],
-      });
-    }
   });
 
 export type Environment = z.infer<typeof environmentSchema>;

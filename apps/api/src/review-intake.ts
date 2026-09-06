@@ -3,11 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 
 export type TenantContext = {
   id: string;
-  organizationId: string;
 };
 
 export interface TenantResolver {
-  findByOrganizationId(organizationId: string): Promise<TenantContext | null>;
+  findByTenantId(tenantId: string): Promise<TenantContext | null>;
 }
 
 export type ReviewIntakeRecord = CreateReviewCase & {

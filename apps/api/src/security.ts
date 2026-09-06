@@ -36,11 +36,11 @@ export function createSecurityPreHandler(
       requirePermission(principal, permission);
     }
 
-    const tenant = await tenantResolver.findByOrganizationId(principal.organizationId);
+    const tenant = await tenantResolver.findByTenantId(principal.tenantId);
     if (!tenant) {
       request.log.warn(
-        { organizationId: principal.organizationId },
-        "organization is not provisioned",
+        { tenantId: principal.tenantId },
+        "workspace is not provisioned",
       );
       throw new TenantAccessError();
     }
@@ -63,8 +63,8 @@ export function sendSecurityError(error: unknown, reply: FastifyReply): boolean 
 
   if (error instanceof TenantAccessError) {
     void reply.code(403).send({
-      code: "organization_not_provisioned",
-      message: "The active organization does not have Hollis access.",
+      code: "workspace_not_provisioned",
+      message: "The active workspace does not have Hollis access.",
     });
     return true;
   }

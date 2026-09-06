@@ -253,7 +253,7 @@ export default async function WorkspaceSectionPage({
         <SectionHeader
           eyebrow="Workspace administration"
           title="Controlled workspace access"
-          summary="Hollis assigns access through WorkOS organization membership and roles. Review records remain isolated to the active organization."
+          summary="Hollis assigns access through verified workspace membership and roles. Review records remain isolated to the active workspace."
         />
         <div className="workspace-list">
           <Link href="/app/cases">

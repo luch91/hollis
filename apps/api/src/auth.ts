@@ -1,36 +1,79 @@
-import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
-import { z } from "zod";
-import type { Environment } from "./config.js";
+import { digestApplicationSessionToken } from "./identity-platform.js";
 
-const accessTokenClaimsSchema = z.object({
-  client_id: z.string().min(1),
-  org_id: z.string().min(1),
-  permissions: z.array(z.string()),
-  role: z.string().min(1),
-  sid: z.string().min(1),
-  sub: z.string().min(1),
-});
+const rolePermissions = {
+  administrator: [
+    "reviews:read",
+    "reviews:create",
+    "reviews:assign",
+    "reviews:escalate",
+    "reviews:decide",
+    "reviews:attest",
+    "reviews:retain",
+    "workspace:manage",
+  ],
+  auditor: ["reviews:read"],
+  contributor: ["reviews:create"],
+  owner: [
+    "reviews:read",
+    "reviews:create",
+    "reviews:assign",
+    "reviews:escalate",
+    "reviews:decide",
+    "reviews:attest",
+    "reviews:retain",
+    "workspace:manage",
+  ],
+  reviewer: [
+    "reviews:read",
+    "reviews:create",
+    "reviews:assign",
+    "reviews:escalate",
+    "reviews:decide",
+    "reviews:attest",
+  ],
+} as const;
 
-const unscopedAccessTokenClaimsSchema = z.object({
-  client_id: z.string().min(1),
-  org_id: z.string().min(1).optional(),
-  sid: z.string().min(1),
-  sub: z.string().min(1),
-});
+type HollisRole = keyof typeof rolePermissions;
 
 export type AuthenticatedPrincipal = {
-  organizationId: string;
   permissions: readonly string[];
-  role: string;
+  role: HollisRole;
   sessionId: string;
+  tenantId: string;
   userId: string;
 };
 
 export type UnscopedAuthenticatedPrincipal = {
-  organizationId: string | null;
+  activeWorkspace: {
+    id: string;
+    name: string;
+    role: HollisRole;
+  } | null;
   sessionId: string;
   userId: string;
 };
+
+export type StoredApplicationSession = {
+  role: string | null;
+  sessionId: string;
+  tenantId: string | null;
+  userId: string;
+  workspaceName: string | null;
+};
+
+export interface ApplicationSessionStore {
+  activate(tokenDigest: string, tenantId: string): Promise<StoredApplicationSession | null>;
+  establish(input: {
+    avatarUrl: string | null;
+    displayName: string | null;
+    email: string;
+    expiresAt: Date;
+    subject: string;
+    tokenDigest: string;
+  }): Promise<StoredApplicationSession>;
+  read(tokenDigest: string): Promise<StoredApplicationSession | null>;
+  revoke(tokenDigest: string): Promise<boolean>;
+}
 
 export interface UnscopedAccessTokenVerifier {
   verify(token: string): Promise<UnscopedAuthenticatedPrincipal>;
@@ -54,60 +97,68 @@ export class InsufficientPermissionError extends Error {
   }
 }
 
-export async function verifyAccessToken(
-  token: string,
-  keySet: JWTVerifyGetKey,
-  options: { clientId: string; issuer: string },
-): Promise<AuthenticatedPrincipal> {
-  try {
-    const { payload } = await jwtVerify(token, keySet, { issuer: options.issuer });
-    const claims = accessTokenClaimsSchema.parse(payload);
-
-    if (claims.client_id !== options.clientId) {
-      throw new InvalidAccessTokenError();
-    }
-
-    return {
-      organizationId: claims.org_id,
-      permissions: claims.permissions,
-      role: claims.role,
-      sessionId: claims.sid,
-      userId: claims.sub,
-    };
-  } catch (error) {
-    if (error instanceof errors.JOSEError || error instanceof z.ZodError) {
-      throw new InvalidAccessTokenError();
-    }
-
-    throw error;
+function parseRole(value: string | null): HollisRole {
+  if (!value || !(value in rolePermissions)) {
+    throw new InvalidAccessTokenError();
   }
+
+  return value as HollisRole;
 }
 
-export async function verifyUnscopedAccessToken(
+async function readSession(
   token: string,
-  keySet: JWTVerifyGetKey,
-  options: { clientId: string; issuer: string },
-): Promise<UnscopedAuthenticatedPrincipal> {
-  try {
-    const { payload } = await jwtVerify(token, keySet, { issuer: options.issuer });
-    const claims = unscopedAccessTokenClaimsSchema.parse(payload);
+  store: ApplicationSessionStore,
+): Promise<StoredApplicationSession> {
+  const record = await store.read(digestApplicationSessionToken(token));
+  if (!record) throw new InvalidAccessTokenError();
+  return record;
+}
 
-    if (claims.client_id !== options.clientId) {
-      throw new InvalidAccessTokenError();
-    }
+export function createHollisUnscopedAccessTokenVerifier(
+  store: ApplicationSessionStore,
+): UnscopedAccessTokenVerifier {
+  return {
+    async verify(token) {
+      const record = await readSession(token, store);
+      if (!record.tenantId) {
+        return {
+          activeWorkspace: null,
+          sessionId: record.sessionId,
+          userId: record.userId,
+        };
+      }
 
-    return {
-      organizationId: claims.org_id ?? null,
-      sessionId: claims.sid,
-      userId: claims.sub,
-    };
-  } catch (error) {
-    if (error instanceof errors.JOSEError || error instanceof z.ZodError) {
-      throw new InvalidAccessTokenError();
-    }
+      const role = parseRole(record.role);
+      if (!record.workspaceName) throw new InvalidAccessTokenError();
+      return {
+        activeWorkspace: {
+          id: record.tenantId,
+          name: record.workspaceName,
+          role,
+        },
+        sessionId: record.sessionId,
+        userId: record.userId,
+      };
+    },
+  };
+}
 
-    throw error;
-  }
+export function createHollisAccessTokenVerifier(store: ApplicationSessionStore): AccessTokenVerifier {
+  const unscoped = createHollisUnscopedAccessTokenVerifier(store);
+  return {
+    async verify(token) {
+      const principal = await unscoped.verify(token);
+      if (!principal.activeWorkspace) throw new InvalidAccessTokenError();
+
+      return {
+        permissions: rolePermissions[principal.activeWorkspace.role],
+        role: principal.activeWorkspace.role,
+        sessionId: principal.sessionId,
+        tenantId: principal.activeWorkspace.id,
+        userId: principal.userId,
+      };
+    },
+  };
 }
 
 export function requirePermission(principal: AuthenticatedPrincipal, permission: string): void {
@@ -116,42 +167,12 @@ export function requirePermission(principal: AuthenticatedPrincipal, permission:
   }
 }
 
-export function createWorkOsAccessTokenVerifier(
-  environment: Pick<Environment, "WORKOS_CLIENT_ID" | "WORKOS_ISSUER" | "WORKOS_JWKS_URL">,
-): AccessTokenVerifier {
-  const keySet = createRemoteJWKSet(new URL(environment.WORKOS_JWKS_URL));
-
-  return {
-    async verify(token) {
-      return verifyAccessToken(token, keySet, {
-        clientId: environment.WORKOS_CLIENT_ID,
-        issuer: environment.WORKOS_ISSUER,
-      });
-    },
-  };
-}
-
-export function createWorkOsUnscopedAccessTokenVerifier(
-  environment: Pick<Environment, "WORKOS_CLIENT_ID" | "WORKOS_ISSUER" | "WORKOS_JWKS_URL">,
-) {
-  const keySet = createRemoteJWKSet(new URL(environment.WORKOS_JWKS_URL));
-
-  return {
-    async verify(token: string) {
-      return verifyUnscopedAccessToken(token, keySet, {
-        clientId: environment.WORKOS_CLIENT_ID,
-        issuer: environment.WORKOS_ISSUER,
-      });
-    },
-  };
-}
-
 export function readBearerToken(authorization: string | undefined): string {
   if (!authorization) {
     throw new InvalidAccessTokenError();
   }
 
-  const match = /^Bearer ([^\s]+)$/.exec(authorization);
+  const match = /^Bearer ([A-Za-z0-9_-]{1,512})$/.exec(authorization);
   if (!match?.[1]) {
     throw new InvalidAccessTokenError();
   }

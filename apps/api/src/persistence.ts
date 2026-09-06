@@ -21,6 +21,7 @@ import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { createDatabase } from "@hollis/database";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
+import type { ApplicationSessionStore } from "./auth.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { AttestationReceipt } from "@hollis/contracts";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
@@ -150,21 +151,70 @@ async function appendEvent(
 
 export function createPostgresTenantResolver(database: Database): TenantResolver {
   return {
-    async findByOrganizationId(organizationId) {
+    async findByTenantId(tenantId) {
       const tenant = await database.transaction(async (transaction) => {
         await transaction.execute(
-          sql`select set_config('app.workos_organization_id', ${organizationId}, true)`,
+          sql`select set_config('app.tenant_id', ${tenantId}, true)`,
         );
         const [resolved] = await transaction
-          .select({ id: tenants.id, organizationId: tenants.workosOrganizationId })
+          .select({ id: tenants.id })
           .from(tenants)
-          .where(eq(tenants.workosOrganizationId, organizationId))
+          .where(eq(tenants.id, tenantId))
           .limit(1);
 
         return resolved;
       });
 
       return tenant ?? null;
+    },
+  };
+}
+
+type SessionFunctionRecord = {
+  role: string | null;
+  sessionId: string;
+  tenantId: string | null;
+  userId: string;
+  workspaceName: string | null;
+};
+
+export function createPostgresApplicationSessionStore(database: Database): ApplicationSessionStore {
+  return {
+    async activate(tokenDigest, tenantId) {
+      const [record] = await database.execute<SessionFunctionRecord>(sql`
+        select *
+        from public.activate_hollis_workspace(${tokenDigest}, ${tenantId}::uuid)
+      `);
+      return record ?? null;
+    },
+    async establish(input) {
+      const [record] = await database.execute<SessionFunctionRecord>(sql`
+        select *
+        from public.establish_hollis_application_session(
+          ${input.subject},
+          ${input.email},
+          true,
+          ${input.displayName ?? ""},
+          ${input.avatarUrl ?? ""},
+          ${input.tokenDigest},
+          ${input.expiresAt}
+        )
+      `);
+      if (!record) throw new Error("Application session could not be established.");
+      return record;
+    },
+    async read(tokenDigest) {
+      const [record] = await database.execute<SessionFunctionRecord>(sql`
+        select *
+        from public.read_hollis_application_session(${tokenDigest})
+      `);
+      return record ?? null;
+    },
+    async revoke(tokenDigest) {
+      const [record] = await database.execute<{ revoke_hollis_application_session: boolean }>(sql`
+        select public.revoke_hollis_application_session(${tokenDigest})
+      `);
+      return record?.revoke_hollis_application_session ?? false;
     },
   };
 }
@@ -176,13 +226,7 @@ export function createPostgresWorkspaceProvisioningStore(
     async provision(input) {
       const [record] = await database.execute<WorkspaceProvisioningRecord>(sql`
         select *
-        from provision_hollis_tenant(
-          ${input.organizationName},
-          ${input.organizationId},
-          ${input.creatorUserId},
-          ${input.membershipId},
-          ${input.role}
-        )
+        from provision_public_hollis_workspace(${input.name}, ${input.creatorUserId}::uuid)
       `);
       if (!record) throw new Error("Workspace provisioning did not return a tenant.");
       return record;

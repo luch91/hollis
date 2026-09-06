@@ -3,6 +3,7 @@ import { buildApp } from "./app.js";
 import { buildAdjudicationCaseFile } from "./attestation-workflow.js";
 import type {
   AccessTokenVerifier,
+  ApplicationSessionStore,
   AuthenticatedPrincipal,
   UnscopedAccessTokenVerifier,
 } from "./auth.js";
@@ -32,19 +33,18 @@ const environment = {
   DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
   NODE_ENV: "test" as const,
   WEB_ORIGIN: "http://localhost:3000",
-  WORKOS_CLIENT_ID: "client_test",
-  WORKOS_ISSUER: "https://api.workos.com",
-  WORKOS_JWKS_URL: "https://api.workos.com/sso/jwks/client_test",
+  HOLLIS_SESSION_TTL_HOURS: 8,
+  IDENTITY_PLATFORM_PROJECT_ID: "hollis-507001",
 };
 
 const tenantId = "0198ef37-6216-7000-8000-000000000001";
 
 function createPrincipal(permissions: string[] = ["reviews:read"]): AuthenticatedPrincipal {
   return {
-    organizationId: "org_01",
     permissions,
     role: "reviewer",
     sessionId: "session_01",
+    tenantId,
     userId: "user_01",
   };
 }
@@ -68,7 +68,7 @@ function createDependencies(
     attestationStore?: AttestationStore;
     evidenceMetadataStore?: EvidenceMetadataStore;
     workspaceProvisioner?: WorkspaceProvisioner;
-    unscopedOrganizationId?: string | null;
+    unscopedTenantId?: string | null;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -78,16 +78,18 @@ function createDependencies(
     },
   };
   const tenantResolver: TenantResolver = {
-    async findByOrganizationId(organizationId) {
-      expect(organizationId).toBe("org_01");
-      return options.provisioned === false ? null : { id: tenantId, organizationId };
+    async findByTenantId(receivedTenantId) {
+      expect(receivedTenantId).toBe(tenantId);
+      return options.provisioned === false ? null : { id: tenantId };
     },
   };
   const unscopedAccessTokenVerifier: UnscopedAccessTokenVerifier = {
     async verify(token) {
       expect(token).toBe("unscoped-token");
       return {
-        organizationId: options.unscopedOrganizationId ?? null,
+        activeWorkspace: options.unscopedTenantId
+          ? { id: options.unscopedTenantId, name: "Northstar Claims", role: "owner" }
+          : null,
         sessionId: "session_01",
         userId: "user_01",
       };
@@ -100,6 +102,38 @@ function createDependencies(
         throw new Error("Review intake was not expected.");
       },
     } satisfies ReviewIntakeStore);
+  const applicationSessionStore: ApplicationSessionStore = {
+    async activate() {
+      return {
+        role: "owner",
+        sessionId: "session_01",
+        tenantId,
+        userId: "user_01",
+        workspaceName: "Northstar Claims",
+      };
+    },
+    async establish() {
+      return {
+        role: null,
+        sessionId: "session_01",
+        tenantId: null,
+        userId: "user_01",
+        workspaceName: null,
+      };
+    },
+    async read() {
+      return {
+        role: "reviewer",
+        sessionId: "session_01",
+        tenantId,
+        userId: "user_01",
+        workspaceName: "Northstar Claims",
+      };
+    },
+    async revoke() {
+      return true;
+    },
+  };
   const workflowStore: ReviewWorkflowStore =
     options.workflowStore ??
     ({
@@ -154,9 +188,17 @@ function createDependencies(
         throw new Error("Public attestation case-file storage was not expected.");
       },
     } satisfies PublicAttestationCaseFileStore);
+  const workspaceProvisioner: WorkspaceProvisioner =
+    options.workspaceProvisioner ??
+    ({
+      async create() {
+        throw new Error("Workspace provisioning was not expected.");
+      },
+    } satisfies WorkspaceProvisioner);
 
   return {
     accessTokenVerifier,
+    applicationSessionStore,
     attestationProvider: options.attestationProvider,
     attestationStore: options.attestationStore,
     evidenceMetadataStore,
@@ -166,7 +208,7 @@ function createDependencies(
     reviewIntakeStore,
     tenantResolver,
     unscopedAccessTokenVerifier,
-    workspaceProvisioner: options.workspaceProvisioner,
+    workspaceProvisioner,
     workflowStore,
   };
 }
@@ -250,8 +292,9 @@ describe("API boundaries", () => {
       async create(input) {
         received = input;
         return {
-          organizationId: "org_workspace",
+          role: "owner",
           tenantId,
+          workspaceName: "Northstar Claims",
         };
       },
     };
@@ -261,7 +304,6 @@ describe("API boundaries", () => {
     const response = await app.inject({
       headers: {
         authorization: "Bearer unscoped-token",
-        "idempotency-key": "workspace-create-001",
       },
       method: "POST",
       payload: { name: "Northstar Claims" },
@@ -269,84 +311,12 @@ describe("API boundaries", () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json()).toEqual({ organizationId: "org_workspace", tenantId });
+    expect(response.json()).toEqual({
+      activeWorkspace: { id: tenantId, name: "Northstar Claims", role: "owner" },
+    });
     expect(received).toEqual({
-      idempotencyKey: "workspace-create-001",
       name: "Northstar Claims",
       userId: "user_01",
-    });
-  });
-
-  it("does not create a workspace from an active organization session", async () => {
-    const app = await buildApp(
-      environment,
-      createDependencies({
-        unscopedOrganizationId: "org_01",
-        workspaceProvisioner: {
-          async create() {
-            throw new Error("Not expected.");
-          },
-        },
-      }),
-    );
-    apps.push(app);
-
-    const response = await app.inject({
-      headers: {
-        authorization: "Bearer unscoped-token",
-        "idempotency-key": "workspace-create-001",
-      },
-      method: "POST",
-      payload: { name: "Northstar Claims" },
-      url: "/v1/workspaces",
-    });
-
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toEqual({
-      code: "organization_context_present",
-      message: "Leave the active organization before creating another workspace.",
-    });
-  });
-
-  it("repairs a workspace that has an organization but no Hollis tenant", async () => {
-    let received: unknown;
-    const workspaceProvisioner: WorkspaceProvisioner = {
-      async create() {
-        throw new Error("Not expected.");
-      },
-      async recover(input) {
-        received = input;
-        return { organizationId: "org_01", tenantId };
-      },
-    };
-    const app = await buildApp(environment, createDependencies({ workspaceProvisioner }));
-    apps.push(app);
-
-    const response = await app.inject({
-      headers: { authorization: "Bearer verified-token" },
-      method: "POST",
-      url: "/v1/workspaces/recover",
-    });
-
-    expect(response.statusCode).toBe(201);
-    expect(response.json()).toEqual({ organizationId: "org_01", tenantId });
-    expect(received).toEqual({ organizationId: "org_01", userId: "user_01" });
-  });
-
-  it("does not permit workspace recovery without the provisioner", async () => {
-    const app = await buildApp(environment, createDependencies());
-    apps.push(app);
-
-    const response = await app.inject({
-      headers: { authorization: "Bearer verified-token" },
-      method: "POST",
-      url: "/v1/workspaces/recover",
-    });
-
-    expect(response.statusCode).toBe(503);
-    expect(response.json()).toEqual({
-      code: "workspace_recovery_unconfigured",
-      message: "Workspace recovery is not configured.",
     });
   });
 
@@ -375,7 +345,6 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
-      organizationId: "org_01",
       permissions: ["reviews:read"],
       role: "reviewer",
       tenantId,
@@ -383,7 +352,7 @@ describe("API boundaries", () => {
     });
   });
 
-  it("rejects an organization that is not provisioned", async () => {
+  it("rejects a workspace that is not provisioned", async () => {
     const app = await buildApp(environment, createDependencies({ provisioned: false }));
     apps.push(app);
 
@@ -395,8 +364,8 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.json()).toEqual({
-      code: "organization_not_provisioned",
-      message: "The active organization does not have Hollis access.",
+      code: "workspace_not_provisioned",
+      message: "The active workspace does not have Hollis access.",
     });
   });
 

@@ -3252,6 +3252,119 @@ dd {
   }
 }
 
+.auth-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px;
+  background:
+    radial-gradient(circle at 80% 15%, color-mix(in srgb, var(--lime) 12%, transparent), transparent 34%),
+    var(--canvas);
+}
+.auth-card {
+  width: min(100%, 460px);
+  padding: 40px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
+}
+.auth-card .product-wordmark {
+  display: inline-block;
+  padding: 0;
+  color: var(--ink);
+}
+.auth-card h1 {
+  margin: 12px 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(38px, 5vw, 52px);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 0.96;
+}
+.auth-summary {
+  max-width: 38ch;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.auth-provider-actions,
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+.auth-provider-actions {
+  margin-top: 28px;
+}
+.auth-provider-actions button,
+.auth-form input {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+.auth-provider-actions button {
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.auth-provider-actions button:hover:not(:disabled) {
+  border-color: var(--lime);
+  background: color-mix(in srgb, var(--lime) 8%, transparent);
+}
+.auth-provider-actions button:disabled,
+.auth-form button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+.auth-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin: 22px 0;
+  color: var(--muted);
+  font-size: 12px;
+  gap: 12px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  background: var(--line);
+  content: "";
+}
+.auth-form label {
+  display: grid;
+  color: var(--muted);
+  font-size: 12px;
+  gap: 7px;
+}
+.auth-form input {
+  padding: 0 12px;
+}
+.auth-form .primary-action {
+  width: 100%;
+  justify-content: center;
+  margin-top: 8px;
+}
+.auth-error {
+  margin: 0;
+  color: #c7473f;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.auth-switch {
+  margin: 24px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.auth-switch button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--lime);
+  cursor: pointer;
+  font: inherit;
+}
+
 @media (max-width: 1180px) {
   .workspace-canvas {
     overflow-x: auto;

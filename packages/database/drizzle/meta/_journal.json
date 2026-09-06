@@ -120,6 +120,27 @@
       "when": 1788659400000,
       "tag": "0016_grant_workspace_provisioning_access",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788718200000,
+      "tag": "0017_add_public_identity_platform_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788718800000,
+      "tag": "0018_add_hollis_session_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788719400000,
+      "tag": "0019_include_application_session_id",
+      "breakpoints": true
     }
   ]
 }
