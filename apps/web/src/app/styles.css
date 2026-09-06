@@ -3158,6 +3158,37 @@ dd {
 .reference-dashboard-empty h1 {
   font-size: 54px;
 }
+.reference-service-unavailable {
+  display: grid;
+  align-content: center;
+  min-height: 510px;
+  padding: 84px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(
+      circle at 78% 18%,
+      color-mix(in srgb, var(--lime) 11%, transparent),
+      transparent 34%
+    ),
+    var(--canvas);
+  gap: 15px;
+}
+.reference-service-unavailable > span {
+  color: var(--lime-soft);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.reference-service-unavailable p {
+  max-width: 490px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.reference-application-error {
+  min-height: calc(100vh - 65px);
+}
 .collapse-navigation {
   display: flex;
   min-height: 45px;

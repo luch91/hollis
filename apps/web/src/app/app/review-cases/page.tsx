@@ -728,6 +728,31 @@ function SelectedCaseWorkspace({
   );
 }
 
+function ReviewServiceUnavailable() {
+  return (
+    <section className="reference-dashboard">
+      <aside className="reference-queue" aria-label="Review queue">
+        <div className="reference-queue-heading">
+          <h1>
+            Active Cases <span>0</span>
+          </h1>
+        </div>
+      </aside>
+      <div className="reference-dashboard-empty reference-service-unavailable">
+        <span>Service recovery</span>
+        <h1>The review workspace is temporarily unavailable.</h1>
+        <p>
+          Your session is still active. No review decision, evidence record, or attestation has been
+          changed.
+        </p>
+        <Link className="reference-primary" href="/app">
+          Retry workspace <span>›</span>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 export default async function ReviewCasesPage({
   query: explicitQuery,
   searchParams,
@@ -736,12 +761,19 @@ export default async function ReviewCasesPage({
   searchParams?: Promise<WorkspaceQuery>;
 } = {}) {
   const query = explicitQuery ?? (searchParams ? await searchParams : {});
-  const [{ user }, activeCases, completedCases] = await Promise.all([
-    withAuth(),
+  const { user } = await withAuth();
+  if (!user) throw new Error("An authenticated reviewer profile is required.");
+
+  const [activeCasesResult, completedCasesResult] = await Promise.allSettled([
     listReviewCases(),
     listReviewCases("completed"),
   ]);
-  if (!user) throw new Error("An authenticated reviewer profile is required.");
+  if (activeCasesResult.status === "rejected" || completedCasesResult.status === "rejected") {
+    return <ReviewServiceUnavailable />;
+  }
+
+  const activeCases = activeCasesResult.value;
+  const completedCases = completedCasesResult.value;
   const reviewer: ReviewerProfile = {
     email: user.email,
     id: user.id,
@@ -768,11 +800,19 @@ export default async function ReviewCasesPage({
       ? [explicitlySelected, ...filteredQueue].slice(0, 12)
       : filteredQueue;
   const selectedQueueItem = explicitlySelected ?? queue.at(0);
-  const reviewCase = selectedQueueItem ? await getReviewCase(selectedQueueItem.id) : null;
+  const selectedCaseResult = selectedQueueItem
+    ? await getReviewCase(selectedQueueItem.id).then(
+        (value) => ({ value }),
+        () => null,
+      )
+    : null;
+  if (selectedQueueItem && !selectedCaseResult) return <ReviewServiceUnavailable />;
+
+  const reviewCase = selectedCaseResult?.value ?? null;
   const [attestations, exported] = reviewCase
     ? await Promise.all([
         listAttestations(reviewCase.id).catch(() => []),
-        getReviewExport(reviewCase.id),
+        getReviewExport(reviewCase.id).catch(() => null),
       ])
     : [[], null];
 

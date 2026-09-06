@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 const authorized = Object.freeze({
   account: "luch91",
@@ -148,12 +149,39 @@ function verifyPrivateLog() {
   }
 }
 
+function verifyMigrationJournal() {
+  const migrationsDirectory = "packages/database/drizzle";
+  const journalPath = join(migrationsDirectory, "meta", "_journal.json");
+
+  if (!existsSync(journalPath)) {
+    failures.push(`Migration journal ${journalPath} is missing.`);
+    return;
+  }
+
+  const migrationTags = readdirSync(migrationsDirectory)
+    .filter((filename) => /^\d+_.+\.sql$/.test(filename))
+    .map((filename) => filename.slice(0, -".sql".length));
+  const journal = JSON.parse(readFileSync(journalPath, "utf8"));
+  const journalTags = new Set(journal.entries.map((entry) => entry.tag));
+  const missing = migrationTags.filter((tag) => !journalTags.has(tag));
+  const orphaned = [...journalTags].filter((tag) => !migrationTags.includes(tag));
+
+  if (missing.length > 0) {
+    failures.push(`Migration files missing from the journal: ${missing.join(", ")}.`);
+  }
+
+  if (orphaned.length > 0) {
+    failures.push(`Migration journal entries without files: ${orphaned.join(", ")}.`);
+  }
+}
+
 verifyLocalIdentity();
 verifyGithubActor();
 verifyRemoteOwner();
 verifyHistory();
 verifyTextPolicy();
 verifyPrivateLog();
+verifyMigrationJournal();
 
 if (failures.length > 0) {
   for (const failure of failures) {
