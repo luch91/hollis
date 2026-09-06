@@ -1,3 +1,7 @@
+DROP FUNCTION public.establish_hollis_application_session(text, text, boolean, text, text, text, timestamp with time zone);
+DROP FUNCTION public.read_hollis_application_session(text);
+DROP FUNCTION public.activate_hollis_workspace(text, uuid);
+
 CREATE OR REPLACE FUNCTION public.establish_hollis_application_session(
   input_subject text,
   input_email text,
