@@ -113,6 +113,13 @@
       "when": 1788654000000,
       "tag": "0015_grant_runtime_table_access",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788659400000,
+      "tag": "0016_grant_workspace_provisioning_access",
+      "breakpoints": true
     }
   ]
 }
