@@ -16,8 +16,10 @@ export class WorkspaceProvisioningError extends Error {
   constructor(
     readonly code:
       | "organization_creation_failed"
+      | "organization_lookup_failed"
       | "membership_assignment_failed"
-      | "tenant_provisioning_failed",
+      | "tenant_provisioning_failed"
+      | "workspace_recovery_forbidden",
     readonly diagnostic: string,
   ) {
     super("Workspace provisioning could not be completed.");
@@ -55,6 +57,7 @@ export interface WorkspaceProvisioner {
     name: string;
     userId: string;
   }): Promise<WorkspaceProvisioningRecord>;
+  recover?(input: { organizationId: string; userId: string }): Promise<WorkspaceProvisioningRecord>;
 }
 
 export function createWorkOsWorkspaceProvisioner(
@@ -101,6 +104,45 @@ export function createWorkOsWorkspaceProvisioner(
           organizationId: organization.id,
           organizationName: organization.name,
           role: initialAdminRoleSlug,
+        });
+      } catch (error) {
+        throw new WorkspaceProvisioningError(
+          "tenant_provisioning_failed",
+          databaseDiagnostic(error),
+        );
+      }
+    },
+    async recover(input) {
+      let organization: Organization;
+      try {
+        organization = await workos.organizations.getOrganization(input.organizationId);
+      } catch {
+        throw new WorkspaceProvisioningError("organization_lookup_failed", "workos:unknown");
+      }
+
+      let membership: OrganizationMembership | undefined;
+      try {
+        const memberships = await workos.userManagement.listOrganizationMemberships({
+          organizationId: organization.id,
+          statuses: ["active"],
+          userId: input.userId,
+        });
+        membership = memberships.data[0];
+      } catch {
+        throw new WorkspaceProvisioningError("membership_assignment_failed", "workos:unknown");
+      }
+
+      if (!membership || membership.role.slug !== initialAdminRoleSlug) {
+        throw new WorkspaceProvisioningError("workspace_recovery_forbidden", "workos:role");
+      }
+
+      try {
+        return await store.provision({
+          creatorUserId: input.userId,
+          membershipId: membership.id,
+          organizationId: organization.id,
+          organizationName: organization.name,
+          role: membership.role.slug,
         });
       } catch (error) {
         throw new WorkspaceProvisioningError(

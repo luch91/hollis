@@ -2,12 +2,13 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { ReviewExport } from "@hollis/contracts/review-case";
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import { claimAction, decideAction, escalateAction } from "./actions";
+import { claimAction, decideAction, escalateAction, recoverWorkspaceAction } from "./actions";
 import {
   getReviewCase,
   getReviewExport,
   listAttestations,
   listReviewCases,
+  ReviewServiceError,
   type AttestationRecord,
   type ReviewCaseDetail,
   type ReviewQueueItem,
@@ -753,6 +754,34 @@ function ReviewServiceUnavailable() {
   );
 }
 
+function WorkspaceProvisioningRequired() {
+  return (
+    <section className="reference-dashboard">
+      <aside className="reference-queue" aria-label="Review queue">
+        <div className="reference-queue-heading">
+          <h1>
+            Active Cases <span>0</span>
+          </h1>
+        </div>
+      </aside>
+      <div className="reference-dashboard-empty reference-service-unavailable">
+        <span>Workspace setup</span>
+        <h1>Finish connecting this Hollis workspace.</h1>
+        <p>
+          This organization was created, but its protected Hollis workspace record was not
+          completed. A workspace administrator can finish the connection without changing any case
+          record.
+        </p>
+        <form action={recoverWorkspaceAction}>
+          <button className="reference-primary" type="submit">
+            Complete workspace setup <span>›</span>
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 export default async function ReviewCasesPage({
   query: explicitQuery,
   searchParams,
@@ -769,6 +798,17 @@ export default async function ReviewCasesPage({
     listReviewCases("completed"),
   ]);
   if (activeCasesResult.status === "rejected" || completedCasesResult.status === "rejected") {
+    const queueErrors = [activeCasesResult, completedCasesResult]
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason);
+    if (
+      queueErrors.some(
+        (error) =>
+          error instanceof ReviewServiceError && error.code === "organization_not_provisioned",
+      )
+    ) {
+      return <WorkspaceProvisioningRequired />;
+    }
     return <ReviewServiceUnavailable />;
   }
 

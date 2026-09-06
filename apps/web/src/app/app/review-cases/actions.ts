@@ -9,6 +9,7 @@ import {
   escalateReviewCase,
   refreshAttestation,
   importFinalizedAttestation,
+  recoverWorkspace,
   verifyEvidence,
 } from "./data";
 
@@ -60,6 +61,11 @@ export async function claimAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   await claimReviewCase(caseId);
   revalidateWorkspace(caseId);
+}
+
+export async function recoverWorkspaceAction() {
+  await recoverWorkspace();
+  revalidatePath("/app");
 }
 
 export async function escalateAction(formData: FormData) {

@@ -74,6 +74,16 @@ type AttestationPolicy = {
   policyVersion: string;
 };
 
+export class ReviewServiceError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super("The review service could not complete the request.");
+    this.name = "ReviewServiceError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await withAuth();
   if (!session.accessToken) {
@@ -91,7 +101,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error("The review service could not complete the request.");
+    const failure = (await response.json().catch(() => null)) as { code?: string } | null;
+    throw new ReviewServiceError(response.status, failure?.code ?? null);
   }
 
   if (response.status === 204) {
@@ -99,6 +110,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+export function recoverWorkspace() {
+  return request<{ organizationId: string; tenantId: string }>("/v1/workspaces/recover", {
+    method: "POST",
+  });
 }
 
 export function listReviewCases(status?: ReviewQueueItem["status"]) {

@@ -308,6 +308,31 @@ describe("API boundaries", () => {
     });
   });
 
+  it("repairs a workspace that has an organization but no Hollis tenant", async () => {
+    let received: unknown;
+    const workspaceProvisioner: WorkspaceProvisioner = {
+      async create() {
+        throw new Error("Not expected.");
+      },
+      async recover(input) {
+        received = input;
+        return { organizationId: "org_01", tenantId };
+      },
+    };
+    const app = await buildApp(environment, createDependencies({ workspaceProvisioner }));
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      url: "/v1/workspaces/recover",
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({ organizationId: "org_01", tenantId });
+    expect(received).toEqual({ organizationId: "org_01", userId: "user_01" });
+  });
+
   it("rejects a protected request without a bearer token", async () => {
     const app = await buildApp(environment, createDependencies());
     apps.push(app);

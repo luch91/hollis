@@ -276,7 +276,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         { diagnostic: error.diagnostic, provisioningCode: error.code },
         "workspace provisioning failed",
       );
-      return reply.code(502).send({
+      return reply.code(error.code === "workspace_recovery_forbidden" ? 403 : 502).send({
         code: error.code,
         message: "Workspace provisioning could not be completed.",
       });
@@ -321,6 +321,24 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     const workspace = await workspaceProvisioner.create({
       idempotencyKey,
       name: input.name,
+      userId: principal.userId,
+    });
+    return reply.code(201).send(workspace);
+  });
+
+  app.post("/v1/workspaces/recover", async (request, reply) => {
+    if (!workspaceProvisioner?.recover) {
+      return reply.code(503).send({
+        code: "workspace_recovery_unconfigured",
+        message: "Workspace recovery is not configured.",
+      });
+    }
+
+    const principal = await accessTokenVerifier.verify(
+      readBearerToken(request.headers.authorization),
+    );
+    const workspace = await workspaceProvisioner.recover({
+      organizationId: principal.organizationId,
       userId: principal.userId,
     });
     return reply.code(201).send(workspace);
