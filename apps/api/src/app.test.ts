@@ -333,6 +333,23 @@ describe("API boundaries", () => {
     expect(received).toEqual({ organizationId: "org_01", userId: "user_01" });
   });
 
+  it("does not permit workspace recovery without the provisioner", async () => {
+    const app = await buildApp(environment, createDependencies());
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      url: "/v1/workspaces/recover",
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      code: "workspace_recovery_unconfigured",
+      message: "Workspace recovery is not configured.",
+    });
+  });
+
   it("rejects a protected request without a bearer token", async () => {
     const app = await buildApp(environment, createDependencies());
     apps.push(app);

@@ -28,14 +28,22 @@ export class WorkspaceProvisioningError extends Error {
 }
 
 function databaseDiagnostic(error: unknown): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    /^[0-9A-Z]{5}$/.test(error.code)
-  ) {
-    return `postgres:${error.code}`;
+  let candidate = error;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "code" in candidate &&
+      typeof candidate.code === "string" &&
+      /^[0-9A-Z]{5}$/.test(candidate.code)
+    ) {
+      return `postgres:${candidate.code}`;
+    }
+
+    if (typeof candidate !== "object" || candidate === null || !("cause" in candidate)) {
+      break;
+    }
+    candidate = candidate.cause;
   }
 
   return "postgres:unknown";
