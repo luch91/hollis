@@ -308,13 +308,31 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.post("/v1/auth/sessions", async (request, reply) => {
     const input = identitySessionSchema.parse(request.body);
-    const identity = await identityPlatformTokenVerifier.verify(input.identityToken);
+    let identity;
+    try {
+      identity = await identityPlatformTokenVerifier.verify(input.identityToken);
+    } catch (error) {
+      app.log.warn(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "identity token verification failed",
+      );
+      throw error;
+    }
     const sessionToken = createApplicationSessionToken();
-    const session = await applicationSessionStore.establish({
-      ...identity,
-      expiresAt: new Date(Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000),
-      tokenDigest: digestApplicationSessionToken(sessionToken),
-    });
+    let session;
+    try {
+      session = await applicationSessionStore.establish({
+        ...identity,
+        expiresAt: new Date(Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000),
+        tokenDigest: digestApplicationSessionToken(sessionToken),
+      });
+    } catch (error) {
+      app.log.error(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "application session establishment failed",
+      );
+      throw error;
+    }
     return reply.code(201).send({
       activeWorkspace: session.tenantId
         ? { id: session.tenantId, name: session.workspaceName, role: session.role }

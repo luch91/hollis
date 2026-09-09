@@ -197,7 +197,7 @@ export function createPostgresApplicationSessionStore(database: Database): Appli
           ${input.displayName ?? ""},
           ${input.avatarUrl ?? ""},
           ${input.tokenDigest},
-          ${input.expiresAt}
+          ${input.expiresAt.toISOString()}
         )
       `);
       if (!record) throw new Error("Application session could not be established.");
