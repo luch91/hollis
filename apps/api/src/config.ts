@@ -1,5 +1,5 @@
-import { z } from "zod";
 import type { DatabaseConnectionOptions } from "@hollis/database";
+import { z } from "zod";
 
 const databaseConfigurationSchema = z
   .object({
@@ -42,9 +42,11 @@ const environmentSchema = z
   .object({
     API_HOST: z.string().default("0.0.0.0"),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+    AWS_REGION: z.string().min(3).optional(),
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
+    S3_BUCKET: z.string().min(3).optional(),
     GENLAYER_STUDIO_CONTRACT_ADDRESS: z
       .string()
       .regex(/^0x[a-fA-F0-9]{40}$/)
@@ -62,6 +64,22 @@ const environmentSchema = z
   })
   .and(databaseConfigurationSchema)
   .superRefine((value, context) => {
+    if (value.GCS_BUCKET && value.S3_BUCKET) {
+      context.addIssue({
+        code: "custom",
+        message: "Set GCS_BUCKET or S3_BUCKET, not both.",
+        path: ["S3_BUCKET"],
+      });
+    }
+
+    if (value.S3_BUCKET && !value.AWS_REGION) {
+      context.addIssue({
+        code: "custom",
+        message: "AWS_REGION is required when S3_BUCKET is configured.",
+        path: ["AWS_REGION"],
+      });
+    }
+
     if (value.NODE_ENV !== "production") return;
 
     if (!value.CLAIMS_WEBHOOK_SECRET) {
@@ -72,11 +90,11 @@ const environmentSchema = z
       });
     }
 
-    if (!value.GCS_BUCKET) {
+    if (!value.GCS_BUCKET && !value.S3_BUCKET) {
       context.addIssue({
         code: "custom",
-        message: "GCS_BUCKET is required in production.",
-        path: ["GCS_BUCKET"],
+        message: "GCS_BUCKET or S3_BUCKET is required in production.",
+        path: ["S3_BUCKET"],
       });
     }
 
@@ -95,7 +113,6 @@ const environmentSchema = z
         path: ["API_HOST"],
       });
     }
-
   });
 
 export type Environment = z.infer<typeof environmentSchema>;

@@ -1,54 +1,62 @@
+import { randomUUID } from "node:crypto";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
   createAttestationRequestSchema,
-  createPublicAttestationCaseFileRequestSchema,
-  importFinalizedAttestationRequestSchema,
-  createReviewCaseSchema,
   createPolicyVersionSchema,
+  createPublicAttestationCaseFileRequestSchema,
+  createReviewCaseSchema,
   decideReviewCaseSchema,
   escalateReviewCaseSchema,
+  importFinalizedAttestationRequestSchema,
   reviewCaseStatusSchema,
 } from "@hollis/contracts";
 import { createDatabase } from "@hollis/database";
 import Fastify, { LogController } from "fastify";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
-import {
-  type AccessTokenVerifier,
-  type ApplicationSessionStore,
-  type UnscopedAccessTokenVerifier,
-  createHollisAccessTokenVerifier,
-  createHollisUnscopedAccessTokenVerifier,
-  InsufficientPermissionError,
-  InvalidAccessTokenError,
-  readBearerToken,
-} from "./auth.js";
-import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
-import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
-import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
 import type {
   AttestationProvider,
   AttestationStore,
   FinalizedAttestationImporter,
   PublicAttestationCaseFileStore,
 } from "./attestation.js";
-import { StudioDevAttestationVerificationError } from "./studio-dev-attestation.js";
 import {
   AttestationPreconditionError,
-  buildGenLayerAttestationRequest,
   buildAdjudicationCaseFile,
+  buildGenLayerAttestationRequest,
 } from "./attestation-workflow.js";
 import {
-  createPostgresAttestationStore,
-  createPostgresPublicAttestationCaseFileStore,
-  createPostgresEvidenceMetadataStore,
-  createPostgresReviewIntakeStore,
-  createPostgresTenantResolver,
-  createPostgresWorkspaceProvisioningStore,
+  type AccessTokenVerifier,
+  type ApplicationSessionStore,
+  createHollisAccessTokenVerifier,
+  createHollisUnscopedAccessTokenVerifier,
+  InsufficientPermissionError,
+  InvalidAccessTokenError,
+  readBearerToken,
+  type StoredApplicationSession,
+  type UnscopedAccessTokenVerifier,
+} from "./auth.js";
+import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
+import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
+import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
+import {
+  createApplicationSessionToken,
+  createIdentityPlatformTokenVerifier,
+  digestApplicationSessionToken,
+  type IdentityPlatformTokenVerifier,
+  type VerifiedIdentityPlatformIdentity,
+} from "./identity-platform.js";
+import {
   createPostgresApplicationSessionStore,
+  createPostgresAttestationStore,
+  createPostgresEvidenceMetadataStore,
   createPostgresPolicyLibraryStore,
+  createPostgresPublicAttestationCaseFileStore,
+  createPostgresReviewIntakeStore,
+  createPostgresReviewWorkflowStore,
+  createPostgresTenantResolver,
   createPostgresWorkspaceControlsStore,
+  createPostgresWorkspaceProvisioningStore,
   setEvidenceLegalHold,
 } from "./persistence.js";
 import {
@@ -57,41 +65,30 @@ import {
   PolicyBindingError,
   type PolicyLibraryStore,
 } from "./policy-library.js";
-import { createPostgresReviewWorkflowStore } from "./persistence.js";
 import {
   createReviewIntake,
-  type ReviewIntakeStore,
   ReviewIntakeConflictError,
+  type ReviewIntakeStore,
   type TenantResolver,
 } from "./review-intake.js";
+import { createS3EvidenceStorage } from "./s3-evidence-storage.js";
 import {
   createSecurityPreHandler,
   requireRequestContext,
   sendSecurityError,
   TenantAccessError,
 } from "./security.js";
-import { InvalidWebhookError, claimsWebhookSchema, verifyClaimsWebhook } from "./webhook.js";
+import { StudioDevAttestationVerificationError } from "./studio-dev-attestation.js";
+import { claimsWebhookSchema, InvalidWebhookError, verifyClaimsWebhook } from "./webhook.js";
 import {
-  type ReviewWorkflowStore,
   ReviewCaseNotFoundError,
   ReviewCaseTransitionError,
+  type ReviewWorkflowStore,
   toDetailResponse,
   toExportResponse,
   toQueueResponse,
   toWorkflowResponse,
 } from "./workflow.js";
-import {
-  createWorkspaceSchema,
-  createHollisWorkspaceProvisioner,
-  WorkspaceProvisioningError,
-  type WorkspaceProvisioner,
-} from "./workspace-provisioning.js";
-import {
-  createApplicationSessionToken,
-  createIdentityPlatformTokenVerifier,
-  digestApplicationSessionToken,
-  type IdentityPlatformTokenVerifier,
-} from "./identity-platform.js";
 import {
   acceptInvitationSchema,
   changeMemberRoleSchema,
@@ -99,6 +96,12 @@ import {
   createInvitationToken,
   workspaceProfileSchema,
 } from "./workspace-controls.js";
+import {
+  createHollisWorkspaceProvisioner,
+  createWorkspaceSchema,
+  type WorkspaceProvisioner,
+  WorkspaceProvisioningError,
+} from "./workspace-provisioning.js";
 
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
@@ -106,7 +109,7 @@ type AppDependencies = {
   policyLibraryStore?: PolicyLibraryStore;
   tenantResolver?: TenantResolver;
   workflowStore?: ReviewWorkflowStore;
-  evidenceStorage?: Awaited<ReturnType<typeof createGoogleCloudEvidenceStorage>>;
+  evidenceStorage?: import("./evidence-storage.js").EvidenceStorage;
   evidenceMetadataStore?: import("./evidence.js").EvidenceMetadataStore;
   attestationProvider?: AttestationProvider;
   finalizedAttestationImporter?: FinalizedAttestationImporter;
@@ -203,9 +206,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.identityPlatformTokenVerifier ?? createIdentityPlatformTokenVerifier(environment);
   const evidenceStorage =
     dependencies.evidenceStorage ??
-    (environment.GCS_BUCKET
-      ? await createGoogleCloudEvidenceStorage(environment.GCS_PROJECT_ID, environment.GCS_BUCKET)
-      : null);
+    (environment.S3_BUCKET && environment.AWS_REGION
+      ? createS3EvidenceStorage(environment.AWS_REGION, environment.S3_BUCKET)
+      : environment.GCS_BUCKET
+        ? await createGoogleCloudEvidenceStorage(environment.GCS_PROJECT_ID, environment.GCS_BUCKET)
+        : null);
   const app = Fastify({
     bodyLimit: 262_144,
     logController: new LogController({ disableRequestLogging: true }),
@@ -362,7 +367,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.post("/v1/auth/sessions", async (request, reply) => {
     const input = identitySessionSchema.parse(request.body);
-    let identity;
+    let identity: VerifiedIdentityPlatformIdentity;
     try {
       identity = await identityPlatformTokenVerifier.verify(input.identityToken);
     } catch (error) {
@@ -373,7 +378,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       throw error;
     }
     const sessionToken = createApplicationSessionToken();
-    let session;
+    let session: StoredApplicationSession;
     try {
       session = await applicationSessionStore.establish({
         ...identity,
@@ -452,7 +457,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.get("/v1/workspaces", async (request) => {
-    const principal = await unscopedAccessTokenVerifier.verify(readBearerToken(request.headers.authorization));
+    const principal = await unscopedAccessTokenVerifier.verify(
+      readBearerToken(request.headers.authorization),
+    );
     return workspaceControlsStore.listUserWorkspaces(principal.userId);
   });
 
@@ -461,10 +468,19 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     const principal = await unscopedAccessTokenVerifier.verify(token);
     const input = acceptInvitationSchema.parse(request.body);
     const accepted = await workspaceControlsStore.acceptInvitation(input.token, principal.userId);
-    if (!accepted) return reply.code(404).send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
-    const session = await applicationSessionStore.activate(digestApplicationSessionToken(token), accepted.tenantId);
-    if (!session?.tenantId || !session.workspaceName || !session.role) throw new InvalidAccessTokenError();
-    return reply.send({ activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role } });
+    if (!accepted)
+      return reply
+        .code(404)
+        .send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
+    const session = await applicationSessionStore.activate(
+      digestApplicationSessionToken(token),
+      accepted.tenantId,
+    );
+    if (!session?.tenantId || !session.workspaceName || !session.role)
+      throw new InvalidAccessTokenError();
+    return reply.send({
+      activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
+    });
   });
 
   app.get("/v1/public/attestation-case-files/:publicCaseFileId", async (request, reply) => {
@@ -529,46 +545,115 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
-  app.get("/v1/workspace", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") }, async (request) => {
-    const { tenant } = requireRequestContext(request);
-    return workspaceControlsStore.getProfile(tenant.id);
-  });
-  app.put("/v1/workspace", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
-    const { principal, tenant } = requireRequestContext(request);
-    return workspaceControlsStore.updateProfile(tenant.id, principal.userId, workspaceProfileSchema.parse(request.body));
-  });
-  app.get("/v1/workspace/members", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
-    const { principal, tenant } = requireRequestContext(request);
-    return workspaceControlsStore.listMembers(tenant.id, principal.userId);
-  });
-  app.patch("/v1/workspace/members/:userId", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
-    const { principal, tenant } = requireRequestContext(request);
-    const { userId } = memberParamsSchema.parse(request.params);
-    return workspaceControlsStore.changeMemberRole(tenant.id, principal.userId, userId, changeMemberRoleSchema.parse(request.body).role);
-  });
-  app.get("/v1/workspace/invitations", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
-    const { tenant } = requireRequestContext(request);
-    return workspaceControlsStore.listInvitations(tenant.id);
-  });
-  app.get("/v1/workspace/audit-events", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
-    const { tenant } = requireRequestContext(request);
-    return workspaceControlsStore.listAuditEvents(tenant.id);
-  });
-  app.post("/v1/workspace/invitations", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request, reply) => {
-    const { principal, tenant } = requireRequestContext(request);
-    const input = createInvitationSchema.parse(request.body);
-    if (principal.role === "administrator" && input.role === "administrator") return reply.code(403).send({ code: "owner_required", message: "Only an owner may invite an administrator." });
-    const token = createInvitationToken();
-    const invitation = await workspaceControlsStore.createInvitation(tenant.id, principal.userId, { ...input, token });
-    return reply.code(201).send({ ...invitation, token });
-  });
-  app.delete("/v1/workspace/invitations/:invitationId", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request, reply) => {
-    const { principal, tenant } = requireRequestContext(request);
-    const { invitationId } = invitationParamsSchema.parse(request.params);
-    const revoked = await workspaceControlsStore.revokeInvitation(tenant.id, principal.userId, invitationId);
-    if (!revoked) return reply.code(404).send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
-    return reply.code(204).send();
-  });
+  app.get(
+    "/v1/workspace",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request) => {
+      const { tenant } = requireRequestContext(request);
+      return workspaceControlsStore.getProfile(tenant.id);
+    },
+  );
+  app.put(
+    "/v1/workspace",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request) => {
+      const { principal, tenant } = requireRequestContext(request);
+      return workspaceControlsStore.updateProfile(
+        tenant.id,
+        principal.userId,
+        workspaceProfileSchema.parse(request.body),
+      );
+    },
+  );
+  app.get(
+    "/v1/workspace/members",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request) => {
+      const { principal, tenant } = requireRequestContext(request);
+      return workspaceControlsStore.listMembers(tenant.id, principal.userId);
+    },
+  );
+  app.patch(
+    "/v1/workspace/members/:userId",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request) => {
+      const { principal, tenant } = requireRequestContext(request);
+      const { userId } = memberParamsSchema.parse(request.params);
+      return workspaceControlsStore.changeMemberRole(
+        tenant.id,
+        principal.userId,
+        userId,
+        changeMemberRoleSchema.parse(request.body).role,
+      );
+    },
+  );
+  app.get(
+    "/v1/workspace/invitations",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request) => {
+      const { tenant } = requireRequestContext(request);
+      return workspaceControlsStore.listInvitations(tenant.id);
+    },
+  );
+  app.get(
+    "/v1/workspace/audit-events",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request) => {
+      const { tenant } = requireRequestContext(request);
+      return workspaceControlsStore.listAuditEvents(tenant.id);
+    },
+  );
+  app.post(
+    "/v1/workspace/invitations",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request, reply) => {
+      const { principal, tenant } = requireRequestContext(request);
+      const input = createInvitationSchema.parse(request.body);
+      if (principal.role === "administrator" && input.role === "administrator")
+        return reply
+          .code(403)
+          .send({ code: "owner_required", message: "Only an owner may invite an administrator." });
+      const token = createInvitationToken();
+      const invitation = await workspaceControlsStore.createInvitation(
+        tenant.id,
+        principal.userId,
+        { ...input, token },
+      );
+      return reply.code(201).send({ ...invitation, token });
+    },
+  );
+  app.delete(
+    "/v1/workspace/invitations/:invitationId",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request, reply) => {
+      const { principal, tenant } = requireRequestContext(request);
+      const { invitationId } = invitationParamsSchema.parse(request.params);
+      const revoked = await workspaceControlsStore.revokeInvitation(
+        tenant.id,
+        principal.userId,
+        invitationId,
+      );
+      if (!revoked)
+        return reply
+          .code(404)
+          .send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
+      return reply.code(204).send();
+    },
+  );
 
   app.get(
     "/v1/review-cases/:caseId/attestations",

@@ -41,6 +41,39 @@ describe("readEnvironment", () => {
     ).toMatchObject({ API_HOST: "0.0.0.0", API_PORT: 8080 });
   });
 
+  it("accepts a complete AWS production configuration", () => {
+    expect(
+      readEnvironment({
+        ...baseEnvironment,
+        AWS_REGION: "eu-west-1",
+        CLAIMS_WEBHOOK_SECRET: "a".repeat(32),
+        NODE_ENV: "production",
+        S3_BUCKET: "hollis-evidence-280517746304",
+        WEB_ORIGIN: "https://thehollis.xyz",
+      }),
+    ).toMatchObject({ AWS_REGION: "eu-west-1", S3_BUCKET: "hollis-evidence-280517746304" });
+  });
+
+  it("rejects ambiguous evidence storage configuration", () => {
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        AWS_REGION: "eu-west-1",
+        GCS_BUCKET: "hollis-evidence-429498177112",
+        S3_BUCKET: "hollis-evidence-280517746304",
+      }),
+    ).toThrow(/not both/);
+  });
+
+  it("requires a region for S3 evidence storage", () => {
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        S3_BUCKET: "hollis-evidence-280517746304",
+      }),
+    ).toThrow(/AWS_REGION/);
+  });
+
   it("uses the Cloud SQL Unix socket settings without a composed database URL", () => {
     const environment = readEnvironment({
       ...baseEnvironment,
