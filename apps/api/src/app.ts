@@ -293,7 +293,14 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       });
     }
 
-    app.log.error({ errorName: error instanceof Error ? error.name : "unknown" }, "request failed");
+    const errorCode =
+      typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+        ? error.code
+        : undefined;
+    app.log.error(
+      { errorCode, errorName: error instanceof Error ? error.name : "unknown" },
+      "request failed",
+    );
     return reply.code(500).send({ code: "internal_error", message: "Request failed." });
   });
 

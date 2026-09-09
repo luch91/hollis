@@ -28,11 +28,12 @@ async function establishHollisSession(credential: UserCredential): Promise<boole
 }
 
 function readableError(error: unknown): string {
-  if (typeof error !== "object" || error === null || !("code" in error)) {
-    return "We could not complete that request. Please try again.";
+  if (typeof error !== "object" || error === null) {
+    return error instanceof Error ? error.message : "We could not complete that request. Please try again.";
   }
 
-  switch (error.code) {
+  const code = "code" in error && typeof error.code === "string" ? error.code : null;
+  switch (code) {
     case "auth/account-exists-with-different-credential":
       return "An account already exists for this email. Sign in with its original method, then link another method from your profile.";
     case "auth/email-already-in-use":
@@ -44,7 +45,7 @@ function readableError(error: unknown): string {
     case "auth/weak-password":
       return "Choose a stronger password.";
     default:
-      return "We could not complete that request. Please try again.";
+      return error instanceof Error ? error.message : "We could not complete that request. Please try again.";
   }
 }
 
@@ -80,7 +81,7 @@ export default function SignInPage() {
           : await signInWithEmailAndPassword(getIdentityPlatformAuth(), email, password);
       await finish(credential, mode === "sign-up");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : readableError(caught));
+      setError(readableError(caught));
     } finally {
       setBusy(false);
     }
@@ -92,7 +93,7 @@ export default function SignInPage() {
     try {
       await finish(await signInWithPopup(getIdentityPlatformAuth(), provider));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : readableError(caught));
+      setError(readableError(caught));
     } finally {
       setBusy(false);
     }
