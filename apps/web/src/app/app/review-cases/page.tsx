@@ -743,9 +743,8 @@ function GenLayerPanel({
 }) {
   const latest = attestations.at(0);
   const humanDecisionRecorded = reviewCase.decisionOutcome !== null;
-  const evidenceReady = reviewCase.evidence.length > 0;
-  const ready = humanDecisionRecorded && evidenceReady;
-  const status = latest?.status ?? (ready ? "ready" : "not ready");
+  const evidenceReferenceRecorded = reviewCase.evidence.length > 0;
+  const status = latest?.status ?? (humanDecisionRecorded ? "review complete" : "awaiting review");
   return (
     <section className="genlayer-panel" aria-labelledby="genlayer-panel-title">
       <div className={`genlayer-status genlayer-status-${status.replaceAll(" ", "-")}`}>
@@ -764,8 +763,8 @@ function GenLayerPanel({
         </li>
         <li>
           <span>Evidence reference</span>
-          <strong className={evidenceReady ? "is-ready" : "is-pending"}>
-            {evidenceReady ? "✓" : "○"}
+          <strong className={evidenceReferenceRecorded ? "is-ready" : "is-pending"}>
+            {evidenceReferenceRecorded ? "✓" : "○"}
           </strong>
           <small>{reviewCase.evidence.length} recorded</small>
         </li>
@@ -805,7 +804,7 @@ function GenLayerPanel({
         </dl>
       ) : (
         <Link className="genlayer-action" href={`/app/review-cases/${reviewCase.id}#attestation`}>
-          {ready ? "Prepare attestation" : "View readiness"} <span>›</span>
+          View attestation requirements <span>›</span>
         </Link>
       )}
     </section>
