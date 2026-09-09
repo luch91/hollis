@@ -54,8 +54,11 @@ export const policyPublicationStatus = pgEnum("policy_publication_status", ["pub
 export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey().defaultRandom(),
+  industry: text("industry"),
   name: text("name").notNull(),
+  operatingRegion: text("operating_region"),
   legacyWorkosOrganizationId: text("workos_organization_id").unique(),
+  website: text("website"),
 });
 
 export const users = pgTable("users", {
@@ -143,6 +146,8 @@ export const workspaceInvitations = pgTable(
       .notNull()
       .references(() => users.id),
     role: text("role").notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => users.id),
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),

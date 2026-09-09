@@ -148,6 +148,20 @@
       "when": 1788937200000,
       "tag": "0020_add_policy_library",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788940800000,
+      "tag": "0021_add_workspace_administration",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788941400000,
+      "tag": "0022_add_workspace_controls",
+      "breakpoints": true
     }
   ]
 }

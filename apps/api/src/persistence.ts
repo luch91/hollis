@@ -18,7 +18,10 @@ import {
   reviewCases,
   reviewEvents,
   publicAttestationCaseFiles,
+  tenantMemberships,
   tenants,
+  users,
+  workspaceInvitations,
 } from "@hollis/database";
 import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
@@ -41,6 +44,7 @@ import {
   ReviewCaseNotFoundError,
   ReviewCaseTransitionError,
 } from "./workflow.js";
+import { digestInvitationToken } from "./workspace-controls.js";
 
 type Database = ReturnType<typeof createDatabase>["database"];
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -233,6 +237,56 @@ export function createPostgresWorkspaceProvisioningStore(
       `);
       if (!record) throw new Error("Workspace provisioning did not return a tenant.");
       return record;
+    },
+  };
+}
+
+export function createPostgresWorkspaceControlsStore(database: Database) {
+  return {
+    async getProfile(tenantId: string) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [record] = await transaction.select({ id: tenants.id, name: tenants.name, industry: tenants.industry, operatingRegion: tenants.operatingRegion, website: tenants.website }).from(tenants).where(eq(tenants.id, tenantId));
+        return record ?? null;
+      });
+    },
+    async updateProfile(tenantId: string, actorId: string, input: { name: string; industry: string; operatingRegion: string; website: string }) {
+      const [record] = await database.execute(sql`select * from public.update_hollis_workspace_profile(${tenantId}::uuid, ${actorId}::uuid, ${input.name}, ${input.industry}, ${input.operatingRegion}, ${input.website})`);
+      return record ?? null;
+    },
+    async listMembers(tenantId: string) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        return transaction.select({ userId: tenantMemberships.userId, role: tenantMemberships.role, displayName: users.displayName, email: users.email, avatarUrl: users.avatarUrl, joinedAt: tenantMemberships.createdAt }).from(tenantMemberships).innerJoin(users, eq(users.id, tenantMemberships.userId)).where(eq(tenantMemberships.tenantId, tenantId)).orderBy(asc(users.email));
+      });
+    },
+    async createInvitation(tenantId: string, actorId: string, input: { email: string; role: string; token: string }) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [record] = await transaction.insert(workspaceInvitations).values({ email: input.email.toLowerCase(), expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), invitedByUserId: actorId, role: input.role, tenantId, tokenDigest: digestInvitationToken(input.token) }).returning({ id: workspaceInvitations.id, email: workspaceInvitations.email, role: workspaceInvitations.role, expiresAt: workspaceInvitations.expiresAt });
+        return record ?? null;
+      });
+    },
+    async listInvitations(tenantId: string) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        return transaction.select({ id: workspaceInvitations.id, email: workspaceInvitations.email, role: workspaceInvitations.role, expiresAt: workspaceInvitations.expiresAt, acceptedAt: workspaceInvitations.acceptedAt, revokedAt: workspaceInvitations.revokedAt, createdAt: workspaceInvitations.createdAt }).from(workspaceInvitations).where(eq(workspaceInvitations.tenantId, tenantId)).orderBy(desc(workspaceInvitations.createdAt));
+      });
+    },
+    async revokeInvitation(tenantId: string, actorId: string, invitationId: string) {
+      const [record] = await database.execute<{ revoke_hollis_workspace_invitation: boolean }>(sql`select public.revoke_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${invitationId}::uuid)`);
+      return record?.revoke_hollis_workspace_invitation ?? false;
+    },
+    async changeMemberRole(tenantId: string, actorId: string, memberId: string, role: string) {
+      const [record] = await database.execute(sql`select * from public.update_hollis_workspace_member_role(${tenantId}::uuid, ${actorId}::uuid, ${memberId}::uuid, ${role})`);
+      return record ?? null;
+    },
+    async acceptInvitation(token: string, userId: string) {
+      const [record] = await database.execute<{ tenantId: string; workspaceName: string; role: string }>(sql`select * from public.accept_hollis_workspace_invitation(${digestInvitationToken(token)}, ${userId}::uuid)`);
+      return record ?? null;
+    },
+    async listUserWorkspaces(userId: string) {
+      return database.execute<{ tenantId: string; workspaceName: string; role: string }>(sql`select * from public.list_hollis_user_workspaces(${userId}::uuid)`);
     },
   };
 }

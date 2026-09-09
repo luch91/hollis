@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { readHollisSession } from "@/lib/hollis-session";
 import { ThemeToggle } from "./theme-toggle";
 import { WorkspaceNavigation } from "./workspace-navigation";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 
 async function signOutAction() {
   "use server";
@@ -36,9 +37,7 @@ export default async function ApplicationLayout({ children }: { children: ReactN
       </aside>
       <section className="application-workspace" aria-label={`${workspace.name} Hollis workspace`}>
         <header className="workspace-topbar">
-          <p>
-            {workspace.name} <span>/</span> Compliance Review
-          </p>
+          <div className="workspace-title"><WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} /><p>{workspace.name} <span>/</span> Compliance Review</p></div>
           <div className="workspace-account">
             <ThemeToggle />
             <span role="img" className="notification-dot" aria-label="Notifications available" />

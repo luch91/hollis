@@ -48,6 +48,7 @@ import {
   createPostgresWorkspaceProvisioningStore,
   createPostgresApplicationSessionStore,
   createPostgresPolicyLibraryStore,
+  createPostgresWorkspaceControlsStore,
   setEvidenceLegalHold,
 } from "./persistence.js";
 import {
@@ -91,6 +92,13 @@ import {
   digestApplicationSessionToken,
   type IdentityPlatformTokenVerifier,
 } from "./identity-platform.js";
+import {
+  acceptInvitationSchema,
+  changeMemberRoleSchema,
+  createInvitationSchema,
+  createInvitationToken,
+  workspaceProfileSchema,
+} from "./workspace-controls.js";
 
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
@@ -115,6 +123,7 @@ type AppDependencies = {
   unscopedAccessTokenVerifier?: UnscopedAccessTokenVerifier;
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
+  workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
 };
 
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
@@ -164,6 +173,26 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const applicationSessionStore =
     dependencies.applicationSessionStore ??
     createPostgresApplicationSessionStore(requireDatabase());
+  const workspaceControlsStore =
+    dependencies.workspaceControlsStore ??
+    (databaseResource
+      ? createPostgresWorkspaceControlsStore(databaseResource.database)
+      : (() => {
+          const unavailable = async () => {
+            throw new Error("Workspace control dependencies are unavailable.");
+          };
+          return {
+            acceptInvitation: unavailable,
+            changeMemberRole: unavailable,
+            createInvitation: unavailable,
+            getProfile: unavailable,
+            listInvitations: unavailable,
+            listMembers: unavailable,
+            listUserWorkspaces: unavailable,
+            revokeInvitation: unavailable,
+            updateProfile: unavailable,
+          } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
+        })());
   const accessTokenVerifier =
     dependencies.accessTokenVerifier ?? createHollisAccessTokenVerifier(applicationSessionStore);
   const unscopedAccessTokenVerifier =
@@ -188,7 +217,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
   await app.register(cors, {
     credentials: true,
-    methods: ["DELETE", "GET", "POST"],
+    methods: ["DELETE", "GET", "PATCH", "POST", "PUT"],
     origin: environment.WEB_ORIGIN,
   });
 
@@ -216,6 +245,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const legalHoldSchema = z.object({ active: z.boolean() }).strict();
   const identitySessionSchema = z.object({ identityToken: z.string().min(1) }).strict();
   const activateWorkspaceSchema = z.object({ tenantId: z.uuid() }).strict();
+  const memberParamsSchema = z.object({ userId: z.uuid() }).strict();
+  const invitationParamsSchema = z.object({ invitationId: z.uuid() }).strict();
 
   if (databaseResource) {
     app.addHook("onClose", async () => databaseResource.client.end());
@@ -419,6 +450,22 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     });
   });
 
+  app.get("/v1/workspaces", async (request) => {
+    const principal = await unscopedAccessTokenVerifier.verify(readBearerToken(request.headers.authorization));
+    return workspaceControlsStore.listUserWorkspaces(principal.userId);
+  });
+
+  app.post("/v1/workspace-invitations/accept", async (request, reply) => {
+    const token = readBearerToken(request.headers.authorization);
+    const principal = await unscopedAccessTokenVerifier.verify(token);
+    const input = acceptInvitationSchema.parse(request.body);
+    const accepted = await workspaceControlsStore.acceptInvitation(input.token, principal.userId);
+    if (!accepted) return reply.code(404).send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
+    const session = await applicationSessionStore.activate(digestApplicationSessionToken(token), accepted.tenantId);
+    if (!session?.tenantId || !session.workspaceName || !session.role) throw new InvalidAccessTokenError();
+    return reply.send({ activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role } });
+  });
+
   app.get("/v1/public/attestation-case-files/:publicCaseFileId", async (request, reply) => {
     if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
       return reply.code(404).send({ code: "not_found", message: "Not found." });
@@ -480,6 +527,43 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       };
     },
   );
+
+  app.get("/v1/workspace", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") }, async (request) => {
+    const { tenant } = requireRequestContext(request);
+    return workspaceControlsStore.getProfile(tenant.id);
+  });
+  app.put("/v1/workspace", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
+    const { principal, tenant } = requireRequestContext(request);
+    return workspaceControlsStore.updateProfile(tenant.id, principal.userId, workspaceProfileSchema.parse(request.body));
+  });
+  app.get("/v1/workspace/members", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") }, async (request) => {
+    const { tenant } = requireRequestContext(request);
+    return workspaceControlsStore.listMembers(tenant.id);
+  });
+  app.patch("/v1/workspace/members/:userId", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
+    const { principal, tenant } = requireRequestContext(request);
+    const { userId } = memberParamsSchema.parse(request.params);
+    return workspaceControlsStore.changeMemberRole(tenant.id, principal.userId, userId, changeMemberRoleSchema.parse(request.body).role);
+  });
+  app.get("/v1/workspace/invitations", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
+    const { tenant } = requireRequestContext(request);
+    return workspaceControlsStore.listInvitations(tenant.id);
+  });
+  app.post("/v1/workspace/invitations", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request, reply) => {
+    const { principal, tenant } = requireRequestContext(request);
+    const input = createInvitationSchema.parse(request.body);
+    if (principal.role === "administrator" && input.role === "administrator") return reply.code(403).send({ code: "owner_required", message: "Only an owner may invite an administrator." });
+    const token = createInvitationToken();
+    const invitation = await workspaceControlsStore.createInvitation(tenant.id, principal.userId, { ...input, token });
+    return reply.code(201).send({ ...invitation, token });
+  });
+  app.delete("/v1/workspace/invitations/:invitationId", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request, reply) => {
+    const { principal, tenant } = requireRequestContext(request);
+    const { invitationId } = invitationParamsSchema.parse(request.params);
+    const revoked = await workspaceControlsStore.revokeInvitation(tenant.id, principal.userId, invitationId);
+    if (!revoked) return reply.code(404).send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
+    return reply.code(204).send();
+  });
 
   app.get(
     "/v1/review-cases/:caseId/attestations",
