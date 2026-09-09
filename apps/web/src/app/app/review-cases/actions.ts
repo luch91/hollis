@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
+  createReviewCase,
   createPublicAttestationCaseFile,
   createEvidenceUpload,
   claimReviewCase,
@@ -27,6 +29,63 @@ function revalidateWorkspace(caseId: string) {
   revalidatePath("/app/policy");
   revalidatePath("/app/receipts");
   revalidatePath(`/app/review-cases/${caseId}`);
+}
+
+function dueAtUtc(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    throw new Error("A due date and time in UTC is required.");
+  }
+  const dueAt = new Date(`${value}:00.000Z`);
+  if (Number.isNaN(dueAt.getTime())) throw new Error("The due date is invalid.");
+  return dueAt.toISOString();
+}
+
+export async function createReviewCaseAction(formData: FormData) {
+  "use server";
+
+  const file = formData.get("evidenceFile");
+  if (!(file instanceof File) || file.size === 0 || file.size > 5_242_880) {
+    throw new Error("Evidence must be a non-empty file no larger than 5 MB.");
+  }
+  const evidenceId = file.name.trim();
+  if (!evidenceId || evidenceId.length > 128) {
+    throw new Error("The evidence file name must be between 1 and 128 characters.");
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const digestBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = `sha256:${Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const reviewCase = await createReviewCase({
+    automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
+    evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
+    externalReference: requiredValue(formData, "externalReference"),
+    policyVersion: requiredValue(formData, "policyVersion"),
+    recommendation: requiredValue(formData, "recommendation") as Parameters<
+      typeof createReviewCase
+    >[0]["recommendation"],
+    riskLevel: requiredValue(formData, "riskLevel") as Parameters<
+      typeof createReviewCase
+    >[0]["riskLevel"],
+    reviewDueAt: dueAtUtc(requiredValue(formData, "reviewDueAt")),
+    ruleId: requiredValue(formData, "ruleId"),
+  });
+
+  const upload = await createEvidenceUpload(reviewCase.id, {
+    digest,
+    mediaType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+  });
+  if (upload.uploadUrl) {
+    const stored = await fetch(upload.uploadUrl, {
+      body: bytes,
+      headers: { "content-type": file.type || "application/octet-stream" },
+      method: "PUT",
+    });
+    if (!stored.ok) throw new Error("Evidence storage upload failed.");
+  }
+  await verifyEvidence(reviewCase.id, upload.evidenceId);
+  revalidateWorkspace(reviewCase.id);
+  redirect(`/app?caseId=${encodeURIComponent(reviewCase.id)}`);
 }
 
 export async function uploadEvidenceAction(formData: FormData) {

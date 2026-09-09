@@ -3365,6 +3365,97 @@ dd {
   font: inherit;
 }
 
+.new-review-case {
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 48px clamp(20px, 5vw, 64px);
+}
+.new-review-case-heading {
+  max-width: 680px;
+  margin-bottom: 34px;
+}
+.new-review-case-heading > a,
+.new-review-case-link {
+  color: var(--lime);
+  font-size: 13px;
+  text-decoration: none;
+}
+.new-review-case-heading h1 {
+  margin: 12px 0;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 0.98;
+}
+.new-review-case-heading p:last-child,
+.new-review-case-form fieldset > p,
+.new-review-case-form small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+.new-review-case-form {
+  display: grid;
+  gap: 20px;
+}
+.new-review-case-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 24px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.new-review-case-form fieldset:last-of-type {
+  grid-template-columns: 1fr;
+}
+.new-review-case-form legend {
+  padding: 0 8px 0 0;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+}
+.new-review-case-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.new-review-case-form input,
+.new-review-case-form select {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+.new-review-case-form input[type="file"] {
+  padding: 10px 12px;
+}
+.new-review-case-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.reference-queue-heading > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+@media (max-width: 640px) {
+  .new-review-case-form fieldset {
+    grid-template-columns: 1fr;
+  }
+  .new-review-case-actions {
+    justify-content: stretch;
+    flex-direction: column-reverse;
+  }
+}
+
 @media (max-width: 1180px) {
   .workspace-canvas {
     overflow-x: auto;

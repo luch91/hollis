@@ -121,6 +121,22 @@ export function listReviewCases(status?: ReviewQueueItem["status"]) {
   return request<ReviewQueueItem[]>(`/v1/review-cases${query}`);
 }
 
+export function createReviewCase(input: {
+  automatedSystemVersion: string;
+  evidence: Array<{ digest: string; id: string; mediaType: string }>;
+  externalReference: string;
+  policyVersion: string;
+  recommendation: ReviewQueueItem["recommendation"];
+  riskLevel: ReviewQueueItem["riskLevel"];
+  reviewDueAt: string;
+  ruleId: string;
+}) {
+  return request<{ id: string; replayed: boolean }>("/v1/review-cases", {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
 export function getReviewCase(caseId: string) {
   return request<ReviewCaseDetail>(`/v1/review-cases/${caseId}`);
 }

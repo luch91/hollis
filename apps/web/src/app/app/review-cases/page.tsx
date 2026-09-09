@@ -72,9 +72,14 @@ function CaseQueue({
   return (
     <aside className="reference-queue">
       <div className="reference-queue-heading">
-        <h1>
-          Active Cases <span>{cases.length}</span>
-        </h1>
+        <div>
+          <h1>
+            Active Cases <span>{cases.length}</span>
+          </h1>
+          <Link className="new-review-case-link" href="/app/review-cases/new">
+            New review case
+          </Link>
+        </div>
         <details className="queue-filter-menu" open={filtersActive}>
           <summary aria-label="Queue filters">☷</summary>
           <form action="/app" method="get">
@@ -866,7 +871,10 @@ export default async function ReviewCasesPage({
       ) : (
         <div className="reference-dashboard-empty">
           <h1>No review cases</h1>
-          <p>Signed case intake will appear in this workspace.</p>
+          <p>Start a privacy-safe intake record for a decision that requires human review.</p>
+          <Link className="reference-primary" href="/app/review-cases/new">
+            Create review case <span>›</span>
+          </Link>
         </div>
       )}
     </section>
