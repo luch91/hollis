@@ -10,6 +10,7 @@ const rolePermissions = {
     "reviews:attest",
     "reviews:retain",
     "workspace:manage",
+    "policies:manage",
   ],
   auditor: ["reviews:read"],
   contributor: ["reviews:create"],
@@ -22,6 +23,7 @@ const rolePermissions = {
     "reviews:attest",
     "reviews:retain",
     "workspace:manage",
+    "policies:manage",
   ],
   reviewer: [
     "reviews:read",
@@ -143,7 +145,9 @@ export function createHollisUnscopedAccessTokenVerifier(
   };
 }
 
-export function createHollisAccessTokenVerifier(store: ApplicationSessionStore): AccessTokenVerifier {
+export function createHollisAccessTokenVerifier(
+  store: ApplicationSessionStore,
+): AccessTokenVerifier {
   const unscoped = createHollisUnscopedAccessTokenVerifier(store);
   return {
     async verify(token) {

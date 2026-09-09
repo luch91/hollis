@@ -68,6 +68,25 @@ export type PublicAttestationCaseFile = {
   publicId: string;
 };
 
+export type WorkspacePolicy = {
+  controls: Array<{
+    attestationCriterion: string;
+    controlId: string;
+    controlVersion: string;
+    evidenceRequirement: "none" | "reference_required" | "verified_reference_required";
+    interpretation: "deterministic" | "judgment_required";
+    title: string;
+  }>;
+  createdAt: string;
+  createdByUserId: string;
+  documentDigest: string;
+  id: string;
+  policyId: string;
+  publishedAt: string;
+  title: string;
+  version: string;
+};
+
 type AttestationPolicy = {
   control: PublicAttestationCaseFile["caseFile"]["policy"]["control"];
   policyId: string;
@@ -132,6 +151,23 @@ export function createReviewCase(input: {
   ruleId: string;
 }) {
   return request<{ id: string; replayed: boolean }>("/v1/review-cases", {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
+export function listWorkspacePolicies() {
+  return request<WorkspacePolicy[]>("/v1/policies");
+}
+
+export function createWorkspacePolicy(input: {
+  controls: WorkspacePolicy["controls"];
+  documentDigest: string;
+  policyId: string;
+  title: string;
+  version: string;
+}) {
+  return request<WorkspacePolicy>("/v1/policies", {
     body: JSON.stringify(input),
     method: "POST",
   });

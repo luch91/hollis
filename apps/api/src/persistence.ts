@@ -1,6 +1,7 @@
 import {
   attestationRecordSchema,
   evidenceReferenceSchema,
+  policyLibraryControlSchema,
   publicAttestationCaseFileSchema,
   recommendationSchema,
   type ReviewExport,
@@ -11,6 +12,8 @@ import {
 import {
   attestations,
   evidenceObjects,
+  policyControls,
+  policyVersions,
   retentionDeletionJobs,
   reviewCases,
   reviewEvents,
@@ -25,6 +28,8 @@ import type { ApplicationSessionStore } from "./auth.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { AttestationReceipt } from "@hollis/contracts";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
+import type { PolicyLibraryStore } from "./policy-library.js";
+import type { CreatePolicyVersion, PolicyVersion } from "@hollis/contracts";
 import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
 import type {
   WorkspaceProvisioningRecord,
@@ -153,9 +158,7 @@ export function createPostgresTenantResolver(database: Database): TenantResolver
   return {
     async findByTenantId(tenantId) {
       const tenant = await database.transaction(async (transaction) => {
-        await transaction.execute(
-          sql`select set_config('app.tenant_id', ${tenantId}, true)`,
-        );
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         const [resolved] = await transaction
           .select({ id: tenants.id })
           .from(tenants)
@@ -230,6 +233,145 @@ export function createPostgresWorkspaceProvisioningStore(
       `);
       if (!record) throw new Error("Workspace provisioning did not return a tenant.");
       return record;
+    },
+  };
+}
+
+export function createPostgresPolicyLibraryStore(database: Database): PolicyLibraryStore {
+  return {
+    async create(tenantId, actorId, input) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [created] = await transaction
+          .insert(policyVersions)
+          .values({
+            createdByUserId: actorId,
+            documentDigest: input.documentDigest,
+            policyId: input.policyId,
+            tenantId,
+            title: input.title,
+            version: input.version,
+          })
+          .returning({
+            createdAt: policyVersions.createdAt,
+            createdByUserId: policyVersions.createdByUserId,
+            documentDigest: policyVersions.documentDigest,
+            id: policyVersions.id,
+            policyId: policyVersions.policyId,
+            publishedAt: policyVersions.publishedAt,
+            title: policyVersions.title,
+            version: policyVersions.version,
+          });
+        if (!created) throw new Error("Policy version could not be created.");
+        const controls = await transaction
+          .insert(policyControls)
+          .values(
+            input.controls.map((control) => ({
+              ...control,
+              policyVersionId: created.id,
+              tenantId,
+            })),
+          )
+          .returning({
+            attestationCriterion: policyControls.attestationCriterion,
+            controlId: policyControls.controlId,
+            controlVersion: policyControls.controlVersion,
+            evidenceRequirement: policyControls.evidenceRequirement,
+            interpretation: policyControls.interpretation,
+            title: policyControls.title,
+          });
+        return {
+          ...created,
+          controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
+          createdAt: created.createdAt.toISOString(),
+          publishedAt: created.publishedAt.toISOString(),
+        } satisfies PolicyVersion;
+      });
+    },
+    async findControl(tenantId, version, controlId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [policy] = await transaction
+          .select({
+            createdAt: policyVersions.createdAt,
+            createdByUserId: policyVersions.createdByUserId,
+            documentDigest: policyVersions.documentDigest,
+            id: policyVersions.id,
+            policyId: policyVersions.policyId,
+            publishedAt: policyVersions.publishedAt,
+            title: policyVersions.title,
+            version: policyVersions.version,
+          })
+          .from(policyVersions)
+          .innerJoin(policyControls, eq(policyControls.policyVersionId, policyVersions.id))
+          .where(
+            and(
+              eq(policyVersions.tenantId, tenantId),
+              eq(policyVersions.version, version),
+              eq(policyControls.controlId, controlId),
+            ),
+          )
+          .limit(1);
+        if (!policy) return null;
+        const controls = await transaction
+          .select({
+            attestationCriterion: policyControls.attestationCriterion,
+            controlId: policyControls.controlId,
+            controlVersion: policyControls.controlVersion,
+            evidenceRequirement: policyControls.evidenceRequirement,
+            interpretation: policyControls.interpretation,
+            title: policyControls.title,
+          })
+          .from(policyControls)
+          .where(eq(policyControls.policyVersionId, policy.id));
+        return {
+          ...policy,
+          controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
+          createdAt: policy.createdAt.toISOString(),
+          publishedAt: policy.publishedAt.toISOString(),
+        } satisfies PolicyVersion;
+      });
+    },
+    async list(tenantId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const policies = await transaction
+          .select({
+            createdAt: policyVersions.createdAt,
+            createdByUserId: policyVersions.createdByUserId,
+            documentDigest: policyVersions.documentDigest,
+            id: policyVersions.id,
+            policyId: policyVersions.policyId,
+            publishedAt: policyVersions.publishedAt,
+            title: policyVersions.title,
+            version: policyVersions.version,
+          })
+          .from(policyVersions)
+          .where(eq(policyVersions.tenantId, tenantId))
+          .orderBy(desc(policyVersions.publishedAt));
+        const controls = await transaction
+          .select({
+            attestationCriterion: policyControls.attestationCriterion,
+            controlId: policyControls.controlId,
+            controlVersion: policyControls.controlVersion,
+            evidenceRequirement: policyControls.evidenceRequirement,
+            interpretation: policyControls.interpretation,
+            policyVersionId: policyControls.policyVersionId,
+            title: policyControls.title,
+          })
+          .from(policyControls)
+          .where(eq(policyControls.tenantId, tenantId));
+        return policies.map((policy) => ({
+          ...policy,
+          controls: controls
+            .filter((control) => control.policyVersionId === policy.id)
+            .map(({ policyVersionId: _policyVersionId, ...control }) =>
+              policyLibraryControlSchema.parse(control),
+            ),
+          createdAt: policy.createdAt.toISOString(),
+          publishedAt: policy.publishedAt.toISOString(),
+        })) satisfies PolicyVersion[];
+      });
     },
   };
 }

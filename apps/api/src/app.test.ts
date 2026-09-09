@@ -18,6 +18,7 @@ import type {
 import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
 import type { ReviewExport } from "@hollis/contracts";
 import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
+import type { PolicyLibraryStore } from "./policy-library.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -68,6 +69,7 @@ function createDependencies(
     attestationStore?: AttestationStore;
     evidenceMetadataStore?: EvidenceMetadataStore;
     workspaceProvisioner?: WorkspaceProvisioner;
+    policyLibraryStore?: PolicyLibraryStore;
     unscopedTenantId?: string | null;
   } = {},
 ) {
@@ -195,6 +197,38 @@ function createDependencies(
         throw new Error("Workspace provisioning was not expected.");
       },
     } satisfies WorkspaceProvisioner);
+  const policyLibraryStore: PolicyLibraryStore =
+    options.policyLibraryStore ??
+    ({
+      async create() {
+        throw new Error("Policy creation was not expected.");
+      },
+      async findControl(_tenantId, policyVersion, controlId) {
+        return {
+          controls: [
+            {
+              attestationCriterion: "Human review must be recorded.",
+              controlId,
+              controlVersion: "1",
+              evidenceRequirement: "verified_reference_required",
+              interpretation: "deterministic",
+              title: "Human review",
+            },
+          ],
+          createdAt: "2026-08-28T08:00:00.000Z",
+          createdByUserId: "00000000-0000-4000-8000-000000000001",
+          documentDigest: `sha256:${"a".repeat(64)}`,
+          id: "00000000-0000-4000-8000-000000000002",
+          policyId: "test-policy",
+          publishedAt: "2026-08-28T08:00:00.000Z",
+          title: "Test policy",
+          version: policyVersion,
+        };
+      },
+      async list() {
+        return [];
+      },
+    } satisfies PolicyLibraryStore);
 
   return {
     accessTokenVerifier,
@@ -204,6 +238,7 @@ function createDependencies(
     evidenceMetadataStore,
     finalizedAttestationImporter: options.finalizedAttestationImporter,
     publicAttestationCaseFileStore,
+    policyLibraryStore,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,

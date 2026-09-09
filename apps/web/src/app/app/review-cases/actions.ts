@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   createReviewCase,
+  createWorkspacePolicy,
   createPublicAttestationCaseFile,
   createEvidenceUpload,
   claimReviewCase,
@@ -40,6 +41,44 @@ function dueAtUtc(value: string): string {
   return dueAt.toISOString();
 }
 
+function selectedPolicyBinding(value: string) {
+  const [policyVersion, ruleId, ...unexpected] = value.split("::");
+  if (!policyVersion || !ruleId || unexpected.length > 0) {
+    throw new Error("Select a published policy control.");
+  }
+  return { policyVersion, ruleId };
+}
+
+export async function createWorkspacePolicyAction(formData: FormData) {
+  const policyId = requiredValue(formData, "policyId");
+  const version = requiredValue(formData, "version");
+  const controlId = requiredValue(formData, "controlId");
+  await createWorkspacePolicy({
+    controls: [
+      {
+        attestationCriterion: requiredValue(formData, "attestationCriterion"),
+        controlId,
+        controlVersion: requiredValue(formData, "controlVersion"),
+        evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
+          | "none"
+          | "reference_required"
+          | "verified_reference_required",
+        interpretation: requiredValue(formData, "interpretation") as
+          | "deterministic"
+          | "judgment_required",
+        title: requiredValue(formData, "controlTitle"),
+      },
+    ],
+    documentDigest: requiredValue(formData, "documentDigest"),
+    policyId,
+    title: requiredValue(formData, "title"),
+    version,
+  });
+  revalidatePath("/app/policy");
+  revalidatePath("/app/review-cases/new");
+  redirect("/app/policy");
+}
+
 export async function createReviewCaseAction(formData: FormData) {
   "use server";
 
@@ -55,11 +94,12 @@ export async function createReviewCaseAction(formData: FormData) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const digestBuffer = await crypto.subtle.digest("SHA-256", bytes);
   const digest = `sha256:${Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const policyBinding = selectedPolicyBinding(requiredValue(formData, "policyBinding"));
   const reviewCase = await createReviewCase({
     automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
     evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
     externalReference: requiredValue(formData, "externalReference"),
-    policyVersion: requiredValue(formData, "policyVersion"),
+    policyVersion: policyBinding.policyVersion,
     recommendation: requiredValue(formData, "recommendation") as Parameters<
       typeof createReviewCase
     >[0]["recommendation"],
@@ -67,7 +107,7 @@ export async function createReviewCaseAction(formData: FormData) {
       typeof createReviewCase
     >[0]["riskLevel"],
     reviewDueAt: dueAtUtc(requiredValue(formData, "reviewDueAt")),
-    ruleId: requiredValue(formData, "ruleId"),
+    ruleId: policyBinding.ruleId,
   });
 
   const upload = await createEvidenceUpload(reviewCase.id, {

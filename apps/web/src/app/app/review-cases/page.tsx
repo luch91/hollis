@@ -13,7 +13,6 @@ import {
   type ReviewCaseDetail,
   type ReviewQueueItem,
 } from "./data";
-import { AttestationHorizon } from "./attestation-visuals";
 
 type ReviewerProfile = {
   email: string;
@@ -719,18 +718,97 @@ function SelectedCaseWorkspace({
       <aside className="reference-right-rail">
         <div className="right-rail-heading">
           <div>
-            <h2>Attestation Horizon</h2>
-            <p>Evidence layers progressively align and lock into a verifiable receipt.</p>
+            <p className="eyebrow">Independent verification</p>
+            <h2>GenLayer</h2>
+            <p>Neutral process attestation, separate from the human decision.</p>
           </div>
           <nav className="right-rail-actions" aria-label="Selected case actions">
             <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
             <Link href={`/app/review-cases/${reviewCase.id}`}>View details</Link>
           </nav>
         </div>
-        <AttestationHorizon attestations={attestations} reviewCase={reviewCase} />
+        <GenLayerPanel attestations={attestations} reviewCase={reviewCase} />
         <ExportPreview attestations={attestations} reviewCase={reviewCase} />
       </aside>
     </>
+  );
+}
+
+function GenLayerPanel({
+  attestations,
+  reviewCase,
+}: {
+  attestations: AttestationRecord[];
+  reviewCase: ReviewCaseDetail;
+}) {
+  const latest = attestations.at(0);
+  const humanDecisionRecorded = reviewCase.decisionOutcome !== null;
+  const evidenceReady = reviewCase.evidence.length > 0;
+  const ready = humanDecisionRecorded && evidenceReady;
+  const status = latest?.status ?? (ready ? "ready" : "not ready");
+  return (
+    <section className="genlayer-panel" aria-labelledby="genlayer-panel-title">
+      <div className={`genlayer-status genlayer-status-${status.replaceAll(" ", "-")}`}>
+        <span aria-hidden="true">◉</span>
+        <strong>{status}</strong>
+      </div>
+      <h3 id="genlayer-panel-title">Independent Attestation</h3>
+      <p>GenLayer verifies the declared process after Hollis records the human review.</p>
+      <ol className="genlayer-readiness">
+        <li>
+          <span>Policy locked</span>
+          <strong>✓</strong>
+          <small>
+            {reviewCase.policyVersion} / {reviewCase.ruleId}
+          </small>
+        </li>
+        <li>
+          <span>Evidence reference</span>
+          <strong className={evidenceReady ? "is-ready" : "is-pending"}>
+            {evidenceReady ? "✓" : "○"}
+          </strong>
+          <small>{reviewCase.evidence.length} recorded</small>
+        </li>
+        <li>
+          <span>Human decision</span>
+          <strong className={humanDecisionRecorded ? "is-ready" : "is-pending"}>
+            {humanDecisionRecorded ? "✓" : "○"}
+          </strong>
+          <small>{humanDecisionRecorded ? "Recorded" : "Required"}</small>
+        </li>
+        <li>
+          <span>Case commitment</span>
+          <strong className={latest ? "is-ready" : "is-pending"}>{latest ? "✓" : "○"}</strong>
+          <small>{latest?.caseCommitment ?? "Generated after review"}</small>
+        </li>
+      </ol>
+      <div
+        className="genlayer-flow"
+        aria-label="Hollis case through GenLayer contract to a portable receipt"
+      >
+        <span>Hollis case</span>
+        <i>›</i>
+        <span>GenLayer contract</span>
+        <i>›</i>
+        <span>Receipt</span>
+      </div>
+      {latest ? (
+        <dl className="genlayer-result">
+          <div>
+            <dt>Verdict</dt>
+            <dd>{latest.verdict ?? "Pending"}</dd>
+          </div>
+          <div>
+            <dt>Transaction</dt>
+            <dd>{latest.transactionHash ?? "Awaiting finalization"}</dd>
+          </div>
+        </dl>
+      ) : (
+        <Link className="genlayer-action" href={`/app/review-cases/${reviewCase.id}#attestation`}>
+          {ready ? "Prepare attestation" : "View readiness"} <span>›</span>
+        </Link>
+      )}
+    </section>
   );
 }
 
@@ -805,7 +883,8 @@ export default async function ReviewCasesPage({
       .map((result) => result.reason);
     if (
       queueErrors.some(
-        (error) => error instanceof ReviewServiceError && error.code === "workspace_not_provisioned",
+        (error) =>
+          error instanceof ReviewServiceError && error.code === "workspace_not_provisioned",
       )
     ) {
       return <WorkspaceProvisioningRequired />;

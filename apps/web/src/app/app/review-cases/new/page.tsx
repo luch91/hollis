@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { createReviewCaseAction } from "../actions";
+import { listWorkspacePolicies } from "../data";
 
-export default function NewReviewCasePage() {
+export default async function NewReviewCasePage() {
+  const policies = await listWorkspacePolicies();
   return (
     <section className="new-review-case" aria-labelledby="new-review-case-title">
       <header className="new-review-case-heading">
@@ -62,24 +64,35 @@ export default function NewReviewCasePage() {
         </fieldset>
         <fieldset>
           <legend>Policy and review deadline</legend>
-          <label>
-            Policy version
-            <input
-              maxLength={128}
-              name="policyVersion"
-              placeholder="e.g. credit-fairness-2026-01"
-              required
-            />
-          </label>
-          <label>
-            Policy control
-            <input
-              maxLength={128}
-              name="ruleId"
-              placeholder="e.g. adverse-action-review"
-              required
-            />
-          </label>
+          {policies.length > 0 ? (
+            <label className="new-review-case-span">
+              Published policy control
+              <select defaultValue="" name="policyBinding" required>
+                <option disabled value="">
+                  Select an approved policy control
+                </option>
+                {policies.flatMap((policy) =>
+                  policy.controls.map((control) => (
+                    <option
+                      key={`${policy.id}-${control.controlId}`}
+                      value={`${policy.version}::${control.controlId}`}
+                    >
+                      {policy.title} · {policy.version} · {control.title}
+                    </option>
+                  )),
+                )}
+              </select>
+            </label>
+          ) : (
+            <div className="new-review-case-policy-empty new-review-case-span">
+              <strong>No published policy is available.</strong>
+              <p>
+                A workspace owner or administrator must publish a policy control before a case can
+                open.
+              </p>
+              <Link href="/app/policy">Open Policy Library</Link>
+            </div>
+          )}
           <label>
             Review due at, UTC
             <input name="reviewDueAt" required type="datetime-local" />
@@ -108,7 +121,7 @@ export default function NewReviewCasePage() {
           <Link className="reference-secondary" href="/app">
             Cancel
           </Link>
-          <button className="reference-primary" type="submit">
+          <button className="reference-primary" disabled={policies.length === 0} type="submit">
             Create review case <span>›</span>
           </button>
         </div>

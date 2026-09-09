@@ -49,6 +49,8 @@ export const attestationStatus = pgEnum("attestation_status", [
   "undetermined",
 ]);
 
+export const policyPublicationStatus = pgEnum("policy_publication_status", ["published"]);
+
 export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey().defaultRandom(),
@@ -296,6 +298,60 @@ export const publicAttestationCaseFiles = pgTable(
   (table) => [
     index("public_attestation_case_files_case_idx").on(table.caseId, table.createdAt),
     index("public_attestation_case_files_tenant_case_idx").on(table.tenantId, table.caseId),
+  ],
+);
+
+export const policyVersions = pgTable(
+  "policy_versions",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    documentDigest: text("document_digest").notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    policyId: text("policy_id").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    status: policyPublicationStatus("status").notNull().default("published"),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    title: text("title").notNull(),
+    version: text("version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("policy_versions_tenant_policy_version_unique").on(
+      table.tenantId,
+      table.policyId,
+      table.version,
+    ),
+    index("policy_versions_tenant_published_idx").on(table.tenantId, table.publishedAt),
+  ],
+);
+
+export const policyControls = pgTable(
+  "policy_controls",
+  {
+    attestationCriterion: text("attestation_criterion").notNull(),
+    controlId: text("control_id").notNull(),
+    controlVersion: text("control_version").notNull(),
+    evidenceRequirement: text("evidence_requirement").notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    interpretation: text("interpretation").notNull(),
+    policyVersionId: uuid("policy_version_id")
+      .notNull()
+      .references(() => policyVersions.id),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    title: text("title").notNull(),
+  },
+  (table) => [
+    uniqueIndex("policy_controls_version_control_unique").on(
+      table.policyVersionId,
+      table.controlId,
+    ),
+    index("policy_controls_tenant_version_idx").on(table.tenantId, table.policyVersionId),
   ],
 );
 

@@ -5,6 +5,7 @@ import {
   createPublicAttestationCaseFileRequestSchema,
   importFinalizedAttestationRequestSchema,
   createReviewCaseSchema,
+  createPolicyVersionSchema,
   decideReviewCaseSchema,
   escalateReviewCaseSchema,
   reviewCaseStatusSchema,
@@ -46,8 +47,15 @@ import {
   createPostgresTenantResolver,
   createPostgresWorkspaceProvisioningStore,
   createPostgresApplicationSessionStore,
+  createPostgresPolicyLibraryStore,
   setEvidenceLegalHold,
 } from "./persistence.js";
+import {
+  assertPublishedCasePolicy,
+  createPublishedPolicy,
+  PolicyBindingError,
+  type PolicyLibraryStore,
+} from "./policy-library.js";
 import { createPostgresReviewWorkflowStore } from "./persistence.js";
 import {
   createReviewIntake,
@@ -87,6 +95,7 @@ import {
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
   reviewIntakeStore?: ReviewIntakeStore;
+  policyLibraryStore?: PolicyLibraryStore;
   tenantResolver?: TenantResolver;
   workflowStore?: ReviewWorkflowStore;
   evidenceStorage?: Awaited<ReturnType<typeof createGoogleCloudEvidenceStorage>>;
@@ -129,6 +138,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   const reviewIntakeStore =
     dependencies.reviewIntakeStore ?? createPostgresReviewIntakeStore(requireDatabase());
+  const policyLibraryStore =
+    dependencies.policyLibraryStore ?? createPostgresPolicyLibraryStore(requireDatabase());
   const tenantResolver =
     dependencies.tenantResolver ?? createPostgresTenantResolver(requireDatabase());
   const workflowStore =
@@ -151,7 +162,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.workspaceProvisioner ??
     createHollisWorkspaceProvisioner(createPostgresWorkspaceProvisioningStore(requireDatabase()));
   const applicationSessionStore =
-    dependencies.applicationSessionStore ?? createPostgresApplicationSessionStore(requireDatabase());
+    dependencies.applicationSessionStore ??
+    createPostgresApplicationSessionStore(requireDatabase());
   const accessTokenVerifier =
     dependencies.accessTokenVerifier ?? createHollisAccessTokenVerifier(applicationSessionStore);
   const unscopedAccessTokenVerifier =
@@ -235,6 +247,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       });
     }
 
+    if (error instanceof PolicyBindingError) {
+      return reply.code(409).send({
+        code: "policy_not_published",
+        message: "The selected policy control is not published for this workspace.",
+      });
+    }
+
     if (
       typeof error === "object" &&
       error !== null &&
@@ -294,7 +313,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     }
 
     const errorCode =
-      typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "string"
         ? error.code
         : undefined;
     app.log.error(
@@ -380,7 +402,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       readBearerToken(request.headers.authorization),
     );
     const input = createWorkspaceSchema.parse(request.body);
-    const workspace = await workspaceProvisioner.create({ name: input.name, userId: principal.userId });
+    const workspace = await workspaceProvisioner.create({
+      name: input.name,
+      userId: principal.userId,
+    });
     const token = readBearerToken(request.headers.authorization);
     const session = await applicationSessionStore.activate(
       digestApplicationSessionToken(token),
@@ -651,6 +676,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     async (request, reply) => {
       const input = createReviewCaseSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
+      assertPublishedCasePolicy(
+        await policyLibraryStore.findControl(tenant.id, input.policyVersion, input.ruleId),
+        input.policyVersion,
+        input.ruleId,
+      );
       const reviewCase = await createReviewIntake(
         input,
         { actorId: principal.userId, tenantId: tenant.id },
@@ -658,6 +688,29 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       );
 
       return reply.code(reviewCase.replayed ? 200 : 201).send(reviewCase);
+    },
+  );
+
+  app.get(
+    "/v1/policies",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request) => {
+      const { tenant } = requireRequestContext(request);
+      return policyLibraryStore.list(tenant.id);
+    },
+  );
+
+  app.post(
+    "/v1/policies",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "policies:manage"),
+    },
+    async (request, reply) => {
+      const input = createPolicyVersionSchema.parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      return reply
+        .code(201)
+        .send(await createPublishedPolicy(tenant.id, principal.userId, input, policyLibraryStore));
     },
   );
 
