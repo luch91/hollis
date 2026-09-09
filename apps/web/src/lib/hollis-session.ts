@@ -17,10 +17,15 @@ export async function readHollisSession(): Promise<{ session: HollisSession; tok
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return null;
 
-  const response = await fetch(`${apiUrl}/v1/auth/me`, {
-    cache: "no-store",
-    headers: { authorization: `Bearer ${token}` },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}/v1/auth/me`, {
+      cache: "no-store",
+      headers: { authorization: `Bearer ${token}` },
+    });
+  } catch {
+    return null;
+  }
   if (!response.ok) return null;
   return { session: (await response.json()) as HollisSession, token };
 }

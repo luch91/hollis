@@ -8,6 +8,8 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 async function api(path: string, init?: RequestInit) {
   const token = (await cookies()).get("hollis_session")?.value;
   const response = await fetch(`${apiUrl}${path}`, { cache: "no-store", ...init, headers: { authorization: `Bearer ${token ?? ""}`, "content-type": "application/json", ...init?.headers } });
+  if (response.status === 401) redirect("/sign-in");
+  if (response.status === 403) redirect("/access-required");
   if (!response.ok) throw new Error("Workspace administration request failed.");
   return response.status === 204 ? null : response.json();
 }

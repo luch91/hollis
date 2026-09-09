@@ -183,6 +183,13 @@
       "when": 1788943200000,
       "tag": "0025_add_workspace_member_directory_function",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788943800000,
+      "tag": "0026_fix_workspace_control_function_column_references",
+      "breakpoints": true
     }
   ]
 }
