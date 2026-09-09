@@ -3720,7 +3720,9 @@ dd {
 .admin-card label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
 .admin-card input, .admin-card select { min-height: 42px; border: 1px solid var(--line); border-radius: 2px; background: color-mix(in srgb, var(--panel) 80%, #000); color: var(--ink); padding: 9px 10px; font: inherit; }
 .admin-card input:focus, .admin-card select:focus { outline: 2px solid color-mix(in srgb, var(--lime) 70%, transparent); outline-offset: 1px; }
+.invitation-link-control { display: flex; gap: 8px; align-items: stretch; }
 .invitation-link input { width: 100%; color: var(--lime); font-size: 12px; }
+.invitation-link-control .text-button { flex: 0 0 auto; min-width: 88px; border: 1px solid var(--line); padding: 0 12px; }
 .admin-list { display: grid; border-top: 1px solid var(--line); }
 .admin-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .admin-row > div { display: grid; gap: 4px; min-width: 0; }
