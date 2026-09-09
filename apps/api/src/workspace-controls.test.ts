@@ -23,6 +23,7 @@ describe("workspace controls", () => {
   it("rejects owner invitations and requires a valid profile", () => {
     expect(createInvitationSchema.safeParse({ email: "reviewer@example.test", role: "owner" }).success).toBe(false);
     expect(workspaceProfileSchema.safeParse({ name: "A" }).success).toBe(false);
+    expect(workspaceProfileSchema.safeParse({ name: "Northstar Claims", website: "ftp://example.test" }).success).toBe(false);
     expect(workspaceProfileSchema.parse({ name: "Northstar Claims" }).website).toBe("");
   });
 });
