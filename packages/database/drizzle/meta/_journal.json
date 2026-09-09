@@ -176,6 +176,13 @@
       "when": 1788942600000,
       "tag": "0024_restrict_workspace_invitation_writes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788943200000,
+      "tag": "0025_add_workspace_member_directory_function",
+      "breakpoints": true
     }
   ]
 }

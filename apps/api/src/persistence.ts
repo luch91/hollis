@@ -18,9 +18,7 @@ import {
   reviewCases,
   reviewEvents,
   publicAttestationCaseFiles,
-  tenantMemberships,
   tenants,
-  users,
   workspaceAuditEvents,
   workspaceInvitations,
 } from "@hollis/database";
@@ -255,11 +253,8 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
       const [record] = await database.execute(sql`select * from public.update_hollis_workspace_profile(${tenantId}::uuid, ${actorId}::uuid, ${input.name}, ${input.industry}, ${input.operatingRegion}, ${input.website})`);
       return record ?? null;
     },
-    async listMembers(tenantId: string) {
-      return database.transaction(async (transaction) => {
-        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        return transaction.select({ userId: tenantMemberships.userId, role: tenantMemberships.role, displayName: users.displayName, email: users.email, avatarUrl: users.avatarUrl, joinedAt: tenantMemberships.createdAt }).from(tenantMemberships).innerJoin(users, eq(users.id, tenantMemberships.userId)).where(eq(tenantMemberships.tenantId, tenantId)).orderBy(asc(users.email));
-      });
+    async listMembers(tenantId: string, actorId: string) {
+      return database.execute<{ userId: string; role: string; displayName: string | null; email: string | null; avatarUrl: string | null; joinedAt: Date }>(sql`select * from public.list_hollis_workspace_members(${tenantId}::uuid, ${actorId}::uuid)`);
     },
     async createInvitation(tenantId: string, actorId: string, input: { email: string; role: string; token: string }) {
       const [record] = await database.execute(sql`select * from public.create_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${input.email}, ${input.role}, ${digestInvitationToken(input.token)})`);

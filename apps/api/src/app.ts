@@ -537,9 +537,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     const { principal, tenant } = requireRequestContext(request);
     return workspaceControlsStore.updateProfile(tenant.id, principal.userId, workspaceProfileSchema.parse(request.body));
   });
-  app.get("/v1/workspace/members", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") }, async (request) => {
-    const { tenant } = requireRequestContext(request);
-    return workspaceControlsStore.listMembers(tenant.id);
+  app.get("/v1/workspace/members", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
+    const { principal, tenant } = requireRequestContext(request);
+    return workspaceControlsStore.listMembers(tenant.id, principal.userId);
   });
   app.patch("/v1/workspace/members/:userId", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
     const { principal, tenant } = requireRequestContext(request);
