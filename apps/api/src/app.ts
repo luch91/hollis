@@ -187,6 +187,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
             createInvitation: unavailable,
             getProfile: unavailable,
             listInvitations: unavailable,
+            listAuditEvents: unavailable,
             listMembers: unavailable,
             listUserWorkspaces: unavailable,
             revokeInvitation: unavailable,
@@ -548,6 +549,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   app.get("/v1/workspace/invitations", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
     const { tenant } = requireRequestContext(request);
     return workspaceControlsStore.listInvitations(tenant.id);
+  });
+  app.get("/v1/workspace/audit-events", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request) => {
+    const { tenant } = requireRequestContext(request);
+    return workspaceControlsStore.listAuditEvents(tenant.id);
   });
   app.post("/v1/workspace/invitations", { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage") }, async (request, reply) => {
     const { principal, tenant } = requireRequestContext(request);

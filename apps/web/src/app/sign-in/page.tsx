@@ -9,8 +9,8 @@ import {
   signInWithPopup,
   type UserCredential,
 } from "firebase/auth";
-import { FormEvent, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getIdentityPlatformAuth } from "@/lib/identity-platform";
 
 type Mode = "sign-in" | "sign-up";
@@ -51,12 +51,16 @@ function readableError(error: unknown): string {
 
 export default function SignInPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setReturnTo(new URLSearchParams(window.location.search).get("returnTo"));
+  }, []);
 
   async function finish(credential: UserCredential, created = false) {
     if (created && !credential.user.emailVerified) {
@@ -67,7 +71,6 @@ export default function SignInPage() {
       throw new Error("Verify your email before signing in to Hollis.");
     }
     const hasWorkspace = await establishHollisSession(credential);
-    const returnTo = searchParams.get("returnTo");
     router.replace(hasWorkspace ? (returnTo?.startsWith("/") ? returnTo : "/app") : "/onboarding");
     router.refresh();
   }

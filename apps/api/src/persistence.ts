@@ -21,6 +21,7 @@ import {
   tenantMemberships,
   tenants,
   users,
+  workspaceAuditEvents,
   workspaceInvitations,
 } from "@hollis/database";
 import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
@@ -261,11 +262,8 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
       });
     },
     async createInvitation(tenantId: string, actorId: string, input: { email: string; role: string; token: string }) {
-      return database.transaction(async (transaction) => {
-        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        const [record] = await transaction.insert(workspaceInvitations).values({ email: input.email.toLowerCase(), expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), invitedByUserId: actorId, role: input.role, tenantId, tokenDigest: digestInvitationToken(input.token) }).returning({ id: workspaceInvitations.id, email: workspaceInvitations.email, role: workspaceInvitations.role, expiresAt: workspaceInvitations.expiresAt });
-        return record ?? null;
-      });
+      const [record] = await database.execute(sql`select * from public.create_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${input.email}, ${input.role}, ${digestInvitationToken(input.token)})`);
+      return record ?? null;
     },
     async listInvitations(tenantId: string) {
       return database.transaction(async (transaction) => {
@@ -287,6 +285,12 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
     },
     async listUserWorkspaces(userId: string) {
       return database.execute<{ tenantId: string; workspaceName: string; role: string }>(sql`select * from public.list_hollis_user_workspaces(${userId}::uuid)`);
+    },
+    async listAuditEvents(tenantId: string) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        return transaction.select({ actorId: workspaceAuditEvents.actorId, createdAt: workspaceAuditEvents.createdAt, eventHash: workspaceAuditEvents.eventHash, eventSequence: workspaceAuditEvents.eventSequence, eventType: workspaceAuditEvents.eventType, payload: workspaceAuditEvents.payload, previousHash: workspaceAuditEvents.previousHash }).from(workspaceAuditEvents).where(eq(workspaceAuditEvents.tenantId, tenantId)).orderBy(desc(workspaceAuditEvents.eventSequence)).limit(100);
+      });
     },
   };
 }

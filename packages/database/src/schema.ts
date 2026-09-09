@@ -159,6 +159,25 @@ export const workspaceInvitations = pgTable(
   ],
 );
 
+export const workspaceAuditEvents = pgTable(
+  "workspace_audit_events",
+  {
+    actorId: uuid("actor_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    eventHash: text("event_hash").notNull(),
+    eventSequence: bigserial("event_sequence", { mode: "number" }).notNull().unique(),
+    eventType: text("event_type").notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    payload: jsonb("payload").notNull(),
+    previousHash: text("previous_hash"),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  },
+  (table) => [
+    index("workspace_audit_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+    uniqueIndex("workspace_audit_events_event_hash_unique").on(table.eventHash),
+  ],
+);
+
 export const reviewCases = pgTable(
   "review_cases",
   {
