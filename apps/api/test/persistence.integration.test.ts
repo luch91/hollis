@@ -23,7 +23,6 @@ if (!ownerUrl || !runtimeUrl) {
 const owner = createDatabase(ownerUrl);
 const runtime = createDatabase(runtimeUrl);
 const tenantId = randomUUID();
-const organizationId = `org_${randomUUID()}`;
 const externalReference = `claim_${randomUUID()}`;
 const input = {
   automatedSystemVersion: "claims-model-2026-08",
@@ -46,7 +45,6 @@ beforeAll(async () => {
   await owner.database.insert(tenants).values({
     id: tenantId,
     name: "Persistence integration tenant",
-    workosOrganizationId: organizationId,
   });
 });
 
@@ -62,12 +60,9 @@ describe("PostgreSQL review intake", () => {
   const store = createPostgresReviewIntakeStore(runtime.database);
   const workflowStore = createPostgresReviewWorkflowStore(runtime.database);
 
-  it("resolves the WorkOS organization through row security", async () => {
-    await expect(resolver.findByOrganizationId(organizationId)).resolves.toEqual({
-      id: tenantId,
-      organizationId,
-    });
-    await expect(resolver.findByOrganizationId(`org_${randomUUID()}`)).resolves.toBeNull();
+  it("resolves the active tenant through row security", async () => {
+    await expect(resolver.findByTenantId(tenantId)).resolves.toEqual({ id: tenantId });
+    await expect(resolver.findByTenantId(randomUUID())).resolves.toBeNull();
   });
 
   it("atomically stores a pending case and its first audit event", async () => {
