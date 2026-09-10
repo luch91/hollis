@@ -37,16 +37,24 @@ export async function createGoogleCloudEvidenceStorage(
   bucketName: string,
 ): Promise<EvidenceStorage> {
   const sourceAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
-  const sourceClient = await sourceAuth.getClient();
-  const signer = new Impersonated({
-    sourceClient,
-    targetPrincipal:
-      process.env.GCS_SIGNER_SERVICE_ACCOUNT ??
-      "hollis-evidence-runtime@hollis-507001.iam.gserviceaccount.com",
-    targetScopes: ["https://www.googleapis.com/auth/cloud-platform"],
-    lifetime: 900,
-  });
-  const bucket = new Storage({ projectId, authClient: signer }).bucket(bucketName);
+  let bucketPromise: Promise<ReturnType<Storage["bucket"]>> | undefined;
+
+  function resolveBucket() {
+    bucketPromise ??= (async () => {
+      const sourceClient = await sourceAuth.getClient();
+      const signer = new Impersonated({
+        sourceClient,
+        targetPrincipal:
+          process.env.GCS_SIGNER_SERVICE_ACCOUNT ??
+          "hollis-evidence-runtime@hollis-507001.iam.gserviceaccount.com",
+        targetScopes: ["https://www.googleapis.com/auth/cloud-platform"],
+        lifetime: 900,
+      });
+      return new Storage({ projectId, authClient: signer }).bucket(bucketName);
+    })();
+    return bucketPromise;
+  }
+
   const signedUrlOptions = () => ({
     version: "v4" as const,
     expires: Date.now() + 15 * 60 * 1000,
@@ -54,13 +62,13 @@ export async function createGoogleCloudEvidenceStorage(
 
   return {
     async createDownloadUrl(tenantId, objectName) {
-      const [url] = await bucket
+      const [url] = await (await resolveBucket())
         .file(assertTenantObject(tenantId, objectName))
         .getSignedUrl({ ...signedUrlOptions(), action: "read" });
       return url;
     },
     async createUploadUrl(tenantId, objectName, mediaType) {
-      const file = bucket.file(assertTenantObject(tenantId, objectName));
+      const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       const [exists] = await file.exists();
       if (exists) return "";
       const [url] = await file.getSignedUrl({
@@ -71,10 +79,12 @@ export async function createGoogleCloudEvidenceStorage(
       return url;
     },
     async delete(tenantId, objectName) {
-      await bucket.file(assertTenantObject(tenantId, objectName)).delete({ ignoreNotFound: true });
+      await (await resolveBucket())
+        .file(assertTenantObject(tenantId, objectName))
+        .delete({ ignoreNotFound: true });
     },
     async verify(tenantId, objectName, expected) {
-      const file = bucket.file(assertTenantObject(tenantId, objectName));
+      const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       const [metadata] = await file.getMetadata();
       const [content] = await file.download();
       const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -90,7 +100,7 @@ export async function createGoogleCloudEvidenceStorage(
     async put(tenantId, objectName, content, mediaType, expectedDigest) {
       const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
       if (digest !== expectedDigest) throw new Error("Evidence digest does not match content.");
-      const file = bucket.file(assertTenantObject(tenantId, objectName));
+      const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       await file.save(content, { contentType: mediaType, resumable: false, validation: "md5" });
       return { digest, mediaType, objectName, sizeBytes: content.byteLength };
     },
