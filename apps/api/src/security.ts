@@ -38,10 +38,7 @@ export function createSecurityPreHandler(
 
     const tenant = await tenantResolver.findByTenantId(principal.tenantId);
     if (!tenant) {
-      request.log.warn(
-        { tenantId: principal.tenantId },
-        "workspace is not provisioned",
-      );
+      request.log.warn({ tenantId: principal.tenantId }, "workspace is not provisioned");
       throw new TenantAccessError();
     }
 

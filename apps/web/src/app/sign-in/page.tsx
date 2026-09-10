@@ -9,7 +9,7 @@ import {
   signInWithPopup,
   type UserCredential,
 } from "firebase/auth";
-import { FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getIdentityPlatformAuth } from "@/lib/identity-platform";
 
@@ -29,7 +29,9 @@ async function establishHollisSession(credential: UserCredential): Promise<boole
 
 function readableError(error: unknown): string {
   if (typeof error !== "object" || error === null) {
-    return error instanceof Error ? error.message : "We could not complete that request. Please try again.";
+    return error instanceof Error
+      ? error.message
+      : "We could not complete that request. Please try again.";
   }
 
   const code = "code" in error && typeof error.code === "string" ? error.code : null;
@@ -45,7 +47,9 @@ function readableError(error: unknown): string {
     case "auth/weak-password":
       return "Choose a stronger password.";
     default:
-      return error instanceof Error ? error.message : "We could not complete that request. Please try again.";
+      return error instanceof Error
+        ? error.message
+        : "We could not complete that request. Please try again.";
   }
 }
 
@@ -118,14 +122,24 @@ export default function SignInPage() {
             : "Start an organization workspace or join one by invitation."}
         </p>
         <div className="auth-provider-actions">
-          <button disabled={busy} onClick={() => void signInWith(new GoogleAuthProvider())} type="button">
+          <button
+            disabled={busy}
+            onClick={() => void signInWith(new GoogleAuthProvider())}
+            type="button"
+          >
             Continue with Google
           </button>
-          <button disabled={busy} onClick={() => void signInWith(new GithubAuthProvider())} type="button">
+          <button
+            disabled={busy}
+            onClick={() => void signInWith(new GithubAuthProvider())}
+            type="button"
+          >
             Continue with GitHub
           </button>
         </div>
-        <div className="auth-divider"><span>or</span></div>
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
         <form className="auth-form" onSubmit={submit}>
           <label>
             Work email
@@ -150,14 +164,22 @@ export default function SignInPage() {
               value={password}
             />
           </label>
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
+          {error ? (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          ) : null}
           <button className="primary-action" disabled={busy} type="submit">
             {busy ? "Please wait" : mode === "sign-in" ? "Sign in" : "Create account"}
           </button>
         </form>
         <p className="auth-switch">
           {mode === "sign-in" ? "New to Hollis?" : "Already have an account?"}{" "}
-          <button disabled={busy} onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")} type="button">
+          <button
+            disabled={busy}
+            onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
+            type="button"
+          >
             {mode === "sign-in" ? "Create an account" : "Sign in"}
           </button>
         </p>

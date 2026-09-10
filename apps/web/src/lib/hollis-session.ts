@@ -13,7 +13,10 @@ export type HollisSession = {
   userId: string;
 };
 
-export async function readHollisSession(): Promise<{ session: HollisSession; token: string } | null> {
+export async function readHollisSession(): Promise<{
+  session: HollisSession;
+  token: string;
+} | null> {
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return null;
 

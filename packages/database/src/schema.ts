@@ -162,7 +162,9 @@ export const workspaceInvitations = pgTable(
 export const workspaceAuditEvents = pgTable(
   "workspace_audit_events",
   {
-    actorId: uuid("actor_id").notNull().references(() => users.id),
+    actorId: uuid("actor_id")
+      .notNull()
+      .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     eventHash: text("event_hash").notNull(),
     eventSequence: bigserial("event_sequence", { mode: "number" }).notNull().unique(),
@@ -170,7 +172,9 @@ export const workspaceAuditEvents = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     payload: jsonb("payload").notNull(),
     previousHash: text("previous_hash"),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
   },
   (table) => [
     index("workspace_audit_events_tenant_created_idx").on(table.tenantId, table.createdAt),

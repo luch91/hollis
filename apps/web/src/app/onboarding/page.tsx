@@ -46,7 +46,8 @@ export default async function OnboardingPage({
         <p className="eyebrow">Workspace setup</p>
         <h1 id="workspace-title">Create your organization workspace.</h1>
         <p className="auth-summary">
-          Your workspace is isolated from every other Hollis customer. You will become its first owner.
+          Your workspace is isolated from every other Hollis customer. You will become its first
+          owner.
         </p>
         <form action={createWorkspaceAction} className="auth-form">
           <label>
@@ -64,7 +65,9 @@ export default async function OnboardingPage({
             Create workspace
           </button>
         </form>
-        <p className="auth-switch">Have an invitation? Open the invitation link sent to your email.</p>
+        <p className="auth-switch">
+          Have an invitation? Open the invitation link sent to your email.
+        </p>
       </section>
     </main>
   );

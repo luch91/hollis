@@ -17,9 +17,10 @@ export async function POST(request: Request) {
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const payload = (await response.json().catch(() => null)) as
-    | { activeWorkspace?: unknown; sessionToken?: unknown }
-    | null;
+  const payload = (await response.json().catch(() => null)) as {
+    activeWorkspace?: unknown;
+    sessionToken?: unknown;
+  } | null;
   if (!response.ok || !payload || typeof payload.sessionToken !== "string") {
     return NextResponse.json({ code: "authentication_failed" }, { status: response.status });
   }

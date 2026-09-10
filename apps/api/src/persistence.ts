@@ -31,7 +31,7 @@ import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { AttestationReceipt } from "@hollis/contracts";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
-import type { CreatePolicyVersion, PolicyVersion } from "@hollis/contracts";
+import type { PolicyVersion } from "@hollis/contracts";
 import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
 import type {
   WorkspaceProvisioningRecord,
@@ -245,46 +245,113 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
     async getProfile(tenantId: string) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        const [record] = await transaction.select({ id: tenants.id, name: tenants.name, industry: tenants.industry, operatingRegion: tenants.operatingRegion, website: tenants.website }).from(tenants).where(eq(tenants.id, tenantId));
+        const [record] = await transaction
+          .select({
+            id: tenants.id,
+            name: tenants.name,
+            industry: tenants.industry,
+            operatingRegion: tenants.operatingRegion,
+            website: tenants.website,
+          })
+          .from(tenants)
+          .where(eq(tenants.id, tenantId));
         return record ?? null;
       });
     },
-    async updateProfile(tenantId: string, actorId: string, input: { name: string; industry: string; operatingRegion: string; website: string }) {
-      const [record] = await database.execute(sql`select * from public.update_hollis_workspace_profile(${tenantId}::uuid, ${actorId}::uuid, ${input.name}, ${input.industry}, ${input.operatingRegion}, ${input.website})`);
+    async updateProfile(
+      tenantId: string,
+      actorId: string,
+      input: { name: string; industry: string; operatingRegion: string; website: string },
+    ) {
+      const [record] = await database.execute(
+        sql`select * from public.update_hollis_workspace_profile(${tenantId}::uuid, ${actorId}::uuid, ${input.name}, ${input.industry}, ${input.operatingRegion}, ${input.website})`,
+      );
       return record ?? null;
     },
     async listMembers(tenantId: string, actorId: string) {
-      return database.execute<{ userId: string; role: string; displayName: string | null; email: string | null; avatarUrl: string | null; joinedAt: Date }>(sql`select * from public.list_hollis_workspace_members(${tenantId}::uuid, ${actorId}::uuid)`);
+      return database.execute<{
+        userId: string;
+        role: string;
+        displayName: string | null;
+        email: string | null;
+        avatarUrl: string | null;
+        joinedAt: Date;
+      }>(
+        sql`select * from public.list_hollis_workspace_members(${tenantId}::uuid, ${actorId}::uuid)`,
+      );
     },
-    async createInvitation(tenantId: string, actorId: string, input: { email: string; role: string; token: string }) {
-      const [record] = await database.execute(sql`select * from public.create_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${input.email}, ${input.role}, ${digestInvitationToken(input.token)})`);
+    async createInvitation(
+      tenantId: string,
+      actorId: string,
+      input: { email: string; role: string; token: string },
+    ) {
+      const [record] = await database.execute(
+        sql`select * from public.create_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${input.email}, ${input.role}, ${digestInvitationToken(input.token)})`,
+      );
       return record ?? null;
     },
     async listInvitations(tenantId: string) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        return transaction.select({ id: workspaceInvitations.id, email: workspaceInvitations.email, role: workspaceInvitations.role, expiresAt: workspaceInvitations.expiresAt, acceptedAt: workspaceInvitations.acceptedAt, revokedAt: workspaceInvitations.revokedAt, createdAt: workspaceInvitations.createdAt }).from(workspaceInvitations).where(eq(workspaceInvitations.tenantId, tenantId)).orderBy(desc(workspaceInvitations.createdAt));
+        return transaction
+          .select({
+            id: workspaceInvitations.id,
+            email: workspaceInvitations.email,
+            role: workspaceInvitations.role,
+            expiresAt: workspaceInvitations.expiresAt,
+            acceptedAt: workspaceInvitations.acceptedAt,
+            revokedAt: workspaceInvitations.revokedAt,
+            createdAt: workspaceInvitations.createdAt,
+          })
+          .from(workspaceInvitations)
+          .where(eq(workspaceInvitations.tenantId, tenantId))
+          .orderBy(desc(workspaceInvitations.createdAt));
       });
     },
     async revokeInvitation(tenantId: string, actorId: string, invitationId: string) {
-      const [record] = await database.execute<{ revoke_hollis_workspace_invitation: boolean }>(sql`select public.revoke_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${invitationId}::uuid)`);
+      const [record] = await database.execute<{ revoke_hollis_workspace_invitation: boolean }>(
+        sql`select public.revoke_hollis_workspace_invitation(${tenantId}::uuid, ${actorId}::uuid, ${invitationId}::uuid)`,
+      );
       return record?.revoke_hollis_workspace_invitation ?? false;
     },
     async changeMemberRole(tenantId: string, actorId: string, memberId: string, role: string) {
-      const [record] = await database.execute(sql`select * from public.update_hollis_workspace_member_role(${tenantId}::uuid, ${actorId}::uuid, ${memberId}::uuid, ${role})`);
+      const [record] = await database.execute(
+        sql`select * from public.update_hollis_workspace_member_role(${tenantId}::uuid, ${actorId}::uuid, ${memberId}::uuid, ${role})`,
+      );
       return record ?? null;
     },
     async acceptInvitation(token: string, userId: string) {
-      const [record] = await database.execute<{ tenantId: string; workspaceName: string; role: string }>(sql`select * from public.accept_hollis_workspace_invitation(${digestInvitationToken(token)}, ${userId}::uuid)`);
+      const [record] = await database.execute<{
+        tenantId: string;
+        workspaceName: string;
+        role: string;
+      }>(
+        sql`select * from public.accept_hollis_workspace_invitation(${digestInvitationToken(token)}, ${userId}::uuid)`,
+      );
       return record ?? null;
     },
     async listUserWorkspaces(userId: string) {
-      return database.execute<{ tenantId: string; workspaceName: string; role: string }>(sql`select * from public.list_hollis_user_workspaces(${userId}::uuid)`);
+      return database.execute<{ tenantId: string; workspaceName: string; role: string }>(
+        sql`select * from public.list_hollis_user_workspaces(${userId}::uuid)`,
+      );
     },
     async listAuditEvents(tenantId: string) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        return transaction.select({ actorId: workspaceAuditEvents.actorId, createdAt: workspaceAuditEvents.createdAt, eventHash: workspaceAuditEvents.eventHash, eventSequence: workspaceAuditEvents.eventSequence, eventType: workspaceAuditEvents.eventType, payload: workspaceAuditEvents.payload, previousHash: workspaceAuditEvents.previousHash }).from(workspaceAuditEvents).where(eq(workspaceAuditEvents.tenantId, tenantId)).orderBy(desc(workspaceAuditEvents.eventSequence)).limit(100);
+        return transaction
+          .select({
+            actorId: workspaceAuditEvents.actorId,
+            createdAt: workspaceAuditEvents.createdAt,
+            eventHash: workspaceAuditEvents.eventHash,
+            eventSequence: workspaceAuditEvents.eventSequence,
+            eventType: workspaceAuditEvents.eventType,
+            payload: workspaceAuditEvents.payload,
+            previousHash: workspaceAuditEvents.previousHash,
+          })
+          .from(workspaceAuditEvents)
+          .where(eq(workspaceAuditEvents.tenantId, tenantId))
+          .orderBy(desc(workspaceAuditEvents.eventSequence))
+          .limit(100);
       });
     },
   };

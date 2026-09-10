@@ -42,7 +42,14 @@ describe("Hollis application-session verification", () => {
     );
 
     await expect(verifier.verify("session-token")).resolves.toEqual({
-      permissions: ["reviews:read", "reviews:create", "reviews:assign", "reviews:escalate", "reviews:decide", "reviews:attest"],
+      permissions: [
+        "reviews:read",
+        "reviews:create",
+        "reviews:assign",
+        "reviews:escalate",
+        "reviews:decide",
+        "reviews:attest",
+      ],
       role: "reviewer",
       sessionId: "session_01",
       tenantId: "tenant_01",
@@ -59,10 +66,12 @@ describe("Hollis application-session verification", () => {
       workspaceName: null,
     });
 
-    await expect(createHollisAccessTokenVerifier(sessionStore).verify("session-token")).rejects.toBeInstanceOf(
-      InvalidAccessTokenError,
-    );
-    await expect(createHollisUnscopedAccessTokenVerifier(sessionStore).verify("session-token")).resolves.toEqual({
+    await expect(
+      createHollisAccessTokenVerifier(sessionStore).verify("session-token"),
+    ).rejects.toBeInstanceOf(InvalidAccessTokenError);
+    await expect(
+      createHollisUnscopedAccessTokenVerifier(sessionStore).verify("session-token"),
+    ).resolves.toEqual({
       activeWorkspace: null,
       sessionId: "session_01",
       userId: "user_01",

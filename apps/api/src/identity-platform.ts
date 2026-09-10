@@ -29,7 +29,9 @@ export function createIdentityPlatformTokenVerifier(
   const projectId = environment.IDENTITY_PLATFORM_PROJECT_ID;
   const issuer = `https://securetoken.google.com/${projectId}`;
   const keySet = createRemoteJWKSet(
-    new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"),
+    new URL(
+      "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com",
+    ),
   );
 
   return {

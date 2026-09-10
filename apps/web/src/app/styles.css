@@ -3710,37 +3710,181 @@ dd {
   font-size: 13px;
 }
 
-.admin-workspace { max-width: 1180px; }
-.admin-workspace h1 { margin: 6px 0 10px; font: 400 clamp(32px, 4vw, 52px)/.98 Georgia, "Times New Roman", serif; }
-.page-intro { max-width: 650px; color: var(--muted); }
-.admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 26px 0 16px; }
-.admin-card { display: grid; gap: 13px; margin: 16px 0; padding: 22px; border: 1px solid var(--line); background: var(--panel); }
-.admin-card h2 { margin: 0; font: 400 25px/1.1 Georgia, "Times New Roman", serif; color: var(--ink); }
-.admin-card > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.admin-card label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
-.admin-card input, .admin-card select { min-height: 42px; border: 1px solid var(--line); border-radius: 2px; background: color-mix(in srgb, var(--panel) 80%, #000); color: var(--ink); padding: 9px 10px; font: inherit; }
-.admin-card input:focus, .admin-card select:focus { outline: 2px solid color-mix(in srgb, var(--lime) 70%, transparent); outline-offset: 1px; }
-.invitation-link-control { display: flex; gap: 8px; align-items: stretch; }
-.invitation-link input { width: 100%; color: var(--lime); font-size: 12px; }
-.invitation-link-control .text-button { flex: 0 0 auto; min-width: 88px; border: 1px solid var(--line); padding: 0 12px; }
-.admin-list { display: grid; border-top: 1px solid var(--line); }
-.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-.admin-row > div { display: grid; gap: 4px; min-width: 0; }
-.admin-row strong { color: var(--ink); font-size: 14px; }
-.admin-row small { color: var(--muted); overflow-wrap: anywhere; }
-.admin-row form { display: flex; align-items: center; gap: 8px; }
-.admin-row select { min-height: 34px; }
-.workspace-title { display: flex; align-items: center; gap: 10px; }
-.workspace-title > p { margin: 0; }
-.workspace-switcher { position: relative; }
-.workspace-switcher summary { cursor: pointer; color: var(--lime); font-size: 12px; list-style: none; }
-.workspace-switcher summary::-webkit-details-marker { display: none; }
-.workspace-switcher > div { position: absolute; z-index: 10; top: 24px; left: 0; min-width: 220px; padding: 6px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 16px 32px rgba(0,0,0,.22); }
-.workspace-switcher form, .workspace-switcher span { display: block; }
-.workspace-switcher button, .workspace-switcher span { width: 100%; padding: 10px; text-align: left; color: var(--ink); background: transparent; border: 0; font: inherit; }
-.workspace-switcher button:hover { background: color-mix(in srgb, var(--lime) 10%, transparent); }
-.workspace-switcher small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
-@media (max-width: 860px) { .admin-grid { grid-template-columns: 1fr; } .admin-row { align-items: flex-start; flex-direction: column; } }
+.admin-workspace {
+  max-width: 1180px;
+}
+.admin-workspace h1 {
+  margin: 6px 0 10px;
+  font:
+    400 clamp(32px, 4vw, 52px) / 0.98 Georgia,
+    "Times New Roman",
+    serif;
+}
+.page-intro {
+  max-width: 650px;
+  color: var(--muted);
+}
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 26px 0 16px;
+}
+.admin-card {
+  display: grid;
+  gap: 13px;
+  margin: 16px 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.admin-card h2 {
+  margin: 0;
+  font:
+    400 25px / 1.1 Georgia,
+    "Times New Roman",
+    serif;
+  color: var(--ink);
+}
+.admin-card > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.admin-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-card input,
+.admin-card select {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--panel) 80%, #000);
+  color: var(--ink);
+  padding: 9px 10px;
+  font: inherit;
+}
+.admin-card input:focus,
+.admin-card select:focus {
+  outline: 2px solid color-mix(in srgb, var(--lime) 70%, transparent);
+  outline-offset: 1px;
+}
+.invitation-link-control {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.invitation-link input {
+  width: 100%;
+  color: var(--lime);
+  font-size: 12px;
+}
+.invitation-link-control .text-button {
+  flex: 0 0 auto;
+  min-width: 88px;
+  border: 1px solid var(--line);
+  padding: 0 12px;
+}
+.admin-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.admin-row > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-row strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+.admin-row small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.admin-row form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-row select {
+  min-height: 34px;
+}
+.workspace-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.workspace-title > p {
+  margin: 0;
+}
+.workspace-switcher {
+  position: relative;
+}
+.workspace-switcher summary {
+  cursor: pointer;
+  color: var(--lime);
+  font-size: 12px;
+  list-style: none;
+}
+.workspace-switcher summary::-webkit-details-marker {
+  display: none;
+}
+.workspace-switcher > div {
+  position: absolute;
+  z-index: 10;
+  top: 24px;
+  left: 0;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+}
+.workspace-switcher form,
+.workspace-switcher span {
+  display: block;
+}
+.workspace-switcher button,
+.workspace-switcher span {
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  font: inherit;
+}
+.workspace-switcher button:hover {
+  background: color-mix(in srgb, var(--lime) 10%, transparent);
+}
+.workspace-switcher small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+@media (max-width: 860px) {
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 
 @media (max-width: 640px) {
   .new-review-case-form fieldset {

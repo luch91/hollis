@@ -19,7 +19,7 @@ import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./w
 import type { ReviewExport } from "@hollis/contracts";
 import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
-import { createPostgresWorkspaceControlsStore } from "./persistence.js";
+import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -989,15 +989,25 @@ describe("API boundaries", () => {
     } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
     const app = await buildApp(environment, createDependencies({ workspaceControlsStore }));
     apps.push(app);
-    const response = await app.inject({ headers: { authorization: "Bearer unscoped-token" }, method: "GET", url: "/v1/workspaces" });
+    const response = await app.inject({
+      headers: { authorization: "Bearer unscoped-token" },
+      method: "GET",
+      url: "/v1/workspaces",
+    });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([{ tenantId, workspaceName: "Northstar Claims", role: "owner" }]);
+    expect(response.json()).toEqual([
+      { tenantId, workspaceName: "Northstar Claims", role: "owner" },
+    ]);
   });
 
   it("does not accept an invitation without an authenticated session", async () => {
     const app = await buildApp(environment, createDependencies());
     apps.push(app);
-    const response = await app.inject({ method: "POST", payload: { token: "A".repeat(43) }, url: "/v1/workspace-invitations/accept" });
+    const response = await app.inject({
+      method: "POST",
+      payload: { token: "A".repeat(43) },
+      url: "/v1/workspace-invitations/accept",
+    });
     expect(response.statusCode).toBe(401);
   });
 });

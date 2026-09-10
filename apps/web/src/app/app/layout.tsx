@@ -10,13 +10,16 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 async function signOutAction() {
   "use server";
   const token = (await cookies()).get("hollis_session")?.value;
-  await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/v1/auth/sessions/current`, {
-    cache: "no-store",
-    headers: {
-      authorization: `Bearer ${token ?? ""}`,
+  await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/v1/auth/sessions/current`,
+    {
+      cache: "no-store",
+      headers: {
+        authorization: `Bearer ${token ?? ""}`,
+      },
+      method: "DELETE",
     },
-    method: "DELETE",
-  }).catch(() => undefined);
+  ).catch(() => undefined);
   (await cookies()).delete("hollis_session");
   redirect("/sign-in");
 }
@@ -37,7 +40,12 @@ export default async function ApplicationLayout({ children }: { children: ReactN
       </aside>
       <section className="application-workspace" aria-label={`${workspace.name} Hollis workspace`}>
         <header className="workspace-topbar">
-          <div className="workspace-title"><WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} /><p>{workspace.name} <span>/</span> Compliance Review</p></div>
+          <div className="workspace-title">
+            <WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} />
+            <p>
+              {workspace.name} <span>/</span> Compliance Review
+            </p>
+          </div>
           <div className="workspace-account">
             <ThemeToggle />
             <span role="img" className="notification-dot" aria-label="Notifications available" />

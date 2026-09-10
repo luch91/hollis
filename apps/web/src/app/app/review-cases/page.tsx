@@ -781,7 +781,7 @@ function GenLayerPanel({
           <small>{latest?.caseCommitment ?? "Generated after review"}</small>
         </li>
       </ol>
-      <div
+      <section
         className="genlayer-flow"
         aria-label="Hollis case through GenLayer contract to a portable receipt"
       >
@@ -790,7 +790,7 @@ function GenLayerPanel({
         <span>GenLayer contract</span>
         <i>›</i>
         <span>Receipt</span>
-      </div>
+      </section>
       {latest ? (
         <dl className="genlayer-result">
           <div>
