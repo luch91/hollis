@@ -73,6 +73,8 @@ They must be revised only after the production target is selected. Until then, t
 7. Complete an independent application security review or penetration test appropriate to the data and deployment scope.
 8. Update the deployment and architecture documentation to match the approved implementation, then complete a deliberate production preflight.
 
+The preparation runbooks are [backup and recovery](runbooks/backup-and-recovery.md), [incident response](runbooks/incident-response.md), and [production preflight](runbooks/production-preflight.md). They define required procedures and evidence; they do not represent completed operational controls.
+
 ## Scope statement
 
 No AWS, Google Cloud, Vercel, database, storage, authentication-provider, billing, or account-plan setting was changed for this review.

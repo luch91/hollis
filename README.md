@@ -186,6 +186,8 @@ The local verification record is [docs/local-verification-2026-09-10.md](docs/lo
 
 Hollis is not production-ready solely because this repository builds and passes local tests. The current blockers and required exit criteria are recorded in [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md). They include selecting an approved runnable deployment target, provider-neutral retention scheduling, real-provider acceptance tests, rate limits, backup and restoration exercises, incident response, and an independent security review.
 
+Operational procedures and the approval checklist are in [docs/runbooks](docs/runbooks), including [backup and recovery](docs/runbooks/backup-and-recovery.md), [incident response](docs/runbooks/incident-response.md), and [production preflight](docs/runbooks/production-preflight.md).
+
 Do not deploy using the legacy Cloud Run and WorkOS references in older documents. They are historical material and not a current deployment runbook. No cloud provider, billing plan, or account setting is changed by local development commands in this repository.
 
 ## Governance and contribution rules
