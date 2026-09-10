@@ -48,7 +48,7 @@ The following must be exercised in the selected production-like environment usin
 
 The threat model and non-negotiables require incident response, backup verification, restoration exercises, retention/deletion procedures, and an application security review before production use. This review found no verified backup-and-restore exercise or current incident runbook.
 
-No application-level rate-limit implementation was found in the API source. Define and test limits for sign-in/session exchange, workspace provisioning, invitations, uploads, claims webhooks, attestation imports, and exports, with an abuse-response procedure.
+The API now has focused in-process fixed-window limits for session exchange, workspace provisioning, invitations, evidence operations, exports, claims webhooks, and attestation operations. This is a single-process backstop. A production deployment still requires an approved edge or shared-store limiter, observability, and an abuse-response procedure so limits work across instances.
 
 ### Documentation needs alignment
 

@@ -39,6 +39,7 @@ Production configuration fails closed when the claims secret, evidence provider,
 - Use a dedicated runtime identity with only the database, storage, and secret permissions it requires.
 - Keep the migration identity separate from the runtime identity and use it only for controlled schema changes.
 - Restrict object storage to tenant-scoped object paths and short-lived signed object URLs.
+- Keep the API's in-process fixed-window limiter as a local backstop. Add an approved edge or shared-store limiter before a multi-instance production deployment.
 - Permit unauthenticated access only to liveness and the privacy-safe attestation-case-file route when that route is explicitly enabled.
 - Do not expose review, evidence, export, retention, workspace-administration, or session-management routes as public resources.
 

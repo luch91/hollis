@@ -171,6 +171,8 @@ pnpm audit --prod
 
 `pnpm verify` runs repository policy, formatting, linting, TypeScript checks, tests, and production builds. The current stylesheet produces known lint warnings, including required reduced-motion overrides; lint exits successfully.
 
+The API includes an in-process fixed-window backstop for session exchange, onboarding, invitations, evidence operations, exports, claims-webhook traffic, and attestation operations. A production deployment must add an edge or shared-store rate-limit control so limits remain effective across runtime instances.
+
 Run database integration tests against the local Compose database:
 
 ```sh

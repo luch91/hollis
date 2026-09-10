@@ -66,6 +66,11 @@ import {
   type PolicyLibraryStore,
 } from "./policy-library.js";
 import {
+  createInMemoryRateLimiter,
+  createRateLimitPreHandler,
+  type RateLimiter,
+} from "./rate-limit.js";
+import {
   createReviewIntake,
   ReviewIntakeConflictError,
   type ReviewIntakeStore,
@@ -126,9 +131,23 @@ type AppDependencies = {
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
   workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
+  rateLimiter?: RateLimiter;
 };
 
+const rateLimitPolicies = {
+  attestation: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  claimsWebhook: { maxRequests: 10, windowMs: 60 * 1000 },
+  evidenceUpload: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
+  export: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
+  invitation: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
+  sessionExchange: { maxRequests: 10, windowMs: 15 * 60 * 1000 },
+  workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+} as const;
+
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
+  const rateLimiter = dependencies.rateLimiter ?? createInMemoryRateLimiter();
+  const rateLimit = (scope: keyof typeof rateLimitPolicies) =>
+    createRateLimitPreHandler(rateLimiter, scope, rateLimitPolicies[scope]);
   const databaseResource =
     dependencies.reviewIntakeStore &&
     dependencies.tenantResolver &&
@@ -359,41 +378,45 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.get("/health/live", async () => ({ status: "ok" }));
 
-  app.post("/v1/auth/sessions", async (request, reply) => {
-    const input = identitySessionSchema.parse(request.body);
-    let identity: VerifiedIdentityPlatformIdentity;
-    try {
-      identity = await identityPlatformTokenVerifier.verify(input.identityToken);
-    } catch (error) {
-      app.log.warn(
-        { errorName: error instanceof Error ? error.name : "unknown" },
-        "identity token verification failed",
-      );
-      throw error;
-    }
-    const sessionToken = createApplicationSessionToken();
-    let session: StoredApplicationSession;
-    try {
-      session = await applicationSessionStore.establish({
-        ...identity,
-        expiresAt: new Date(Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000),
-        tokenDigest: digestApplicationSessionToken(sessionToken),
+  app.post(
+    "/v1/auth/sessions",
+    { preHandler: rateLimit("sessionExchange") },
+    async (request, reply) => {
+      const input = identitySessionSchema.parse(request.body);
+      let identity: VerifiedIdentityPlatformIdentity;
+      try {
+        identity = await identityPlatformTokenVerifier.verify(input.identityToken);
+      } catch (error) {
+        app.log.warn(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "identity token verification failed",
+        );
+        throw error;
+      }
+      const sessionToken = createApplicationSessionToken();
+      let session: StoredApplicationSession;
+      try {
+        session = await applicationSessionStore.establish({
+          ...identity,
+          expiresAt: new Date(Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000),
+          tokenDigest: digestApplicationSessionToken(sessionToken),
+        });
+      } catch (error) {
+        app.log.error(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "application session establishment failed",
+        );
+        throw error;
+      }
+      return reply.code(201).send({
+        activeWorkspace: session.tenantId
+          ? { id: session.tenantId, name: session.workspaceName, role: session.role }
+          : null,
+        sessionToken,
+        userId: session.userId,
       });
-    } catch (error) {
-      app.log.error(
-        { errorName: error instanceof Error ? error.name : "unknown" },
-        "application session establishment failed",
-      );
-      throw error;
-    }
-    return reply.code(201).send({
-      activeWorkspace: session.tenantId
-        ? { id: session.tenantId, name: session.workspaceName, role: session.role }
-        : null,
-      sessionToken,
-      userId: session.userId,
-    });
-  });
+    },
+  );
 
   app.delete("/v1/auth/sessions/current", async (request, reply) => {
     const token = readBearerToken(request.headers.authorization);
@@ -428,27 +451,31 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     });
   });
 
-  app.post("/v1/workspaces", async (request, reply) => {
-    const principal = await unscopedAccessTokenVerifier.verify(
-      readBearerToken(request.headers.authorization),
-    );
-    const input = createWorkspaceSchema.parse(request.body);
-    const workspace = await workspaceProvisioner.create({
-      name: input.name,
-      userId: principal.userId,
-    });
-    const token = readBearerToken(request.headers.authorization);
-    const session = await applicationSessionStore.activate(
-      digestApplicationSessionToken(token),
-      workspace.tenantId,
-    );
-    if (!session?.tenantId || !session.workspaceName || !session.role) {
-      throw new WorkspaceProvisioningError("tenant_provisioning_failed", "session:activation");
-    }
-    return reply.code(201).send({
-      activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
-    });
-  });
+  app.post(
+    "/v1/workspaces",
+    { preHandler: rateLimit("workspaceSetup") },
+    async (request, reply) => {
+      const principal = await unscopedAccessTokenVerifier.verify(
+        readBearerToken(request.headers.authorization),
+      );
+      const input = createWorkspaceSchema.parse(request.body);
+      const workspace = await workspaceProvisioner.create({
+        name: input.name,
+        userId: principal.userId,
+      });
+      const token = readBearerToken(request.headers.authorization);
+      const session = await applicationSessionStore.activate(
+        digestApplicationSessionToken(token),
+        workspace.tenantId,
+      );
+      if (!session?.tenantId || !session.workspaceName || !session.role) {
+        throw new WorkspaceProvisioningError("tenant_provisioning_failed", "session:activation");
+      }
+      return reply.code(201).send({
+        activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
+      });
+    },
+  );
 
   app.get("/v1/workspaces", async (request) => {
     const principal = await unscopedAccessTokenVerifier.verify(
@@ -457,25 +484,29 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     return workspaceControlsStore.listUserWorkspaces(principal.userId);
   });
 
-  app.post("/v1/workspace-invitations/accept", async (request, reply) => {
-    const token = readBearerToken(request.headers.authorization);
-    const principal = await unscopedAccessTokenVerifier.verify(token);
-    const input = acceptInvitationSchema.parse(request.body);
-    const accepted = await workspaceControlsStore.acceptInvitation(input.token, principal.userId);
-    if (!accepted)
-      return reply
-        .code(404)
-        .send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
-    const session = await applicationSessionStore.activate(
-      digestApplicationSessionToken(token),
-      accepted.tenantId,
-    );
-    if (!session?.tenantId || !session.workspaceName || !session.role)
-      throw new InvalidAccessTokenError();
-    return reply.send({
-      activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
-    });
-  });
+  app.post(
+    "/v1/workspace-invitations/accept",
+    { preHandler: rateLimit("workspaceSetup") },
+    async (request, reply) => {
+      const token = readBearerToken(request.headers.authorization);
+      const principal = await unscopedAccessTokenVerifier.verify(token);
+      const input = acceptInvitationSchema.parse(request.body);
+      const accepted = await workspaceControlsStore.acceptInvitation(input.token, principal.userId);
+      if (!accepted)
+        return reply
+          .code(404)
+          .send({ code: "invitation_unavailable", message: "This invitation is unavailable." });
+      const session = await applicationSessionStore.activate(
+        digestApplicationSessionToken(token),
+        accepted.tenantId,
+      );
+      if (!session?.tenantId || !session.workspaceName || !session.role)
+        throw new InvalidAccessTokenError();
+      return reply.send({
+        activeWorkspace: { id: session.tenantId, name: session.workspaceName, role: session.role },
+      });
+    },
+  );
 
   app.get("/v1/public/attestation-case-files/:publicCaseFileId", async (request, reply) => {
     if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
@@ -495,35 +526,39 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     return reply.header("cache-control", "no-store").type("application/json").send(record.caseFile);
   });
 
-  app.post("/v1/webhooks/claims", async (request, reply) => {
-    if (!environment.CLAIMS_WEBHOOK_SECRET) {
-      throw new InvalidWebhookError();
-    }
+  app.post(
+    "/v1/webhooks/claims",
+    { preHandler: rateLimit("claimsWebhook") },
+    async (request, reply) => {
+      if (!environment.CLAIMS_WEBHOOK_SECRET) {
+        throw new InvalidWebhookError();
+      }
 
-    const payload = claimsWebhookSchema.parse(request.body);
-    verifyClaimsWebhook(
-      payload,
-      {
-        idempotencyKey:
-          typeof request.headers["idempotency-key"] === "string"
-            ? request.headers["idempotency-key"]
-            : undefined,
-        signature:
-          typeof request.headers["x-hollis-signature"] === "string"
-            ? request.headers["x-hollis-signature"]
-            : undefined,
-        timestamp:
-          typeof request.headers["x-hollis-timestamp"] === "string"
-            ? request.headers["x-hollis-timestamp"]
-            : undefined,
-      },
-      environment.CLAIMS_WEBHOOK_SECRET,
-    );
-    return reply.code(503).send({
-      code: "claims_workspace_resolution_unconfigured",
-      message: "Claims intake is not configured for public workspaces.",
-    });
-  });
+      const payload = claimsWebhookSchema.parse(request.body);
+      verifyClaimsWebhook(
+        payload,
+        {
+          idempotencyKey:
+            typeof request.headers["idempotency-key"] === "string"
+              ? request.headers["idempotency-key"]
+              : undefined,
+          signature:
+            typeof request.headers["x-hollis-signature"] === "string"
+              ? request.headers["x-hollis-signature"]
+              : undefined,
+          timestamp:
+            typeof request.headers["x-hollis-timestamp"] === "string"
+              ? request.headers["x-hollis-timestamp"]
+              : undefined,
+        },
+        environment.CLAIMS_WEBHOOK_SECRET,
+      );
+      return reply.code(503).send({
+        code: "claims_workspace_resolution_unconfigured",
+        message: "Claims intake is not configured for public workspaces.",
+      });
+    },
+  );
 
   app.get(
     "/v1/session",
@@ -610,7 +645,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   app.post(
     "/v1/workspace/invitations",
     {
-      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+      preHandler: [
+        rateLimit("invitation"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+      ],
     },
     async (request, reply) => {
       const { principal, tenant } = requireRequestContext(request);
@@ -721,7 +759,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.post(
     "/v1/review-cases/:caseId/attestation-case-files",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
+    {
+      preHandler: [
+        rateLimit("attestation"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest"),
+      ],
+    },
     async (request, reply) => {
       if (!environment.PUBLIC_ATTESTATION_ORIGIN || !publicAttestationCaseFileStore) {
         return reply.code(503).send({
@@ -761,7 +804,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.post(
     "/v1/review-cases/:caseId/attestations/import",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
+    {
+      preHandler: [
+        rateLimit("attestation"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest"),
+      ],
+    },
     async (request, reply) => {
       if (!dependencies.finalizedAttestationImporter || !attestationStore) {
         return reply.code(503).send({
@@ -816,7 +864,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.post(
     "/v1/review-cases/:caseId/evidence/:evidenceId/verify",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
+    {
+      preHandler: [
+        rateLimit("evidenceUpload"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create"),
+      ],
+    },
     async (request, reply) => {
       if (!evidenceStorage)
         return reply
@@ -942,7 +995,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.post(
     "/v1/review-cases/:caseId/evidence/uploads",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
+    {
+      preHandler: [
+        rateLimit("evidenceUpload"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create"),
+      ],
+    },
     async (request, reply) => {
       if (!evidenceStorage)
         return reply
@@ -1007,7 +1065,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.get(
     "/v1/review-cases/:caseId/export",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    {
+      preHandler: [
+        rateLimit("export"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read"),
+      ],
+    },
     async (request) => {
       const { caseId } = caseParamsSchema.parse(request.params);
       const { tenant } = requireRequestContext(request);
