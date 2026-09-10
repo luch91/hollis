@@ -3,6 +3,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { readHollisSession } from "@/lib/hollis-session";
+import {
+  revokeHollisSession,
+  SessionRevocationUnavailableError,
+} from "@/lib/hollis-session-revocation";
 import { ThemeToggle } from "./theme-toggle";
 import { WorkspaceNavigation } from "./workspace-navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
@@ -10,16 +14,17 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 async function signOutAction() {
   "use server";
   const token = (await cookies()).get("hollis_session")?.value;
-  await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/v1/auth/sessions/current`,
-    {
-      cache: "no-store",
-      headers: {
-        authorization: `Bearer ${token ?? ""}`,
-      },
-      method: "DELETE",
-    },
-  ).catch(() => undefined);
+  try {
+    await revokeHollisSession(
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
+      token ?? null,
+    );
+  } catch (error) {
+    if (error instanceof SessionRevocationUnavailableError) {
+      throw new Error("Sign out could not be completed. Your session remains active.");
+    }
+    throw error;
+  }
   (await cookies()).delete("hollis_session");
   redirect("/sign-in");
 }

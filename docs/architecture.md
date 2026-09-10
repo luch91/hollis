@@ -50,6 +50,8 @@ The production runtime has not been approved or deployed. The repository contain
 
 Google Cloud Identity Platform authenticates users through Google, GitHub, or verified email-and-password sign-in. The web application sends a verified Identity Platform ID token to `POST /v1/auth/sessions`. The API verifies the token issuer, audience, expiry, subject, verified email, and optional profile claims before establishing an opaque Hollis session.
 
+The API supplies the exact Hollis-session expiry in the session-establishment response. The web application derives the `HttpOnly` cookie lifetime from that expiry rather than keeping a separate fixed duration. Sign-out clears the browser cookie only after server revocation succeeds or the API confirms that the token is already invalid. A transport or server failure retains the cookie and reports sign-out as unavailable.
+
 Identity Platform does not select a tenant or grant workspace access. Hollis resolves a session to a user and then to an active workspace only through an existing tenant membership. A user with no membership can create a workspace or accept a valid invitation. Provider account linking never changes Hollis membership or role assignments.
 
 Every protected route verifies the opaque Hollis session, resolves the active workspace, checks the required permission, and establishes tenant context before business logic runs. Tenant identity is never taken from caller-controlled request data.

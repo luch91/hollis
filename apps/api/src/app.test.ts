@@ -20,6 +20,7 @@ import type { ReviewExport } from "@hollis/contracts";
 import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
 import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
+import type { IdentityPlatformTokenVerifier } from "./identity-platform.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -71,6 +72,7 @@ function createDependencies(
     evidenceMetadataStore?: EvidenceMetadataStore;
     workspaceProvisioner?: WorkspaceProvisioner;
     policyLibraryStore?: PolicyLibraryStore;
+    identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
     unscopedTenantId?: string | null;
     workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
   } = {},
@@ -99,6 +101,18 @@ function createDependencies(
       };
     },
   };
+  const identityPlatformTokenVerifier: IdentityPlatformTokenVerifier =
+    options.identityPlatformTokenVerifier ??
+    ({
+      async verify() {
+        return {
+          avatarUrl: null,
+          displayName: "Test user",
+          email: "test.user@example.test",
+          subject: "identity-test-user",
+        };
+      },
+    } satisfies IdentityPlatformTokenVerifier);
   const reviewIntakeStore: ReviewIntakeStore =
     options.store ??
     ({
@@ -239,6 +253,7 @@ function createDependencies(
     attestationStore: options.attestationStore,
     evidenceMetadataStore,
     finalizedAttestationImporter: options.finalizedAttestationImporter,
+    identityPlatformTokenVerifier,
     publicAttestationCaseFileStore,
     policyLibraryStore,
     legalHoldStore: options.legalHoldStore,
@@ -322,6 +337,25 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
+  });
+
+  it("returns the configured server-side session expiry at session establishment", async () => {
+    const app = await buildApp(environment, createDependencies());
+    apps.push(app);
+
+    const before = Date.now();
+    const response = await app.inject({
+      method: "POST",
+      payload: { identityToken: "identity-platform-token" },
+      url: "/v1/auth/sessions",
+    });
+    const payload = response.json() as { expiresAt: string; sessionToken: string };
+
+    expect(response.statusCode).toBe(201);
+    expect(payload.sessionToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(Date.parse(payload.expiresAt)).toBeGreaterThanOrEqual(
+      before + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000 - 1_000,
+    );
   });
 
   it("creates a first workspace only from an unscoped authenticated session", async () => {

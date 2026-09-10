@@ -50,6 +50,8 @@ The threat model and non-negotiables require incident response, backup verificat
 
 The API now has focused in-process fixed-window limits for session exchange, workspace provisioning, invitations, evidence operations, exports, claims webhooks, and attestation operations. This is a single-process backstop. A production deployment still requires an approved edge or shared-store limiter, observability, and an abuse-response procedure so limits work across instances.
 
+The local implementation now requires an `exp` claim during Identity Platform token verification, uses the API-issued expiry for the browser-session cookie, and preserves a usable cookie when server revocation cannot be confirmed. These code-level controls do not replace the outstanding real-provider session, sign-out, and recovery acceptance tests.
+
 ### Documentation needs alignment
 
 The following documents were identified during this review and have since been aligned or explicitly marked historical:

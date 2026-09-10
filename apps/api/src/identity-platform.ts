@@ -19,6 +19,8 @@ export type VerifiedIdentityPlatformIdentity = {
   subject: string;
 };
 
+export const requiredIdentityPlatformTokenClaims = ["exp"] as const;
+
 export interface IdentityPlatformTokenVerifier {
   verify(token: string): Promise<VerifiedIdentityPlatformIdentity>;
 }
@@ -37,7 +39,11 @@ export function createIdentityPlatformTokenVerifier(
   return {
     async verify(token) {
       try {
-        const { payload } = await jwtVerify(token, keySet, { audience: projectId, issuer });
+        const { payload } = await jwtVerify(token, keySet, {
+          audience: projectId,
+          issuer,
+          requiredClaims: [...requiredIdentityPlatformTokenClaims],
+        });
         const claims = identityPlatformClaimsSchema.parse(payload);
 
         return {

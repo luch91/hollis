@@ -394,11 +394,14 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         throw error;
       }
       const sessionToken = createApplicationSessionToken();
+      const expiresAt = new Date(
+        Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000,
+      );
       let session: StoredApplicationSession;
       try {
         session = await applicationSessionStore.establish({
           ...identity,
-          expiresAt: new Date(Date.now() + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000),
+          expiresAt,
           tokenDigest: digestApplicationSessionToken(sessionToken),
         });
       } catch (error) {
@@ -412,6 +415,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         activeWorkspace: session.tenantId
           ? { id: session.tenantId, name: session.workspaceName, role: session.role }
           : null,
+        expiresAt: expiresAt.toISOString(),
         sessionToken,
         userId: session.userId,
       });

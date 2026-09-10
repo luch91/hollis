@@ -1,9 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { sessionCookieMaxAgeSeconds } from "@/lib/hollis-session-cookie";
+import {
+  revokeHollisSession,
+  SessionRevocationUnavailableError,
+} from "@/lib/hollis-session-revocation";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const cookieName = "hollis_session";
-const sessionMaxAgeSeconds = 8 * 60 * 60;
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { identityToken?: unknown };
@@ -19,16 +23,22 @@ export async function POST(request: Request) {
   });
   const payload = (await response.json().catch(() => null)) as {
     activeWorkspace?: unknown;
+    expiresAt?: unknown;
     sessionToken?: unknown;
   } | null;
-  if (!response.ok || !payload || typeof payload.sessionToken !== "string") {
+  if (
+    !response.ok ||
+    !payload ||
+    typeof payload.sessionToken !== "string" ||
+    typeof payload.expiresAt !== "string"
+  ) {
     return NextResponse.json({ code: "authentication_failed" }, { status: response.status });
   }
 
   const result = NextResponse.json({ activeWorkspace: payload.activeWorkspace ?? null });
   result.cookies.set(cookieName, payload.sessionToken, {
     httpOnly: true,
-    maxAge: sessionMaxAgeSeconds,
+    maxAge: sessionCookieMaxAgeSeconds(payload.expiresAt),
     path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -38,12 +48,13 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   const token = (await cookies()).get(cookieName)?.value;
-  if (token) {
-    await fetch(`${apiUrl}/v1/auth/sessions/current`, {
-      cache: "no-store",
-      headers: { authorization: `Bearer ${token}` },
-      method: "DELETE",
-    }).catch(() => undefined);
+  try {
+    await revokeHollisSession(apiUrl, token ?? null);
+  } catch (error) {
+    if (error instanceof SessionRevocationUnavailableError) {
+      return NextResponse.json({ code: "sign_out_unavailable" }, { status: 503 });
+    }
+    throw error;
   }
 
   const result = new NextResponse(null, { status: 204 });

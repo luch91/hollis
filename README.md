@@ -117,6 +117,8 @@ Follow [the Identity Platform setup runbook](docs/runbooks/identity-platform-set
 
 After sign-in, a user without a Hollis membership reaches workspace onboarding. They can create a workspace or accept a valid invitation. Authentication alone does not disclose or grant access to another organization's cases.
 
+Hollis sessions are opaque server-side records. The API returns their expiry at session establishment and the browser derives the `HttpOnly` cookie lifetime from that value. Sign-out requires successful server revocation before clearing a usable local cookie. A confirmed invalid or expired token can be cleared; a network or server failure leaves the cookie in place and reports that sign-out could not be completed.
+
 ## Core workflow
 
 1. An authorized workspace member creates a review case and selects a published policy control.
