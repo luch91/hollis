@@ -1,7 +1,7 @@
 import { createDatabase } from "@hollis/database";
-import { readDatabaseConnection } from "./config.js";
+import { readDatabaseConnection, readEnvironment } from "./config.js";
+import { createConfiguredEvidenceStorage } from "./configured-evidence-storage.js";
 import { fileURLToPath } from "node:url";
-import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import { createPostgresRetentionDeletionJobStore } from "./persistence.js";
 import { processRetentionForTenants } from "./retention-worker.js";
 
@@ -18,12 +18,12 @@ export async function runRetentionScheduler(): Promise<{ completed: number; fail
     .filter(Boolean);
   if (tenantIds.length === 0) throw new Error("RETENTION_TENANT_IDS must contain a tenant ID.");
 
+  const environment = readEnvironment();
+  const storage = await createConfiguredEvidenceStorage(environment);
+  if (!storage) throw new Error("Evidence storage is not configured.");
+
   const databaseResource = createDatabase(readDatabaseConnection());
   try {
-    const storage = await createGoogleCloudEvidenceStorage(
-      process.env.GCS_PROJECT_ID?.trim() || "hollis-507001",
-      required("GCS_BUCKET"),
-    );
     return processRetentionForTenants(
       tenantIds,
       createPostgresRetentionDeletionJobStore(databaseResource.database),

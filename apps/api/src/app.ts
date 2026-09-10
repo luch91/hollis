@@ -37,8 +37,8 @@ import {
   type UnscopedAccessTokenVerifier,
 } from "./auth.js";
 import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
+import { createConfiguredEvidenceStorage } from "./configured-evidence-storage.js";
 import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
-import { createGoogleCloudEvidenceStorage } from "./evidence-storage.js";
 import {
   createApplicationSessionToken,
   createIdentityPlatformTokenVerifier,
@@ -71,7 +71,6 @@ import {
   type ReviewIntakeStore,
   type TenantResolver,
 } from "./review-intake.js";
-import { createS3EvidenceStorage } from "./s3-evidence-storage.js";
 import {
   createSecurityPreHandler,
   requireRequestContext,
@@ -205,12 +204,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const identityPlatformTokenVerifier =
     dependencies.identityPlatformTokenVerifier ?? createIdentityPlatformTokenVerifier(environment);
   const evidenceStorage =
-    dependencies.evidenceStorage ??
-    (environment.S3_BUCKET && environment.AWS_REGION
-      ? createS3EvidenceStorage(environment.AWS_REGION, environment.S3_BUCKET)
-      : environment.GCS_BUCKET
-        ? await createGoogleCloudEvidenceStorage(environment.GCS_PROJECT_ID, environment.GCS_BUCKET)
-        : null);
+    dependencies.evidenceStorage ?? (await createConfiguredEvidenceStorage(environment));
   const app = Fastify({
     bodyLimit: 262_144,
     logController: new LogController({ disableRequestLogging: true }),

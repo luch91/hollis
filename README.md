@@ -134,7 +134,7 @@ Evidence objects are tenant-scoped, content-addressed, and accessed through shor
 
 The product default is to retain pending cases until resolved and completed cases for seven years after the final decision, subject to approved policy and jurisdiction changes. Legal holds prevent deletion until explicitly released. Retention deletion is a separate, audited job and must not run for cases under appeal, investigation, or legal hold.
 
-The retention scheduler currently constructs the Google Cloud Storage adapter. Do not select S3 for production retention processing until the scheduler is made provider-neutral and verified end to end. See [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md).
+The retention scheduler selects the same validated storage provider as the API. Its provider selection is covered by focused tests and a local no-object S3 scheduler run. Deletion against a real S3 bucket remains a production-provider acceptance test. See [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md).
 
 ## GenLayer attestation
 

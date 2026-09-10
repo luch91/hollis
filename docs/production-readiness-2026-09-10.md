@@ -30,9 +30,9 @@ The repository's active deployment material now describes a provider-neutral dep
 
 Before deployment, select one current target architecture and replace or explicitly retire the conflicting runbooks. The selected target must include the API, database, private evidence storage, secret delivery, outbound public attestation endpoint, scheduled retention execution, logging, alerting, and recovery operations.
 
-### Retention scheduler is not provider-neutral
+### Retention requires a real-provider acceptance test
 
-`apps/api/src/retention-scheduler.ts` imports and constructs only `createGoogleCloudEvidenceStorage`. If production evidence is stored in S3, the scheduler cannot process its deletion jobs. This must be corrected and verified against the selected provider before production use.
+The scheduler now selects the configured Google Cloud Storage or S3 provider through the same validated selector as the API. Focused unit tests cover both selections, and a local no-object S3 scheduler run completed without contacting a cloud bucket. An actual S3 deletion, recovery behavior, audit record, and failed-delete retry must still be verified against the selected provider before production use.
 
 ### Live provider paths are not verified
 
@@ -66,7 +66,7 @@ They must be revised only after the production target is selected. Until then, t
 
 1. Approve one deployment architecture and region based on data residency, operations, and cost requirements.
 2. Provision that target under least privilege without changing the AWS account from its free plan unless the owner explicitly authorizes it.
-3. Make the retention scheduler select the configured evidence provider and verify it end to end.
+3. Verify retention deletion, failure handling, and recovery behavior end to end against the selected evidence provider.
 4. Add rate limits and observable abuse handling for public and high-cost routes.
 5. Complete real-provider acceptance tests with synthetic data and record results.
 6. Establish backup, restore, retention, deletion, monitoring, alerting, incident response, and vulnerability-management runbooks. Execute and record at least one restoration exercise.

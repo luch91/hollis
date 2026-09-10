@@ -46,7 +46,7 @@ Production configuration fails closed when the claims secret, evidence provider,
 
 Retention deletion is a separate authenticated scheduled task. It requires an explicit `RETENTION_TENANT_IDS` list and must record its completed or failed outcomes in the audit trail.
 
-The current scheduler implementation is Google Cloud Storage-specific. It is not approved for an S3 production path until the scheduler selects the configured provider and the S3 deletion workflow has been verified. Do not schedule a retention job before that correction.
+The scheduler selects the configured Google Cloud Storage or S3 provider through the same validated configuration boundary as the API. Its S3 deletion workflow remains a required real-provider acceptance test. Do not schedule a production retention job until that test, its failure handling, and its audit record have been verified.
 
 ## Required release gate
 
