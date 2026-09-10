@@ -1,7 +1,9 @@
 # ADR 0009: Signed claims webhooks
 
-- Status: accepted
+- Status: amended by [ADR 0014](0014-public-identity-platform-authentication.md)
 - Date: 2026-08-29
+
+> The HMAC, timestamp, and idempotency requirements remain the intended integration boundary. References below to a WorkOS organization identifier are historical. The endpoint is currently closed for public workspaces because secure workspace resolution for a claims sender has not been approved or implemented.
 
 ## Decision
 

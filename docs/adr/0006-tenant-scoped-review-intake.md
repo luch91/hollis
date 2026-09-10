@@ -1,7 +1,9 @@
 # ADR 0006: Tenant-scoped review intake
 
-- Status: accepted
+- Status: amended by [ADR 0014](0014-public-identity-platform-authentication.md)
 - Date: 2026-08-28
+
+> The tenant-isolation, idempotency, append-only audit, and non-execution decisions remain active. References below to a WorkOS principal or `org_id` claim are historical. The active design derives the tenant from a verified Hollis session and workspace membership.
 
 ## Context
 

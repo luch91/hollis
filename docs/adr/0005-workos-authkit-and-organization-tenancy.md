@@ -1,7 +1,9 @@
 # ADR 0005: WorkOS AuthKit and organization tenancy
 
-- Status: accepted
+- Status: superseded by [ADR 0014](0014-public-identity-platform-authentication.md)
 - Date: 2026-08-28
+
+> Historical record. WorkOS is no longer the active browser authentication or workspace-authorization design. Hollis now uses Google Cloud Identity Platform for authentication and its own workspace memberships for authorization.
 
 ## Context
 

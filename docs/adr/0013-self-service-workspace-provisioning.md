@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0014](0014-public-identity-platform-authentication.md)
+
+> Historical record. Workspace provisioning now uses a verified Hollis session and a Hollis-owned workspace, membership, and role model. It does not create or switch a WorkOS organization.
 
 ## Context
 

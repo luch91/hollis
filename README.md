@@ -146,7 +146,7 @@ The Studio importer is deliberately read-only. It does not submit transactions a
 
 ## API outline
 
-The API is implemented in `apps/api`. The public routes are limited to liveness, the browser-session exchange, public-safe attestation case files when enabled, and the separately authenticated claims webhook.
+The API is implemented in `apps/api`. The public routes are limited to liveness, the browser-session exchange, and public-safe attestation case files when enabled. A signed claims-webhook route exists as a closed future-integration boundary and does not create public-workspace cases.
 
 Authenticated routes cover:
 

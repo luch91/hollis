@@ -6,17 +6,18 @@ Hollis uses separate PostgreSQL roles for schema migration and application traff
 
 - The migration role owns schema changes and is supplied through `DATABASE_MIGRATION_URL`.
 - The runtime role is supplied through `DATABASE_URL`, or through the complete `DB_NAME`, `DB_USER`,
-  `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set for Cloud SQL Unix-socket connections. It must use
-  `NOSUPERUSER` and `NOBYPASSRLS`, and it must not own application tables or schemas.
+  `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set for a platform-managed Unix-socket connection. It must
+  use `NOSUPERUSER` and `NOBYPASSRLS`, and it must not own application tables or schemas.
 
 The local Compose setup creates `hollis_app` as the restricted runtime role. Production role
-creation belongs in deployment infrastructure and must preserve the same restrictions.
+creation belongs in the selected deployment infrastructure and must preserve the same restrictions.
 
 ## Tenant context
 
-Organization lookup sets `app.workos_organization_id` within a transaction. Review persistence sets
+Verified Hollis-session membership resolves the active workspace, then review persistence sets
 `app.tenant_id` within a transaction. Row-level security policies deny access when the relevant
-setting is missing and filter access when it is present.
+setting is missing and filter access when it is present. Legacy `app.workos_organization_id`
+database context exists only for historical record migration and is not an active authorization input.
 
 Application queries still include explicit tenant predicates. Row-level security is an additional
 boundary, not a replacement for authorization.

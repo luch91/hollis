@@ -26,7 +26,7 @@ This is a code and local-verification review. It does not certify legal complian
 
 ### Deployment target is not settled or available
 
-The repository's deployment material still describes Cloud Run and WorkOS, while the active product decision uses Identity Platform for public authentication and the current infrastructure evaluation is AWS. The AWS EC2 quota request remains unresolved. There is no approved, runnable production API target in this review.
+The repository's active deployment material now describes a provider-neutral deployment contract and Identity Platform authentication. Archived Cloud Run and WorkOS records remain only as explicit historical material. The AWS EC2 quota request remains unresolved. There is no approved, runnable production API target in this review.
 
 Before deployment, select one current target architecture and replace or explicitly retire the conflicting runbooks. The selected target must include the API, database, private evidence storage, secret delivery, outbound public attestation endpoint, scheduled retention execution, logging, alerting, and recovery operations.
 
@@ -52,7 +52,7 @@ No application-level rate-limit implementation was found in the API source. Defi
 
 ### Documentation needs alignment
 
-The following documents contain legacy WorkOS and/or Cloud Run statements that conflict with the active Identity Platform and AWS evaluation decisions:
+The following documents were identified during this review and have since been aligned or explicitly marked historical:
 
 - `README.md`
 - `docs/deployment.md`

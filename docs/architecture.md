@@ -2,183 +2,98 @@
 
 ## Objective
 
-Hollis controls the transition from an automated recommendation to a consequential claim action. It records why a case was referred, what evidence was considered, which policy and system versions applied, who reviewed the case, and what outcome was authorized.
+Hollis is a control plane for consequential automated decisions. It records the decision under review, applicable published policy control, evidence references, human review, and exportable audit history. It does not execute an upstream business action.
+
+The initial use case is human review of high-risk commercial insurance-claim recommendations. The tenancy and control model is intended to support other consequential decision workflows only after their policy, evidence, and authorization requirements are explicitly designed.
 
 ## System context
 
 ```text
-Claims system
+Decision-producing system
     |
-    | authenticated event
+    | approved authenticated integration, not yet enabled for public workspaces
     v
 Hollis API
     |
-    +--> policy and intervention rules
-    +--> review workflow
-    +--> append-only evidence history
+    +--> policy-control library
+    +--> workspace and role controls
+    +--> human review workflow
+    +--> evidence metadata and signed object access
+    +--> append-only audit history and export
+    |
+    +--> optional public-safe attestation publisher
+             |
+             v
+          GenLayer Studio Dev, read-only result import
     |
     v
-PostgreSQL
-    |
-    +--> evidence object references
-    +--> attestation adapter
-              |
-              +--> GenLayer Intelligent Contract (optional, post-review)
-              +--> downstream audit and reporting systems
+PostgreSQL and configured object storage
 ```
 
-Hollis does not replace the customer's claims system. It acts as a control plane and evidence system around high-risk decisions.
+Hollis does not replace a customer's decision-producing system. It preserves an independently reviewable process record around a high-risk decision.
 
 ## Deployment shape
 
-The initial deployment is a modular monolith:
+Hollis is a modular monolith:
 
-- `apps/web` provides the reviewer interface.
-- `apps/api` owns application use cases and external boundaries.
-- `packages/contracts` defines validated inputs and shared domain values.
-- `packages/database` owns persistence schema and database access.
-- PostgreSQL is the source of truth for transactional state and review history.
-- Google Cloud Storage will hold encrypted evidence in GCP project number `429498177112` after a bucket location is selected. PostgreSQL stores only tenant-scoped evidence object metadata.
-- An attestation adapter may publish minimal hashes after the core review is complete.
+- `apps/web` is the Next.js public sign-in and protected-workspace application.
+- `apps/api` owns browser-session exchange, authorization, domain use cases, and external boundaries.
+- `packages/contracts` defines shared runtime schemas and domain values.
+- `packages/database` owns the PostgreSQL schema, migrations, and database access.
+- PostgreSQL is the source of truth for transactional state and ordered review history.
+- The evidence adapter selects exactly one configured provider: Google Cloud Storage or S3. PostgreSQL retains tenant-scoped metadata, not raw evidence bytes.
+- The GenLayer adapter is optional, read-only on the Hollis side, and isolated from the core human-review transaction.
 
-This shape keeps transactions, authorization, and operational reasoning in one deployable boundary while maintaining module separation in code.
+The production runtime has not been approved or deployed. The repository contains historical Cloud Run material and an AWS evaluation path, neither of which is a current deployment authorization. See [production-readiness-2026-09-10.md](production-readiness-2026-09-10.md).
+
+## Identity, workspace, and tenant boundary
+
+Google Cloud Identity Platform authenticates users through Google, GitHub, or verified email-and-password sign-in. The web application sends a verified Identity Platform ID token to `POST /v1/auth/sessions`. The API verifies the token issuer, audience, expiry, subject, verified email, and optional profile claims before establishing an opaque Hollis session.
+
+Identity Platform does not select a tenant or grant workspace access. Hollis resolves a session to a user and then to an active workspace only through an existing tenant membership. A user with no membership can create a workspace or accept a valid invitation. Provider account linking never changes Hollis membership or role assignments.
+
+Every protected route verifies the opaque Hollis session, resolves the active workspace, checks the required permission, and establishes tenant context before business logic runs. Tenant identity is never taken from caller-controlled request data.
+
+PostgreSQL row-level security applies tenant context transactionally. Runtime roles must remain `NOSUPERUSER` and `NOBYPASSRLS`; application queries retain explicit tenant predicates as a second boundary.
 
 ## Domain modules
 
-### Intake
+### Workspace controls
 
-Creates an idempotent, pending human review from a validated recommendation. The current route uses
-an authenticated WorkOS principal with `reviews:create`. Machine authentication for a direct claims
-platform integration uses a signed canonical payload, a bounded timestamp window, and an
-idempotency key equal to the external claim reference.
+Hollis owns workspace profile, memberships, invitations, roles, permissions, and administrative audit records. Invitations are tenant-scoped, recipient-bound, short-lived, single-use, revocable, and accepted only by the matching authenticated identity. A workspace must retain at least one owner.
 
-### Policy
+### Policy controls
 
-Evaluates explicit intervention rules and records the exact rule and version that caused referral.
+New review cases bind to an existing published, versioned policy control. Historical cases retain their original binding. Hollis does not infer a policy from a customer's industry or accept arbitrary free-text policy identifiers for a case.
 
-### Review
+### Intake and review
 
-Lists tenant-scoped cases by risk and deadline, lets a reviewer claim a case, records explicit
-escalation, and requires an assigned reviewer to submit a rationale-backed human decision. State
-changes and audit events commit together.
+An authorized member creates a tenant-scoped pending review case with an idempotent external reference and a durable review deadline. A reviewer claims a pending case, may escalate it, and records an explicit, rationale-backed final decision. Conditional state changes and their audit events commit in the same transaction.
+
+The signed claims-webhook endpoint is reserved for a future approved integration. It verifies its signature and then returns `claims_workspace_resolution_unconfigured`; it does not create cases for public workspaces.
 
 ### Evidence
 
-Stores content-addressed references, provenance, media type, integrity digest, and access metadata. The storage adapter uses tenant-scoped Google Cloud Storage objects and short-lived signed URLs. Sensitive content remains outside public ledgers. Authenticated reviewers can export a reproducible package containing the case references and ordered append-only events with a manifest hash.
+Evidence metadata records tenant scope, provenance, media type, integrity digest, verification state, retention state, and object reference. Raw evidence stays in the selected provider. Upload and download access uses short-lived object-specific signed URLs. Case exports include references and ordered review events, not raw evidence.
 
-### Audit
+### Audit and export
 
-Writes append-only events linked by hashes. Corrections create new events and never rewrite history.
+Events are append-only and hash-linked. A database-generated sequence, not timestamps alone, determines event traversal. Corrections create new events rather than rewriting prior history. Exports are tenant-scoped reproducible packages with a manifest hash.
 
 ### Attestation
 
-Publishes privacy-safe process attestations after review finality. The module is isolated from the
-core transaction and can be disabled. It has three explicit boundaries:
+An authorized reviewer can generate a privacy-safe `hollis.adjudication-case.v1` document only after the review facts and policy binding meet the publisher requirements. The document contains bounded process facts, policy-control identifiers, evidence digests and verification state. It excludes raw evidence, personal data, policy text, model output, prompts, secrets, internal case identifiers, and audit events.
 
-1. The interop adapter converts a finalized Hollis case manifest into a provider-neutral attestation
-   request. It sends hashes, policy identifiers, decision metadata, and the minimum case facts needed
-   for adjudication. It never sends raw evidence, secrets, or personal claim data.
-2. The GenLayer adapter submits the normalized request to a GenLayer Intelligent Contract and maps
-   the resulting validator-consensus state, appeal state, and final verdict into Hollis values.
-3. The attestation record writer appends the result to PostgreSQL as an `attestation_recorded` event
-   and exposes it through authenticated case detail and export responses.
+The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is a configured HTTPS API origin. Hollis generates a random public identifier and persists an immutable record before publication. Callers cannot supply their own public case-file URL.
 
-For Studio Dev validation, Hollis can import a finalized external `adjudicate` transaction without a
-Hollis-held signing key. The importer is enabled only when `GENLAYER_STUDIO_CONTRACT_ADDRESS` is
-configured. It rejects transactions unless all of the following are true:
+For Studio Dev validation, an authorized operator submits the generated URL and exact commitment outside Hollis. The importer validates a finalized external transaction against the configured V6 contract, stored commitment, generated case-file URL, and finalized per-case views. It records the result without submitting transactions, holding a signing key, altering a human decision, or blocking the core review workflow.
 
-- the transaction is finalized and accepted by Studio Dev;
-- it targets the configured V6 contract;
-- its readable calldata is an `adjudicate` call bound to the same case commitment and public
-  case-file URL generated by Hollis; and
-- the contract's finalized per-case status, verdict, and evaluation-reason views are present and
-  report a finalized result.
-
-The importer records a verified external result. It neither submits transactions nor changes the
-review decision. Configuration does not activate the importer by itself: at API startup, the
-configured contract must return both prescribed V6 synthetic outcomes from its finalized per-case
-views. Startup fails if that retained-state check does not pass.
-
-The PostgreSQL review record remains authoritative. A failed, pending, appealed, or undetermined
-attestation cannot change the human decision or block the core review transaction.
-
-The pre-activation implementation uses `hollis.policy.v1` and
-`hollis.adjudication-case.v1` schemas. The GenLayer contract verifies deterministic process
-preconditions against a public, privacy-reviewed case file. Controls that require interpretation
-resolve to `needs_review` until a separately approved semantic-adjudication design exists.
-
-### Attestation sequence
-
-```text
-Finalized Hollis case
-    |
-    v
-Privacy review and manifest digest
-    |
-    v
-Provider-neutral interop request
-    |
-    v
-GenLayer Intelligent Contract
-    |
-    +--> validator consensus
-    +--> appeal window
-    +--> final verdict
-    |
-    v
-Attestation adapter
-    |
-    v
-Append-only Hollis attestation event and export reference
-```
-
-### Public case-file publisher
-
-Hollis publishes a separate immutable case-file record before any GenLayer write. The record is
-addressed by a random UUID and the public route returns only the validated
-`hollis.adjudication-case.v1` document. It does not return case identifiers, claimant or reviewer
-identities, raw evidence, source policy documents, model output, prompts, or audit events.
-
-The publisher requires `PUBLIC_ATTESTATION_ORIGIN`, an HTTPS public origin for the API. The public
-route is deliberately unavailable when that origin is not configured. Its database table uses both
-tenant-scoped application access and a distinct, identifier-scoped read policy for public fetches.
-The public identifier is not an authorization mechanism for private data: the record is designed to
-be public-safe before publication.
-
-Finalized Studio Dev import accepts only a public case-file ID that Hollis generated for the same
-tenant and case. It does not accept caller-provided case-file URLs or reconstruct a case file at
-import time.
-
-### GenLayer development and fees
-
-Contract development and interactive validation use the provided Studio preview at
-`https://studio-next.genlayer.com`. Its verified runtime configuration is `studionet`, chain ID
-`61997`, chain name `GenLayer Studio Dev`, and JSON-RPC endpoint
-`https://studio-dev.genlayer.com/api`. The deployed contract address must be recorded before
-activation. Fee-charging writes use a reviewed fee profile
-measured from representative Studio executions and current network pricing. Studio results do not
-establish Clarke or Mainnet pricing, and the adapter remains inactive until those values are verified.
+Studio Dev verifies synthetic process behavior only. It is not a production attestation network and cannot establish legal correctness, substantive fairness, or the truth of private evidence.
 
 ## Trust boundaries
 
-Every integration, browser session, background process, database connection, object-store request, and attestation call is a separate trust boundary. Tenant identity and authorization must be established at each applicable boundary.
+Every browser session, external identity token, API request, database transaction, object-storage operation, public case file, GenLayer result, and background job is a separate trust boundary. Authentication, tenant scope, authorization, input validation, integrity checks, and audit recording must be established again where applicable.
 
-## Identity and tenant boundary
+## Deferred production work
 
-WorkOS AuthKit owns the browser authentication session. The API accepts bearer access tokens only
-after verifying their signature, issuer, client ID, expiry, and organization context. The verified `org_id`
-claim maps to one tenant and cannot be overridden by request input. Route-level permissions are
-checked after authentication and before domain logic.
-
-PostgreSQL row-level security filters tenant, membership, user, case, and event access using
-transaction-local context. The runtime role cannot bypass row security, mutate review events, or
-delete review cases.
-
-## Deferred choices
-
-Hosting, initial claims integration, retention schedules, and production attestation activation remain
-open. The GenLayer contract, interop adapter, persistence, refresh path, and reviewer-console surface
-are implemented behind the accepted external-attestation boundary. Review intake and the reviewer
-workflow are open behind their verified security boundaries. Claims-system machine authentication and
-external action adapters stay closed until their authentication, tenant, authorization, and workflow
-checks are implemented and tested.
+Production activation requires an approved deployment architecture, a selected evidence provider with provider-neutral retention processing, real-provider acceptance tests, rate limits, monitoring, backup and restore verification, incident response, and an independent security review. These are tracked in [production-readiness-2026-09-10.md](production-readiness-2026-09-10.md).
