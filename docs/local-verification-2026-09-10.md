@@ -35,3 +35,18 @@ This record captures a local verification run against the Docker Compose Postgre
 - Vercel production delivery, custom-domain behavior, AWS runtime deployment, backup recovery, and cloud-network controls.
 
 These items remain deployment or provider-verification work. They must not be represented as locally verified.
+
+## Synthetic acceptance pass
+
+The following acceptance pass used only the local Docker Compose PostgreSQL database and synthetic identifiers. It did not contact Google Cloud, AWS, Vercel, Identity Platform, an object-storage bucket, or GenLayer.
+
+| Workflow boundary | Evidence | Result |
+| --- | --- | --- |
+| Published policy-control validation | API policy-library tests | A case binding is checked against an existing published policy control and version. |
+| Case intake and audit record | Persistent API integration test | A pending case and its first append-only event were stored atomically. Matching intake replay was idempotent and changed content was rejected. |
+| Human review lifecycle | Persistent API integration test | Claim, escalation, reviewer handoff, rationale-backed decision, and rejection of a second decision all passed. |
+| Evidence metadata export | Persistent API integration test | A tenant-scoped export preserved evidence references, ordered events, and a manifest hash. |
+| Tenant and public-case-file isolation | Database integration test | Six tests passed for tenant context, cross-tenant rejection, immutable public case-file records, and controlled public-workspace provisioning. |
+| Evidence storage provider selection | Focused API tests and no-object scheduler run | Google Cloud Storage and S3 selection passed unit tests. The scheduler completed with S3 configuration and no pending local job, so no storage object operation occurred. |
+
+This validates the local review and persistence boundaries. It does not validate a browser sign-in, a raw evidence upload, an external storage object, a public HTTPS case file, a GenLayer transaction, or a deployed multi-instance rate limit.
