@@ -14,9 +14,9 @@ const caseId = randomUUID();
 const publicCaseFileId = randomUUID();
 const organizationOneId = `org_${randomUUID()}`;
 const organizationTwoId = `org_${randomUUID()}`;
-const provisionedOrganizationId = `org_${randomUUID()}`;
-const provisionedUserId = `user_${randomUUID()}`;
-const provisionedMembershipId = `om_${randomUUID()}`;
+const identityPlatformSubject = `identity_${randomUUID()}`;
+let provisionedTenantId: string | undefined;
+let provisionedUserId: string | undefined;
 const evidence = [
   { digest: `sha256:${"a".repeat(64)}`, id: "isolation", mediaType: "application/json" },
 ];
@@ -33,15 +33,20 @@ beforeAll(async () => {
 afterAll(async () => {
   await owner`delete from public_attestation_case_files where public_id = ${publicCaseFileId}`;
   await owner`delete from review_cases where id = ${caseId}`;
-  await owner`delete from tenant_memberships where workos_membership_id = ${provisionedMembershipId}`;
-  await owner`delete from users where workos_user_id = ${provisionedUserId}`;
-  await owner`delete from tenants where workos_organization_id = ${provisionedOrganizationId}`;
+  if (provisionedTenantId) {
+    await owner`delete from tenant_memberships where tenant_id = ${provisionedTenantId}`;
+    await owner`delete from tenants where id = ${provisionedTenantId}`;
+  }
+  if (provisionedUserId) {
+    await owner`delete from identity_accounts where user_id = ${provisionedUserId}`;
+    await owner`delete from users where id = ${provisionedUserId}`;
+  }
   await owner`delete from tenants where id in (${tenantOneId}, ${tenantTwoId})`;
   await owner.end();
 });
 
 describe("PostgreSQL tenant isolation", () => {
-  it("hides tenants until an organization context is set", async () => {
+  it("hides tenants until a tenant context is set", async () => {
     await owner.begin(async (transaction) => {
       await transaction.unsafe("set local role hollis_app");
       const withoutContext = await transaction`
@@ -50,7 +55,7 @@ describe("PostgreSQL tenant isolation", () => {
 
       expect(withoutContext[0]?.count).toBe(0);
 
-      await transaction`select set_config('app.workos_organization_id', ${organizationOneId}, true)`;
+      await transaction`select set_config('app.tenant_id', ${tenantOneId}, true)`;
       const withContext = await transaction`
         select count(*)::integer as count from tenants where id = ${tenantOneId}
       `;
@@ -188,21 +193,31 @@ describe("PostgreSQL tenant isolation", () => {
     });
   });
 
-  it("allows the runtime role to provision only through the dedicated function", async () => {
+  it("allows the runtime role to provision only through the dedicated public function", async () => {
     await owner.begin(async (transaction) => {
       await transaction.unsafe("set local role hollis_app");
+      const [identity] = await transaction`
+        select *
+        from resolve_identity_platform_user(
+          ${identityPlatformSubject},
+          'provisioned-owner@example.test',
+          true,
+          'Provisioned owner',
+          ''
+        )
+      `;
+      provisionedUserId = identity?.userId;
       const [provisioned] = await transaction`
         select *
-        from provision_hollis_tenant(
+        from provision_public_hollis_workspace(
           'Provisioned tenant',
-          ${provisionedOrganizationId},
-          ${provisionedUserId},
-          ${provisionedMembershipId},
-          'workspace-admin'
+          ${provisionedUserId}::uuid
         )
       `;
 
-      expect(provisioned?.organizationId).toBe(provisionedOrganizationId);
+      provisionedTenantId = provisioned?.tenantId;
+      expect(provisioned?.workspaceName).toBe("Provisioned tenant");
+      expect(provisioned?.role).toBe("owner");
       expect(provisioned?.tenantId).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
@@ -211,8 +226,9 @@ describe("PostgreSQL tenant isolation", () => {
     const [membership] = await owner`
       select role
       from tenant_memberships
-      where workos_membership_id = ${provisionedMembershipId}
+      where tenant_id = ${provisionedTenantId}
+        and user_id = ${provisionedUserId}
     `;
-    expect(membership).toEqual({ role: "workspace-admin" });
+    expect(membership).toEqual({ role: "owner" });
   });
 });
