@@ -1,101 +1,197 @@
 # Hollis
 
-Hollis is decision-control infrastructure for consequential automated decisions. The first product workflow focuses on human review of adverse commercial property and casualty insurance claim recommendations.
+Hollis is decision-control infrastructure for consequential automated decisions. It gives an organization a structured place to collect evidence, apply a published policy control, require a human decision, preserve an append-only review record, and produce an auditable export.
 
-The repository contains the product foundation: shared contracts, a PostgreSQL schema, an API
-service, a web application, WorkOS AuthKit integration, repository policy enforcement, and
-architecture documentation. The authenticated reviewer queue and human decision workflow are
-implemented. Claims-system machine authentication and external action adapters remain closed.
+The first workflow focuses on high-risk commercial insurance-claim recommendations. Hollis is designed as infrastructure, not an insurer, legal advisor, or automated decision maker. A review record does not execute an upstream recommendation and an attestation does not prove legal correctness, substantive fairness, or the truth of private evidence.
+
+## What Hollis does
+
+- Accepts risky automated decisions as tenant-scoped review cases.
+- Binds each new case to a published, versioned policy control.
+- Stores tenant-scoped evidence metadata and uses a selected object-storage provider for raw evidence.
+- Requires an authorized human reviewer to claim, escalate, or record a rationale-backed decision.
+- Writes ordered, append-only review events and exports a reproducible case record without raw evidence.
+- Publishes a separate, privacy-safe adjudication case file when independent GenLayer process attestation is enabled.
+- Imports a finalized Studio Dev transaction in read-only mode after validating it against the stored case file.
+
+Hollis supports Google Cloud Identity Platform for Google, GitHub, and verified email-and-password sign-in. Identity Platform proves a user identity. Hollis itself owns workspaces, invitations, memberships, roles, permissions, tenant isolation, and access decisions.
+
+## Product boundaries
+
+Hollis has explicit boundaries that must remain intact:
+
+- A public registration or identity-provider account never grants access to an existing workspace.
+- A new user must create a workspace or accept a tenant-scoped invitation.
+- Tenant identity is derived from the verified Hollis session. It is never accepted from a request body, query parameter, or caller-controlled header.
+- Raw evidence, policy documents, model output, prompts, secrets, and personal data must not appear in public GenLayer case files or public ledgers.
+- A human decision completes the Hollis review. It does not execute an external business action.
+- GenLayer Studio Dev is a development validation environment. It is not production attestation infrastructure.
+
+Read [docs/non-negotiables.md](docs/non-negotiables.md) before changing the product. The private decision log is intentionally Git-ignored and is not part of this repository.
 
 ## Repository structure
 
 ```text
 apps/
-  api/                 Fastify API
-  web/                 Next.js web application
+  api/                 Fastify API and evidence-storage adapters
+  web/                 Next.js protected workspace and public sign-in flow
+contracts/
+  genlayer/            Privacy-safe process-attestation contract sources
 packages/
   contracts/           Runtime validation and shared types
-  database/            PostgreSQL schema and database client
+  database/            PostgreSQL schema, migrations, and database client
   typescript-config/   Shared compiler configuration
 docs/
   adr/                 Architecture decision records
-scripts/               Repository policy enforcement
+  runbooks/            Provider and operational setup instructions
+scripts/               Repository policy and environment preflight tooling
 ```
 
 ## Requirements
 
 - Node.js 22.22 or later
 - pnpm 10.18 or later
-- PostgreSQL 18 for local database work
+- Docker Desktop or another Docker-compatible runtime for local PostgreSQL
+- PostgreSQL 18 when running the supplied Compose environment
+- A Google Cloud Identity Platform web configuration for interactive sign-in
 
 ## Local setup
 
+Install dependencies, create a local environment file, start PostgreSQL, apply migrations, and run both applications:
+
 ```sh
 pnpm install
-docker compose up -d postgres
 cp .env.example .env
+docker compose up -d postgres
 pnpm db:migrate
 pnpm dev
 ```
 
-Replace the WorkOS placeholders in `.env` with credentials and URLs from the WorkOS dashboard. Add
-`http://localhost:3000/callback` as a redirect URI, `http://localhost:3000/sign-in` as the sign-in
-URL, and a local logout URI in that dashboard.
+On PowerShell, copy the environment file with:
 
-`DATABASE_MIGRATION_URL` belongs to the schema owner and is used only by migration commands.
-`DATABASE_URL`, or the complete `DB_NAME`, `DB_USER`, `DB_PASS`, and `INSTANCE_UNIX_SOCKET` set,
-belongs to the restricted application role. Production application roles must be configured with
-`NOSUPERUSER` and `NOBYPASSRLS` so PostgreSQL row-level security remains effective.
+```powershell
+Copy-Item .env.example .env
+```
 
-The web application listens on `http://localhost:3000`. The API listens on
-`http://localhost:4000`. `GET /health/live` is public. `GET /v1/session` requires a verified,
-organization-scoped bearer access token.
+The API normally listens on `http://localhost:4000`. The web application normally listens on `http://localhost:3000`. If that web port is occupied, Next.js selects another port and prints the exact URL.
 
-`POST /v1/review-cases` requires the `reviews:create` permission. It creates a pending human review
-and never executes the supplied recommendation. New cases require `reviewDueAt` and tenant scope
-comes from the verified organization, not from request content.
+`GET /health/live` is public and returns the API liveness response. The protected workspace is at `/app`; a user without a Hollis session is redirected to `/sign-in`.
 
-Reviewers with `reviews:read` can list the queue with `GET /v1/review-cases`. A reviewer with
-`reviews:assign` can claim a case for themselves. The assigned reviewer can escalate with
-`reviews:escalate` or record a rationale-backed final recommendation with `reviews:decide`.
-Reviewers with `reviews:read` can export a reproducible case package with
-`GET /v1/review-cases/:caseId/export`. The export contains evidence references and ordered audit
-events, never raw evidence content.
-Evidence uploads use `POST /v1/review-cases/:caseId/evidence/uploads` with `reviews:create`; the
-endpoint returns a short-lived signed upload URL. Downloads use
-`GET /v1/review-cases/:caseId/evidence/:evidenceId/download` with `reviews:read`.
+### Local environment variables
 
-For GenLayer, Hollis can generate immutable public-safe adjudication case files only when
-`PUBLIC_ATTESTATION_ORIGIN` is configured as a public HTTPS API origin. The public endpoint serves
-only the versioned attestation schema. It does not expose evidence exports or review records. See
-[public attestation case files](docs/public-attestation-case-files.md).
+`.env` is Git-ignored. Use `.env.example` as the names-only template. Do not commit passwords, session tokens, OAuth client secrets, service-account keys, or storage credentials.
+
+| Variable | Local purpose | Notes |
+| --- | --- | --- |
+| `NODE_ENV` | Runtime mode | Use `development` locally. |
+| `API_HOST`, `API_PORT` | API bind address and port | The provided local values are `127.0.0.1` and `4000`. |
+| `WEB_ORIGIN` | Allowed browser origin for API CORS | Normally `http://localhost:3000`. |
+| `NEXT_PUBLIC_API_URL` | API URL used by the web application | Normally `http://localhost:4000`. |
+| `DATABASE_URL` | Restricted runtime database connection | Use this locally, or use all four structured database settings below. |
+| `DB_NAME`, `DB_USER`, `DB_PASS`, `INSTANCE_UNIX_SOCKET` | Structured runtime database connection | Set all four only as an alternative to `DATABASE_URL`. Never set both connection forms. |
+| `DATABASE_MIGRATION_URL` | Migration-owner database connection | Use only for schema migration commands. |
+| `DATABASE_TEST_URL` | Isolated local integration-test connection | Points to the local Compose database by default. |
+| `NEXT_PUBLIC_IDENTITY_PLATFORM_API_KEY` | Identity Platform web configuration | This is browser-visible configuration, not an authorization credential. |
+| `NEXT_PUBLIC_IDENTITY_PLATFORM_AUTH_DOMAIN` | Identity Platform web configuration | Obtain from the Identity Platform Web SDK configuration. |
+| `NEXT_PUBLIC_IDENTITY_PLATFORM_PROJECT_ID` | Identity Platform web configuration | Obtain from the Identity Platform Web SDK configuration. |
+| `IDENTITY_PLATFORM_PROJECT_ID` | API-side Identity Platform token verification | Must identify the same approved project as the web configuration. |
+| `HOLLIS_SESSION_TTL_HOURS` | Hollis session lifetime | Integer from 1 through 24. Default is 8. |
+| `GCS_BUCKET`, `GCS_PROJECT_ID` | Google Cloud Storage evidence provider | Configure this provider or the S3 provider, never both. |
+| `S3_BUCKET`, `AWS_REGION` | S3 evidence provider | `AWS_REGION` is required when `S3_BUCKET` is set. |
+| `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
+| `PUBLIC_ATTESTATION_ORIGIN` | Public HTTPS API origin for privacy-safe case files | Leave unset until the API public endpoint is deliberately deployed and verified. |
+| `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Read-only Studio Dev attestation importer | Leave unset unless the validated V6 Studio Dev contract is deliberately enabled for local validation. |
+| `RETENTION_TENANT_IDS` | Explicit tenant list for the one-shot retention scheduler | This does not run as part of `pnpm dev`. |
+
+The runtime validates configuration at startup. In production it rejects missing evidence storage, claims-webhook secret, HTTPS `WEB_ORIGIN`, or the required API host binding. It also rejects configuring Google Cloud Storage and S3 together.
+
+### Configure public sign-in
+
+Follow [the Identity Platform setup runbook](docs/runbooks/identity-platform-setup.md). In summary:
+
+1. Enable verified email-and-password sign-in in Google Cloud Identity Platform.
+2. Configure Google sign-in with the approved domains.
+3. Configure GitHub through an OAuth application whose callback URL is the one Identity Platform displays.
+4. Copy only the Web SDK configuration values into local `.env` and approved deployment environment settings.
+5. Do not put a GitHub OAuth client secret, a Google OAuth secret, a service-account key, or any user token in the repository or browser configuration.
+
+After sign-in, a user without a Hollis membership reaches workspace onboarding. They can create a workspace or accept a valid invitation. Authentication alone does not disclose or grant access to another organization's cases.
+
+## Core workflow
+
+1. An authorized workspace member creates a review case and selects a published policy control.
+2. Hollis records the case with a review deadline and an append-only event.
+3. An authorized user uploads evidence. The API stores metadata and provides a short-lived object-specific upload URL. Raw bytes stay in the configured object-storage provider.
+4. An authorized reviewer claims the pending case, examines its evidence and policy context, then records a rationale-backed decision or escalates it.
+5. Hollis preserves the ordered review history and can generate a tenant-scoped export containing evidence references and the event record, not raw evidence contents.
+6. When the independent-attestation gate is enabled, an authorized reviewer can generate an immutable, public-safe case file from bounded process facts. An authorized operator submits that generated URL and commitment to GenLayer Studio Dev. Hollis then validates and imports only the finalized result.
+
+The active permission model includes reading, creating, assigning, escalating, deciding, retaining, and attesting. Workspace administration controls invitations, memberships, and roles. Do not broaden a role or bypass the API authorization checks to unblock a workflow.
+
+## Evidence and retention
+
+Evidence objects are tenant-scoped, content-addressed, and accessed through short-lived signed URLs. Hollis stores metadata and integrity information in PostgreSQL. It does not make raw evidence public or include it in exports by default.
+
+The product default is to retain pending cases until resolved and completed cases for seven years after the final decision, subject to approved policy and jurisdiction changes. Legal holds prevent deletion until explicitly released. Retention deletion is a separate, audited job and must not run for cases under appeal, investigation, or legal hold.
+
+The retention scheduler currently constructs the Google Cloud Storage adapter. Do not select S3 for production retention processing until the scheduler is made provider-neutral and verified end to end. See [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md).
+
+## GenLayer attestation
+
+Hollis uses GenLayer for an independent attestation of declared process facts, not a judgment of private evidence or legal compliance.
+
+The public case-file boundary is documented in [public-attestation-case-files.md](docs/public-attestation-case-files.md). The contract sources are in [`contracts/genlayer`](contracts/genlayer). The validated Studio Dev V6 contract records results by case commitment so separate case results remain queryable.
+
+The Studio importer is deliberately read-only. It does not submit transactions and it must not hold a wallet signing key. Use [genlayer-studio-import.md](docs/genlayer-studio-import.md) and the recorded contract procedures before enabling it. Do not use Studio Dev as a production attestation dependency.
+
+## API outline
+
+The API is implemented in `apps/api`. The public routes are limited to liveness, the browser-session exchange, public-safe attestation case files when enabled, and the separately authenticated claims webhook.
+
+Authenticated routes cover:
+
+- current user and active-workspace management
+- workspace creation, switching, and invitation acceptance
+- workspace profile, membership, role, and invitation administration
+- policy-control library management
+- review-case intake, queue, claim, escalation, decision, export, and audit history
+- evidence upload preparation, verification, and signed download
+- public-safe attestation-file generation and finalized transaction import
+
+Every business route must establish the verified Hollis session, resolve a workspace membership, check the required permission, and apply tenant scope before reading or writing business data.
 
 ## Verification
 
+Run the repository gate before committing or pushing:
+
 ```sh
 pnpm verify
+pnpm audit --prod
 ```
 
-Database isolation tests run in CI. To run them against the local Compose database:
+`pnpm verify` runs repository policy, formatting, linting, TypeScript checks, tests, and production builds. The current stylesheet produces known lint warnings, including required reduced-motion overrides; lint exits successfully.
+
+Run database integration tests against the local Compose database:
 
 ```sh
 DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis pnpm --filter @hollis/database test:integration
+DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis DATABASE_URL=postgres://hollis_app:hollis_app@localhost:5434/hollis pnpm --filter @hollis/api test:integration
 ```
 
-This command checks repository policy, formatting, lint rules, types, tests, and production builds. Git hooks run policy checks before commits and the complete verification suite before pushes.
+The local verification record is [docs/local-verification-2026-09-10.md](docs/local-verification-2026-09-10.md). It identifies exactly what was verified and what remains a real-provider or production-environment test.
 
-## Governance
+## Production status
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes. Product invariants are defined in [docs/non-negotiables.md](docs/non-negotiables.md). Architecture decisions are recorded in [docs/adr](docs/adr).
+Hollis is not production-ready solely because this repository builds and passes local tests. The current blockers and required exit criteria are recorded in [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md). They include selecting an approved runnable deployment target, provider-neutral retention scheduling, real-provider acceptance tests, rate limits, backup and restoration exercises, incident response, and an independent security review.
 
-## GenLayer attestation prototype
+Do not deploy using the legacy Cloud Run and WorkOS references in older documents. They are historical material and not a current deployment runbook. No cloud provider, billing plan, or account setting is changed by local development commands in this repository.
 
-The privacy-safe case-file schema and GenLayer contract sources are in
-[`contracts/genlayer`](contracts/genlayer). The current diagnostic contract is
-`policy_process_attestation_v6.py`. It evaluates declared process facts from a public synthetic case
-file and records results by case commitment, so each attestation remains independently queryable.
-It does not adjudicate legal correctness, substantive fairness, or private evidence. Deployment
-records and operator procedures are maintained beside the contract sources.
+## Governance and contribution rules
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/non-negotiables.md](docs/non-negotiables.md), and the relevant ADR before making a change.
+- Repository policy enforces the authorized Git identity and commit-message rules. The repository account is `luch91` with `luchijudith@gmail.com`.
+- Do not add automated authorship credit, secrets, raw evidence, or private decision-log content to Git.
+- Use focused conventional commits. Do not use em dash characters in source, documentation, or commit messages.
 
 ## License
 
