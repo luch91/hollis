@@ -88,9 +88,9 @@ An authorized reviewer can generate a privacy-safe `hollis.adjudication-case.v1`
 
 The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is a configured HTTPS API origin. Hollis generates a random public identifier and persists an immutable record before publication. Callers cannot supply their own public case-file URL.
 
-For Studio Dev validation, an authorized operator submits the generated URL and exact commitment outside Hollis. The importer validates a finalized external transaction against the configured V6 contract, stored commitment, generated case-file URL, and finalized per-case views. It records the result without submitting transactions, holding a signing key, altering a human decision, or blocking the core review workflow.
+For the current Studio Dev attestation environment, an authorized operator submits the generated URL and exact commitment outside Hollis. The importer validates a finalized external transaction against the configured V6 contract, stored commitment, generated case-file URL, and finalized per-case views. It records the result without submitting transactions, holding a signing key, altering a human decision, or blocking the core review workflow.
 
-Studio Dev verifies synthetic process behavior only. It is not a production attestation network and cannot establish legal correctness, substantive fairness, or the truth of private evidence.
+Studio Dev verifies declared process behavior only. Its result cannot establish legal correctness, substantive fairness, or the truth of private evidence.
 
 ## Trust boundaries
 

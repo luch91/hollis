@@ -25,7 +25,7 @@ Hollis has explicit boundaries that must remain intact:
 - Tenant identity is derived from the verified Hollis session. It is never accepted from a request body, query parameter, or caller-controlled header.
 - Raw evidence, policy documents, model output, prompts, secrets, and personal data must not appear in public GenLayer case files or public ledgers.
 - A human decision completes the Hollis review. It does not execute an external business action.
-- GenLayer Studio Dev is a development validation environment. It is not production attestation infrastructure.
+- GenLayer Studio Dev is Hollis's designated attestation environment for the current release. It attests declared process facts only; it does not establish legal correctness, substantive fairness, or the truth of private evidence.
 
 Read [docs/non-negotiables.md](docs/non-negotiables.md) before changing the product. The private decision log is intentionally Git-ignored and is not part of this repository.
 
@@ -100,7 +100,7 @@ The API normally listens on `http://localhost:4000`. The web application normall
 | `S3_BUCKET`, `AWS_REGION` | S3 evidence provider | `AWS_REGION` is required when `S3_BUCKET` is set. |
 | `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
 | `PUBLIC_ATTESTATION_ORIGIN` | Public HTTPS API origin for privacy-safe case files | Leave unset until the API public endpoint is deliberately deployed and verified. |
-| `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Read-only Studio Dev attestation importer | Leave unset unless the validated V6 Studio Dev contract is deliberately enabled for local validation. |
+| `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Read-only Studio Dev attestation importer | Set only to the validated V6 Studio Dev contract when the independent-attestation workflow is deliberately enabled. |
 | `RETENTION_TENANT_IDS` | Explicit tenant list for the one-shot retention scheduler | This does not run as part of `pnpm dev`. |
 
 The runtime validates configuration at startup. In production it rejects missing evidence storage, claims-webhook secret, HTTPS `WEB_ORIGIN`, or the required API host binding. It also rejects configuring Google Cloud Storage and S3 together.
@@ -144,7 +144,7 @@ Hollis uses GenLayer for an independent attestation of declared process facts, n
 
 The public case-file boundary is documented in [public-attestation-case-files.md](docs/public-attestation-case-files.md). The contract sources are in [`contracts/genlayer`](contracts/genlayer). The validated Studio Dev V6 contract records results by case commitment so separate case results remain queryable.
 
-The Studio importer is deliberately read-only. It does not submit transactions and it must not hold a wallet signing key. Use [genlayer-studio-import.md](docs/genlayer-studio-import.md) and the recorded contract procedures before enabling it. Do not use Studio Dev as a production attestation dependency.
+The Studio importer is deliberately read-only. It does not submit transactions and it must not hold a wallet signing key. Use [genlayer-studio-import.md](docs/genlayer-studio-import.md) and the recorded contract procedures before enabling it.
 
 ## API outline
 

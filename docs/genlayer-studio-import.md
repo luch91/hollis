@@ -18,11 +18,10 @@ GENLAYER_STUDIO_CONTRACT_ADDRESS=0x1fcA673F741CDE49A442E156Cfc2abE74dd25EA2
 ```
 
 This address is the verified Studio Dev V6 deployment recorded in
-[`contracts/genlayer/DEPLOYMENT_V6.md`](../contracts/genlayer/DEPLOYMENT_V6.md). Do not set this
-value in a production environment. Studio Dev is a validation network, not a production
-attestation dependency. When set, API startup checks the contract's finalized per-case views for
-the documented pass and fail results. Startup fails until both results have been recorded and
-retained.
+[`contracts/genlayer/DEPLOYMENT_V6.md`](../contracts/genlayer/DEPLOYMENT_V6.md). Studio Dev is
+Hollis's designated attestation environment for the current release. When set, API startup checks
+the contract's finalized per-case views for the documented pass and fail results. Startup fails
+until both results have been recorded and retained.
 
 ## Import contract
 

@@ -20,7 +20,7 @@ This is a code and local-verification review. It does not certify legal complian
 - The review workflow records tenant-scoped review cases, evidence metadata, reviewer decisions, exports, and append-only events.
 - Database migration `0027_harden_runtime_grants` restores the intended immutability boundary for public attestation case files by revoking runtime `UPDATE` and `DELETE` access.
 - Identity Platform is the active user-authentication design. Workspace access remains an explicit Hollis membership and is not inferred from an identity-provider account.
-- The GenLayer importer is read-only and Studio Dev is documented as non-production validation only.
+- The GenLayer importer is read-only. Studio Dev is Hollis's designated attestation environment for the current release.
 
 ## Production blockers
 
@@ -41,7 +41,7 @@ The following must be exercised in the selected production-like environment usin
 - Google, GitHub, and email-and-password sign-in, account linking, session renewal, sign-out, and password recovery.
 - Workspace creation, invitation delivery or controlled link acceptance, role changes, and revocation.
 - Evidence upload, download, integrity verification, legal hold, retention-job execution, and deletion recovery behavior against the selected storage provider.
-- Public-safe case-file publication, Studio Dev import, transaction-verdict validation, and receipt export. Studio Dev does not satisfy a production attestation requirement.
+- Public-safe case-file publication, Studio Dev import, transaction-verdict validation, and receipt export.
 - Browser, API, database, storage, and scheduled-job failure handling.
 
 ### Operational controls are incomplete

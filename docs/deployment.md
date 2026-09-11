@@ -28,7 +28,7 @@ The selected runtime must supply configuration through its approved secret and e
 | Evidence storage | Configure exactly one provider: `GCS_BUCKET` with `GCS_PROJECT_ID`, or `S3_BUCKET` with `AWS_REGION`. |
 | Claims webhook | Set a `CLAIMS_WEBHOOK_SECRET` of at least 32 characters only when the closed claims integration is deliberately enabled. |
 | Public attestation files | Set `PUBLIC_ATTESTATION_ORIGIN` only to the verified HTTPS API origin that serves the limited public case-file route. |
-| Studio Dev importer | Set `GENLAYER_STUDIO_CONTRACT_ADDRESS` only for the documented read-only development validation flow. |
+| Studio Dev importer | Set `GENLAYER_STUDIO_CONTRACT_ADDRESS` only for the documented read-only attestation-import flow. |
 
 Production configuration fails closed when the claims secret, evidence provider, HTTPS `WEB_ORIGIN`, or API host binding are absent or invalid. It rejects simultaneous Google Cloud Storage and S3 configuration.
 
