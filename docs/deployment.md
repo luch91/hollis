@@ -14,6 +14,25 @@ docker build -f apps/api/Dockerfile -t hollis-api:local .
 
 The image runs as the non-root `node` user and contains no credentials. The API binds to `0.0.0.0` in a deployed environment. It uses `API_PORT` when supplied, otherwise the platform-provided `PORT`, then `4000` for local development.
 
+## AWS evaluation-runtime readiness
+
+This section records the approved preparation boundary for the AWS Free-plan evaluation runtime. It does not authorize a launch or deployment.
+
+Before resuming the EC2 launch workflow, verify all of the following in the AWS Console:
+
+1. AWS Support has approved the pending `eu-west-1` Standard-instance vCPU quota increase and the applied quota is at least two vCPUs. Do not retry the launch before that verification.
+2. The account remains on its approved Free plan. Stop if any page presents an upgrade, paid-only feature, Organization, Control Tower, or IAM Identity Center flow.
+3. The selected region is Europe (Ireland), `eu-west-1`.
+4. The instance remains the approved Free-plan-eligible `t3.micro` with a current Amazon Linux 2023 x86_64 AMI.
+5. The instance has no SSH key pair, uses IMDSv2, uses standard CPU credits, has detailed monitoring disabled, and does not use Spot capacity.
+6. The root EBS volume is encrypted, deletes on termination, and has no additional volumes or file systems.
+7. The instance uses only the approved `hollis-evaluation-runtime` instance profile.
+8. The selected API security group has zero inbound rules and only the approved outbound HTTPS rule. Do not add an inbound rule until a reviewed TLS ingress design is ready.
+
+After the instance is running, deployment work remains blocked until there is an approved TLS ingress design, a verified public API origin, database connectivity through the separate runtime identity, and an approved secrets-delivery mechanism. Only then may `WEB_ORIGIN`, `NEXT_PUBLIC_API_URL`, `PUBLIC_ATTESTATION_ORIGIN`, and the public deployment configuration be set for the matching HTTPS origins.
+
+Vercel remains the web-console host. Do not deploy or alter its project configuration until the API's verified HTTPS origin is available and the approved Vercel project identity can be inspected.
+
 ## Required runtime configuration
 
 The selected runtime must supply configuration through its approved secret and environment mechanism. Do not place connection strings, OAuth client secrets, service-account keys, session tokens, or signing keys in the image, repository, browser configuration, or public environment variables.
