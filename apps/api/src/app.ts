@@ -55,6 +55,7 @@ import {
   createPostgresReviewIntakeStore,
   createPostgresReviewWorkflowStore,
   createPostgresTenantResolver,
+  createPostgresWelcomeEmailDeliveryStore,
   createPostgresWorkspaceControlsStore,
   createPostgresWorkspaceProvisioningStore,
   setEvidenceLegalHold,
@@ -83,6 +84,14 @@ import {
   TenantAccessError,
 } from "./security.js";
 import { StudioDevAttestationVerificationError } from "./studio-dev-attestation.js";
+import {
+  createResendTransactionalEmailService,
+  type TransactionalEmailService,
+} from "./transactional-email.js";
+import type {
+  PendingWelcomeEmailDelivery,
+  WelcomeEmailDeliveryStore,
+} from "./welcome-email-delivery.js";
 import { claimsWebhookSchema, InvalidWebhookError, verifyClaimsWebhook } from "./webhook.js";
 import {
   ReviewCaseNotFoundError,
@@ -131,6 +140,8 @@ type AppDependencies = {
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
   workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
+  transactionalEmailService?: TransactionalEmailService | null;
+  welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
   rateLimiter?: RateLimiter;
 };
 
@@ -194,6 +205,29 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const applicationSessionStore =
     dependencies.applicationSessionStore ??
     createPostgresApplicationSessionStore(requireDatabase());
+  const welcomeEmailDeliveryStore =
+    dependencies.welcomeEmailDeliveryStore ??
+    (databaseResource
+      ? createPostgresWelcomeEmailDeliveryStore(databaseResource.database)
+      : (() => {
+          const unavailable = async () => {
+            throw new Error("Welcome email delivery dependencies are unavailable.");
+          };
+          return {
+            claimPending: unavailable,
+            markFailed: unavailable,
+            markSent: unavailable,
+            recordNewUser: unavailable,
+          } as WelcomeEmailDeliveryStore;
+        })());
+  const transactionalEmailService =
+    dependencies.transactionalEmailService ??
+    (environment.RESEND_API_KEY && environment.RESEND_FROM
+      ? createResendTransactionalEmailService({
+          apiKey: environment.RESEND_API_KEY,
+          from: environment.RESEND_FROM,
+        })
+      : null);
   const workspaceControlsStore =
     dependencies.workspaceControlsStore ??
     (databaseResource
@@ -266,6 +300,61 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const activateWorkspaceSchema = z.object({ tenantId: z.uuid() }).strict();
   const memberParamsSchema = z.object({ userId: z.uuid() }).strict();
   const invitationParamsSchema = z.object({ invitationId: z.uuid() }).strict();
+
+  async function deliverWelcomeEmail(input: {
+    displayName: string | null;
+    isNewUser: boolean;
+    userId: string;
+  }) {
+    if (input.isNewUser) {
+      try {
+        await welcomeEmailDeliveryStore.recordNewUser(input.userId);
+      } catch (error) {
+        app.log.error(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "welcome email delivery record failed",
+        );
+        return;
+      }
+    }
+
+    if (!transactionalEmailService) return;
+
+    let delivery: PendingWelcomeEmailDelivery | null;
+    try {
+      delivery = await welcomeEmailDeliveryStore.claimPending(input.userId);
+    } catch (error) {
+      app.log.error(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "welcome email delivery claim failed",
+      );
+      return;
+    }
+    if (!delivery) return;
+
+    try {
+      const result = await transactionalEmailService.sendWelcome({
+        deliveryId: delivery.deliveryId,
+        displayName: input.displayName,
+        recipientEmail: delivery.recipientEmail,
+        userId: input.userId,
+      });
+      await welcomeEmailDeliveryStore.markSent(delivery.deliveryId, result.providerMessageId);
+    } catch (error) {
+      app.log.error(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "welcome email delivery failed",
+      );
+      try {
+        await welcomeEmailDeliveryStore.markFailed(delivery.deliveryId);
+      } catch (recordError) {
+        app.log.error(
+          { errorName: recordError instanceof Error ? recordError.name : "unknown" },
+          "welcome email failure record failed",
+        );
+      }
+    }
+  }
 
   if (databaseResource) {
     app.addHook("onClose", async () => databaseResource.client.end());
@@ -411,6 +500,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         );
         throw error;
       }
+      await deliverWelcomeEmail({
+        displayName: identity.displayName,
+        isNewUser: session.isNewUser,
+        userId: session.userId,
+      });
       return reply.code(201).send({
         activeWorkspace: session.tenantId
           ? { id: session.tenantId, name: session.workspaceName, role: session.role }

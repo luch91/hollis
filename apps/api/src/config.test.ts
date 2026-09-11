@@ -74,6 +74,28 @@ describe("readEnvironment", () => {
     ).toThrow(/AWS_REGION/);
   });
 
+  it("requires both Resend server settings before transactional email is enabled", () => {
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        RESEND_API_KEY: "re_test_key_value",
+      }),
+    ).toThrow(/RESEND_FROM/);
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        RESEND_FROM: "Hollis <welcome@mail.thehollis.xyz>",
+      }),
+    ).toThrow(/RESEND_API_KEY/);
+    expect(
+      readEnvironment({
+        ...baseEnvironment,
+        RESEND_API_KEY: "re_test_key_value",
+        RESEND_FROM: "Hollis <welcome@mail.thehollis.xyz>",
+      }),
+    ).toMatchObject({ RESEND_FROM: "Hollis <welcome@mail.thehollis.xyz>" });
+  });
+
   it("uses the Cloud SQL Unix socket settings without a composed database URL", () => {
     const environment = readEnvironment({
       ...baseEnvironment,

@@ -56,6 +56,7 @@ export type UnscopedAuthenticatedPrincipal = {
 };
 
 export type StoredApplicationSession = {
+  isNewUser: boolean;
   role: string | null;
   sessionId: string;
   tenantId: string | null;

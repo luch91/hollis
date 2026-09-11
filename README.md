@@ -97,6 +97,8 @@ The API normally listens on `http://localhost:4000`. The web application normall
 | `NEXT_PUBLIC_IDENTITY_PLATFORM_PROJECT_ID` | Identity Platform web configuration | Obtain from the Identity Platform Web SDK configuration. |
 | `IDENTITY_PLATFORM_PROJECT_ID` | API-side Identity Platform token verification | Must identify the same approved project as the web configuration. |
 | `HOLLIS_SESSION_TTL_HOURS` | Hollis session lifetime | Integer from 1 through 24. Default is 8. |
+| `RESEND_API_KEY` | Server-only Resend API key | Leave unset to disable welcome-email delivery. Never expose it to the browser or commit it. |
+| `RESEND_FROM` | Verified Resend sender | Required with `RESEND_API_KEY`. Use `Hollis <welcome@mail.thehollis.xyz>` for the approved sending subdomain. |
 | `GCS_BUCKET`, `GCS_PROJECT_ID` | Google Cloud Storage evidence provider | Configure this provider or the S3 provider, never both. |
 | `S3_BUCKET`, `AWS_REGION` | S3 evidence provider | `AWS_REGION` is required when `S3_BUCKET` is set. |
 | `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
@@ -117,6 +119,10 @@ Follow [the Identity Platform setup runbook](docs/runbooks/identity-platform-set
 5. Do not put a GitHub OAuth client secret, a Google OAuth secret, a service-account key, or any user token in the repository or browser configuration.
 
 After sign-in, a user without a Hollis membership reaches workspace onboarding. They can create a workspace or accept a valid invitation. Authentication alone does not disclose or grant access to another organization's cases.
+
+Identity Platform sends the email-verification message for email-and-password registration. When Resend is configured, Hollis records one welcome-email delivery for each newly created verified account and sends it from the API only. Delivery failure is recorded without blocking session creation. Existing accounts are not backfilled with welcome messages.
+
+Follow [the transactional-email runbook](docs/runbooks/transactional-email.md) to configure the approved Resend sender and perform the controlled welcome-email acceptance check.
 
 Hollis sessions are opaque server-side records. The API returns their expiry at session establishment and the browser derives the `HttpOnly` cookie lifetime from that value. Sign-out requires successful server revocation before clearing a usable local cookie. A confirmed invalid or expired token can be cleared; a network or server failure leaves the cookie in place and reports that sign-out could not be completed.
 

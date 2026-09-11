@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "./app.js";
 import { buildAdjudicationCaseFile } from "./attestation-workflow.js";
 import type {
@@ -21,6 +21,8 @@ import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
 import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
 import type { IdentityPlatformTokenVerifier } from "./identity-platform.js";
+import type { TransactionalEmailService } from "./transactional-email.js";
+import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -75,6 +77,9 @@ function createDependencies(
     identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
     unscopedTenantId?: string | null;
     workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    applicationSessionStore?: ApplicationSessionStore;
+    transactionalEmailService?: TransactionalEmailService | null;
+    welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -120,9 +125,10 @@ function createDependencies(
         throw new Error("Review intake was not expected.");
       },
     } satisfies ReviewIntakeStore);
-  const applicationSessionStore: ApplicationSessionStore = {
+  const applicationSessionStore: ApplicationSessionStore = options.applicationSessionStore ?? {
     async activate() {
       return {
+        isNewUser: false,
         role: "owner",
         sessionId: "session_01",
         tenantId,
@@ -132,6 +138,7 @@ function createDependencies(
     },
     async establish() {
       return {
+        isNewUser: false,
         role: null,
         sessionId: "session_01",
         tenantId: null,
@@ -141,6 +148,7 @@ function createDependencies(
     },
     async read() {
       return {
+        isNewUser: false,
         role: "reviewer",
         sessionId: "session_01",
         tenantId,
@@ -259,7 +267,9 @@ function createDependencies(
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
+    transactionalEmailService: options.transactionalEmailService,
     unscopedAccessTokenVerifier,
+    welcomeEmailDeliveryStore: options.welcomeEmailDeliveryStore,
     workspaceProvisioner,
     workspaceControlsStore: options.workspaceControlsStore,
     workflowStore,
@@ -357,6 +367,130 @@ describe("API boundaries", () => {
     expect(Date.parse(payload.expiresAt)).toBeGreaterThanOrEqual(
       before + environment.HOLLIS_SESSION_TTL_HOURS * 60 * 60 * 1000 - 1_000,
     );
+  });
+
+  it("sends one welcome email for a newly verified account without exposing delivery failure to sign-in", async () => {
+    const recordNewUser = vi.fn(async () => undefined);
+    const claimPending = vi.fn(async () => ({
+      deliveryId: "11111111-1111-4111-8111-111111111111",
+      recipientEmail: "test.user@example.test",
+    }));
+    const markSent = vi.fn(async () => undefined);
+    const welcomeEmailDeliveryStore: WelcomeEmailDeliveryStore = {
+      claimPending,
+      markFailed: vi.fn(async () => undefined),
+      markSent,
+      recordNewUser,
+    };
+    const transactionalEmailService: TransactionalEmailService = {
+      sendWelcome: vi.fn(async () => ({ providerMessageId: "email_01" })),
+    };
+    const applicationSessionStore: ApplicationSessionStore = {
+      async activate() {
+        return null;
+      },
+      async establish() {
+        return {
+          isNewUser: true,
+          role: null,
+          sessionId: "session_01",
+          tenantId: null,
+          userId: "11111111-1111-4111-8111-111111111111",
+          workspaceName: null,
+        };
+      },
+      async read() {
+        return null;
+      },
+      async revoke() {
+        return true;
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        applicationSessionStore,
+        transactionalEmailService,
+        welcomeEmailDeliveryStore,
+      }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      payload: { identityToken: "identity-platform-token" },
+      url: "/v1/auth/sessions",
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(recordNewUser).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
+    expect(claimPending).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
+    expect(transactionalEmailService.sendWelcome).toHaveBeenCalledWith({
+      deliveryId: "11111111-1111-4111-8111-111111111111",
+      displayName: "Test user",
+      recipientEmail: "test.user@example.test",
+      userId: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(markSent).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111", "email_01");
+  });
+
+  it("keeps sign-in available when welcome email delivery fails", async () => {
+    const markFailed = vi.fn(async () => undefined);
+    const applicationSessionStore: ApplicationSessionStore = {
+      async activate() {
+        return null;
+      },
+      async establish() {
+        return {
+          isNewUser: true,
+          role: null,
+          sessionId: "session_01",
+          tenantId: null,
+          userId: "11111111-1111-4111-8111-111111111111",
+          workspaceName: null,
+        };
+      },
+      async read() {
+        return null;
+      },
+      async revoke() {
+        return true;
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        applicationSessionStore,
+        transactionalEmailService: {
+          async sendWelcome() {
+            throw new Error("provider unavailable");
+          },
+        },
+        welcomeEmailDeliveryStore: {
+          async claimPending() {
+            return {
+              deliveryId: "11111111-1111-4111-8111-111111111111",
+              recipientEmail: "test.user@example.test",
+            };
+          },
+          markFailed,
+          async markSent() {
+            throw new Error("Not expected.");
+          },
+          async recordNewUser() {},
+        },
+      }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      payload: { identityToken: "identity-platform-token" },
+      url: "/v1/auth/sessions",
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(markFailed).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
   });
 
   it("creates a first workspace only from an unscoped authenticated session", async () => {

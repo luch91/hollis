@@ -52,6 +52,13 @@ export const attestationStatus = pgEnum("attestation_status", [
 
 export const policyPublicationStatus = pgEnum("policy_publication_status", ["published"]);
 
+export const notificationDeliveryStatus = pgEnum("notification_delivery_status", [
+  "pending",
+  "sending",
+  "sent",
+  "failed",
+]);
+
 export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey().defaultRandom(),
@@ -131,6 +138,29 @@ export const applicationSessions = pgTable(
   (table) => [
     index("application_sessions_user_idx").on(table.userId),
     index("application_sessions_active_tenant_idx").on(table.activeTenantId),
+  ],
+);
+
+export const accountNotificationDeliveries = pgTable(
+  "account_notification_deliveries",
+  {
+    attemptedAt: timestamp("attempted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationType: text("notification_type").notNull(),
+    providerMessageId: text("provider_message_id"),
+    status: notificationDeliveryStatus("status").notNull().default("pending"),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    uniqueIndex("account_notification_deliveries_user_type_unique").on(
+      table.userId,
+      table.notificationType,
+    ),
+    index("account_notification_deliveries_status_idx").on(table.status, table.createdAt),
   ],
 );
 

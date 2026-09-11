@@ -33,6 +33,7 @@ describe("Hollis application-session verification", () => {
   it("resolves a tenant-scoped principal with permissions derived from its role", async () => {
     const verifier = createHollisAccessTokenVerifier(
       createSessionStore({
+        isNewUser: false,
         role: "reviewer",
         sessionId: "session_01",
         tenantId: "tenant_01",
@@ -59,6 +60,7 @@ describe("Hollis application-session verification", () => {
 
   it("keeps a signed-in user without a workspace outside protected routes", async () => {
     const sessionStore = createSessionStore({
+      isNewUser: false,
       role: null,
       sessionId: "session_01",
       tenantId: null,

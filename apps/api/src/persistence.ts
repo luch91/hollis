@@ -27,6 +27,7 @@ import { createHash } from "node:crypto";
 import type { createDatabase } from "@hollis/database";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { ApplicationSessionStore } from "./auth.js";
+import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { AttestationReceipt } from "@hollis/contracts";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
@@ -178,6 +179,7 @@ export function createPostgresTenantResolver(database: Database): TenantResolver
 }
 
 type SessionFunctionRecord = {
+  isNewUser: boolean;
   role: string | null;
   sessionId: string;
   tenantId: string | null;
@@ -222,6 +224,46 @@ export function createPostgresApplicationSessionStore(database: Database): Appli
         select public.revoke_hollis_application_session(${tokenDigest})
       `);
       return record?.revoke_hollis_application_session ?? false;
+    },
+  };
+}
+
+export function createPostgresWelcomeEmailDeliveryStore(
+  database: Database,
+): WelcomeEmailDeliveryStore {
+  return {
+    async recordNewUser(userId) {
+      await database.execute(
+        sql`select public.record_hollis_welcome_email_delivery(${userId}::uuid)`,
+      );
+    },
+    async claimPending(userId) {
+      const [record] = await database.execute<{
+        deliveryId: string;
+        recipientEmail: string;
+      }>(sql`
+        select *
+        from public.claim_hollis_welcome_email_delivery(${userId}::uuid)
+      `);
+      return record ?? null;
+    },
+    async markSent(deliveryId, providerMessageId) {
+      await database.execute(sql`
+        select public.complete_hollis_welcome_email_delivery(
+          ${deliveryId}::uuid,
+          'sent'::public.notification_delivery_status,
+          ${providerMessageId}
+        )
+      `);
+    },
+    async markFailed(deliveryId) {
+      await database.execute(sql`
+        select public.complete_hollis_welcome_email_delivery(
+          ${deliveryId}::uuid,
+          'failed'::public.notification_delivery_status,
+          null
+        )
+      `);
     },
   };
 }

@@ -57,6 +57,8 @@ const environmentSchema = z
         message: "PUBLIC_ATTESTATION_ORIGIN must use HTTPS.",
       })
       .optional(),
+    RESEND_API_KEY: z.string().min(10).optional(),
+    RESEND_FROM: z.string().trim().min(3).max(320).optional(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),
     HOLLIS_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24).default(8),
@@ -77,6 +79,22 @@ const environmentSchema = z
         code: "custom",
         message: "AWS_REGION is required when S3_BUCKET is configured.",
         path: ["AWS_REGION"],
+      });
+    }
+
+    if (value.RESEND_API_KEY && !value.RESEND_FROM) {
+      context.addIssue({
+        code: "custom",
+        message: "RESEND_FROM is required when RESEND_API_KEY is configured.",
+        path: ["RESEND_FROM"],
+      });
+    }
+
+    if (value.RESEND_FROM && !value.RESEND_API_KEY) {
+      context.addIssue({
+        code: "custom",
+        message: "RESEND_API_KEY is required when RESEND_FROM is configured.",
+        path: ["RESEND_API_KEY"],
       });
     }
 
