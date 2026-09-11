@@ -182,7 +182,7 @@ DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis pnpm --filter @
 DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis DATABASE_URL=postgres://hollis_app:hollis_app@localhost:5434/hollis pnpm --filter @hollis/api test:integration
 ```
 
-The local verification record is [docs/local-verification-2026-09-10.md](docs/local-verification-2026-09-10.md). It identifies exactly what was verified and what remains a real-provider or production-environment test.
+The local verification record is [docs/local-verification-2026-09-10.md](docs/local-verification-2026-09-10.md). It includes the local browser acceptance pass and identifies exactly what remains a real-provider or production-environment test.
 
 ## Production status
 

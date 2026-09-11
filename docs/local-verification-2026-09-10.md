@@ -52,6 +52,21 @@ The local environment still does not configure `PUBLIC_ATTESTATION_ORIGIN` or `G
 
 These items remain deployment or provider-verification work. They must not be represented as locally verified.
 
+## Browser acceptance pass: 2026-09-11
+
+An authenticated local browser session exercised the owner workflow against the Docker Compose database. The pass used workspace-controlled test data. It did not publish a public case file, contact an evidence-storage provider, submit to GenLayer, or modify a cloud resource.
+
+| Workflow boundary | Evidence | Result |
+| --- | --- | --- |
+| Review workspace | Queue, case detail, and the Case Summary, Evidence, Communications, and History views | A completed human review displayed its policy binding, managed evidence reference, rationale, and append-only event history. |
+| Human review | Claim and rationale-backed decision | The case transitioned through reviewer action to a completed decision without executing an upstream recommendation. |
+| Evidence inventory | Case-bound evidence navigation | The inventory opened the selected case's evidence view without the duplicate React key warning. |
+| Exports | JSON, Markdown, DOCX, and PDF packages | All four exports were generated and inspected for the same case identifier, policy binding, evidence reference, ordered events, and manifest hash. |
+| Attestation readiness | Independent Attestation panel and detailed case view | The UI accurately reported that a human decision, policy binding, and managed evidence existed, while case-file publication and receipt remained unavailable because the public publisher is not configured. |
+| Workspace administration | Profile, membership, invitation, acceptance, and revocation controls | The browser flow displayed the intended state changes. A pending test invitation was subsequently revoked through the authorized API workflow and displayed as revoked. |
+
+This browser pass confirms the local workspace workflow. It does not replace real-provider acceptance tests or production deployment checks.
+
 ## Synthetic acceptance pass
 
 The following acceptance pass used only the local Docker Compose PostgreSQL database and synthetic identifiers. It did not contact Google Cloud, AWS, Vercel, Identity Platform, an object-storage bucket, or GenLayer.
