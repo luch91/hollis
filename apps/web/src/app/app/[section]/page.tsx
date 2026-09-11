@@ -90,7 +90,7 @@ function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
       {items.map((evidence) => (
         <Link
           href={`/app?status=${evidence.status === "completed" ? "completed" : "active"}&caseId=${evidence.caseId}#evidence`}
-          key={evidence.id}
+          key={`${evidence.caseId}:${evidence.id}`}
         >
           <span>
             <strong>{evidence.id}</strong>
