@@ -2,6 +2,21 @@
 
 This record captures a local verification run against the Docker Compose PostgreSQL instance. It is not a production acceptance record and does not make compliance, fairness, or availability claims.
 
+## Follow-up verification: 2026-09-11
+
+The following checks were repeated after the Studio Dev release-environment documentation alignment. They did not create, modify, or upgrade any AWS resource or account setting.
+
+| Path | Evidence | Result |
+| --- | --- | --- |
+| Repository release gate | `pnpm verify` | Passed repository policy, formatting, linting, TypeScript checks, 7 shared-contract tests, 9 web tests, 73 API tests, and the production build. The existing stylesheet lint warnings remain non-failing and include the required reduced-motion overrides. |
+| Production dependency audit | `pnpm audit --prod` | No known production dependency vulnerabilities reported. |
+| Tenant isolation and runtime grants | Local Compose integration run | 6 tests passed. |
+| Review workflow persistence | Local Compose integration run | 7 tests passed. |
+| Local services | `GET /health/live` and `GET /sign-in` | Both returned HTTP 200 from the existing local API and web processes. |
+| Studio Dev identity | `pnpm genlayer:check-studio` | The canonical Studio Dev RPC returned chain ID `61997`. This was read-only and did not submit a transaction. |
+
+The local environment still does not configure `PUBLIC_ATTESTATION_ORIGIN` or `GENLAYER_STUDIO_CONTRACT_ADDRESS`. It therefore cannot publish a public-safe case file, import a finalized Studio Dev transaction, or exercise that workflow end to end. This is an unverified configuration boundary, not a failed application test.
+
 ## Environment
 
 - PostgreSQL 18 Compose service, bound only to `127.0.0.1:5434`.
