@@ -47,6 +47,7 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
       <header className="detail-hero">
         <p className="eyebrow">{reviewCase.status.replace("_", " ")}</p>
         <h1 id="case-title">{reviewCase.externalReference}</h1>
+        <p className="case-reference-label">Hollis case {reviewCase.hollisCaseReference}</p>
         <p>
           Detailed review record, evidence trace, policy binding, human action, and attestation
           controls.

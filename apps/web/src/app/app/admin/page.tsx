@@ -5,6 +5,35 @@ import { InvitationLink } from "./invitation-link";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+const industries = [
+  ["financial-services", "Financial services"],
+  ["insurance", "Insurance"],
+  ["healthcare", "Healthcare"],
+  ["legal-services", "Legal services"],
+  ["public-sector", "Public sector"],
+  ["technology", "Technology"],
+  ["retail", "Retail"],
+  ["manufacturing", "Manufacturing"],
+  ["education", "Education"],
+  ["telecommunications", "Telecommunications"],
+  ["energy-and-utilities", "Energy and utilities"],
+  ["transport-and-logistics", "Transport and logistics"],
+  ["professional-services", "Professional services"],
+  ["nonprofit", "Nonprofit"],
+  ["other", "Other"],
+] as const;
+
+const operatingRegions = [
+  ["africa", "Africa"],
+  ["asia-pacific", "Asia Pacific"],
+  ["europe", "Europe"],
+  ["latin-america", "Latin America"],
+  ["middle-east", "Middle East"],
+  ["north-america", "North America"],
+  ["global", "Global"],
+  ["other", "Other"],
+] as const;
+
 type WorkspaceProfile = {
   industry: string | null;
   name: string;
@@ -139,11 +168,32 @@ export default async function AdminPage({
           </label>
           <label>
             Industry
-            <input name="industry" defaultValue={profile.industry ?? ""} />
+            <select defaultValue={profile.industry ?? ""} name="industry">
+              <option value="">Select an industry</option>
+              {profile.industry && !industries.some(([value]) => value === profile.industry) ? (
+                <option value={profile.industry}>{profile.industry}</option>
+              ) : null}
+              {industries.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Operating region
-            <input name="operatingRegion" defaultValue={profile.operatingRegion ?? ""} />
+            <select defaultValue={profile.operatingRegion ?? ""} name="operatingRegion">
+              <option value="">Select an operating region</option>
+              {profile.operatingRegion &&
+              !operatingRegions.some(([value]) => value === profile.operatingRegion) ? (
+                <option value={profile.operatingRegion}>{profile.operatingRegion}</option>
+              ) : null}
+              {operatingRegions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Website

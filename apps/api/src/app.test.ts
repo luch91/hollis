@@ -284,6 +284,7 @@ const completedExport: ReviewExport = {
       },
     ],
     externalReference: "claim-001",
+    hollisCaseReference: "HL-26-7M4K-P9Q2",
     escalatedAt: null,
     escalatedByUserId: null,
     escalationReason: null,
@@ -488,6 +489,7 @@ describe("API boundaries", () => {
             createdAt: record.occurredAt,
             externalReference: record.externalReference,
             fingerprint: record.fingerprint,
+            hollisCaseReference: "HL-26-7M4K-P9Q2",
             id: record.caseId,
             reviewDueAt: new Date(record.reviewDueAt),
             status: "pending",
@@ -511,6 +513,7 @@ describe("API boundaries", () => {
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({
       externalReference: "claim-001",
+      hollisCaseReference: "HL-26-7M4K-P9Q2",
       replayed: false,
       status: "pending",
     });
@@ -526,6 +529,7 @@ describe("API boundaries", () => {
       assignedToUserId: null,
       createdAt: new Date("2026-08-28T08:00:00.000Z"),
       externalReference: "claim-001",
+      hollisCaseReference: "HL-26-7M4K-P9Q2",
       id: "0198ef37-6216-7000-8000-000000000002",
       recommendation: "deny",
       reviewDueAt: new Date("2026-08-29T08:00:00.000Z"),
@@ -572,6 +576,7 @@ describe("API boundaries", () => {
         assignedToUserId: null,
         createdAt: "2026-08-28T08:00:00.000Z",
         externalReference: "claim-001",
+        hollisCaseReference: "HL-26-7M4K-P9Q2",
         id: "0198ef37-6216-7000-8000-000000000002",
         recommendation: "deny",
         reviewDueAt: "2026-08-29T08:00:00.000Z",

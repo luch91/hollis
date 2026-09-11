@@ -73,7 +73,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ case
   return new NextResponse(body, {
     headers: {
       "cache-control": "no-store",
-      "content-disposition": `attachment; filename="hollis-case-${caseId}.${format}"`,
+      "content-disposition": `attachment; filename="Hollis_Case-${exported.case.hollisCaseReference}_Audit-Record.${format}"`,
       "content-type": contentType,
       "x-content-type-options": "nosniff",
     },

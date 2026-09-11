@@ -125,14 +125,15 @@ function CaseQueue({
               style={{ "--case-index": index } as CSSProperties}
             >
               <span>
-                <strong>{item.externalReference}</strong>
+                <strong>{item.hollisCaseReference}</strong>
+                <small>{item.externalReference}</small>
                 <small>{item.recommendation.replaceAll("_", " ")}</small>
                 <em className={`queue-state queue-state-${item.status}`}>
                   {item.status.replaceAll("_", " ")}
                 </em>
               </span>
               <span>
-                <small>{shortId(item.id)}</small>
+                <small>Hollis case</small>
                 <small>{formatDate(item.reviewDueAt)}</small>
                 <em className={`risk risk-${item.riskLevel}`}>{item.riskLevel}</em>
               </span>
@@ -522,7 +523,7 @@ function ExportPreview({
         </div>
         <div className="paper-stack audit-paper">
           <div className="paper-heading">
-            <strong>{reviewCase.externalReference}</strong>
+            <strong>{reviewCase.hollisCaseReference}</strong>
             <span>Case decision record</span>
           </div>
           <dl>
@@ -549,7 +550,7 @@ function ExportPreview({
           </dl>
           <div className="paper-total">
             <span>Record</span>
-            <strong>{shortId(reviewCase.id)}</strong>
+            <strong>{reviewCase.hollisCaseReference}</strong>
           </div>
         </div>
         <nav className="export-formats" aria-label="Export formats">
@@ -568,7 +569,7 @@ function ExportPreview({
         </div>
         <div className="paper-stack receipt-paper">
           <div className="receipt-paper-heading">
-            <strong>{reviewCase.externalReference}</strong>
+            <strong>{reviewCase.hollisCaseReference}</strong>
             <span className={latest?.verdict === "pass" ? "is-verifiable" : undefined}>
               {latest?.verdict ?? "Pending"}
             </span>
@@ -627,12 +628,13 @@ function SelectedCaseWorkspace({
       <section className={`reference-case-workspace view-${query.view ?? "canvas"}`}>
         <header className="reference-case-header">
           <div className="case-kicker">
-            <span>{shortId(reviewCase.id)}</span>
+            <span>{reviewCase.hollisCaseReference}</span>
             <em className={`queue-state queue-state-${reviewCase.status}`}>
               {reviewCase.status.replaceAll("_", " ")}
             </em>
           </div>
           <h2>{reviewCase.externalReference}</h2>
+          <p className="case-reference-label">Hollis case {reviewCase.hollisCaseReference}</p>
           <p>{reviewCase.ruleId.replaceAll("_", " ")}</p>
           <dl>
             <div>

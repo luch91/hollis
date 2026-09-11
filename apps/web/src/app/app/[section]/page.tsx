@@ -57,9 +57,9 @@ function CaseList({ cases }: { cases: ReviewQueueItem[] }) {
           key={reviewCase.id}
         >
           <span>
-            <strong>{reviewCase.externalReference}</strong>
+            <strong>{reviewCase.hollisCaseReference}</strong>
             <small>
-              {reviewCase.status.replaceAll("_", " ")} ·{" "}
+              {reviewCase.externalReference} · {reviewCase.status.replaceAll("_", " ")} ·{" "}
               {reviewCase.recommendation.replaceAll("_", " ")}
             </small>
           </span>
@@ -77,7 +77,7 @@ function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
   const items = cases.flatMap((reviewCase) =>
     reviewCase.evidence.map((evidence) => ({
       ...evidence,
-      externalReference: reviewCase.externalReference,
+      hollisCaseReference: reviewCase.hollisCaseReference,
       caseId: reviewCase.id,
       status: reviewCase.status,
     })),
@@ -97,7 +97,7 @@ function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
             <small>{evidence.mediaType}</small>
           </span>
           <span>
-            <small>{evidence.externalReference}</small>
+            <small>{evidence.hollisCaseReference}</small>
             <code>{evidence.digest}</code>
           </span>
         </Link>
@@ -111,7 +111,7 @@ function ReceiptList({
   records,
 }: {
   completedCases: ReviewCaseDetail[];
-  records: Array<{ caseId: string; externalReference: string; record: AttestationRecord }>;
+  records: Array<{ caseId: string; hollisCaseReference: string; record: AttestationRecord }>;
 }) {
   const recordedCaseIds = new Set(records.map(({ caseId }) => caseId));
   const awaitingAttestation = completedCases.filter(
@@ -130,10 +130,10 @@ function ReceiptList({
         </div>
         {records.length > 0 ? (
           <div className="workspace-list">
-            {records.map(({ caseId, externalReference, record }) => (
+            {records.map(({ caseId, hollisCaseReference, record }) => (
               <Link href={`/app/review-cases/${caseId}`} key={record.id}>
                 <span>
-                  <strong>{externalReference}</strong>
+                  <strong>{hollisCaseReference}</strong>
                   <small>{record.caseCommitment}</small>
                 </span>
                 <span>
@@ -164,7 +164,7 @@ function ReceiptList({
             {awaitingAttestation.map((reviewCase) => (
               <Link href={`/app/review-cases/${reviewCase.id}#attestation`} key={reviewCase.id}>
                 <span>
-                  <strong>{reviewCase.externalReference}</strong>
+                  <strong>{reviewCase.hollisCaseReference}</strong>
                   <small>
                     Human decision recorded: {reviewCase.decisionOutcome?.replaceAll("_", " ")}
                   </small>
@@ -227,11 +227,11 @@ export default async function WorkspaceSectionPage({
             {cases.map((reviewCase) => (
               <article key={reviewCase.id}>
                 <span>
-                  <strong>{reviewCase.externalReference}</strong>
+                  <strong>{reviewCase.hollisCaseReference}</strong>
                   <small>{reviewCase.status.replaceAll("_", " ")}</small>
                 </span>
                 <nav
-                  aria-label={`Download ${reviewCase.externalReference}`}
+                  aria-label={`Download ${reviewCase.hollisCaseReference}`}
                   className="export-register-actions"
                 >
                   <a href={`/app/review-cases/${reviewCase.id}/export?format=json`}>JSON</a>
@@ -311,7 +311,7 @@ export default async function WorkspaceSectionPage({
                   <small>{reviewCase.policyVersion}</small>
                 </span>
                 <span>
-                  <small>{reviewCase.externalReference}</small>
+                  <small>{reviewCase.hollisCaseReference}</small>
                 </span>
               </Link>
             ))}
@@ -325,12 +325,12 @@ export default async function WorkspaceSectionPage({
     await Promise.all(
       details.map(async (reviewCase) => ({
         caseId: reviewCase.id,
-        externalReference: reviewCase.externalReference,
+        hollisCaseReference: reviewCase.hollisCaseReference,
         records: await listAttestations(reviewCase.id).catch(() => []),
       })),
     )
-  ).flatMap(({ caseId, externalReference, records: caseRecords }) =>
-    caseRecords.map((record) => ({ caseId, externalReference, record })),
+  ).flatMap(({ caseId, hollisCaseReference, records: caseRecords }) =>
+    caseRecords.map((record) => ({ caseId, hollisCaseReference, record })),
   );
 
   return (

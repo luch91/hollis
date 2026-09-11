@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
@@ -199,6 +200,9 @@ export const reviewCases = pgTable(
     escalatedAt: timestamp("escalated_at", { withTimezone: true }),
     escalatedByUserId: text("escalated_by_user_id"),
     finalRecommendation: text("final_recommendation"),
+    hollisCaseReference: text("hollis_case_reference")
+      .notNull()
+      .default(sql`public.generate_hollis_case_reference(now())`),
     id: uuid("id").primaryKey().defaultRandom(),
     intakeFingerprint: text("intake_fingerprint").notNull(),
     policyVersion: text("policy_version").notNull(),
@@ -213,6 +217,7 @@ export const reviewCases = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex("review_cases_hollis_case_reference_unique").on(table.hollisCaseReference),
     uniqueIndex("review_cases_tenant_external_reference_unique").on(
       table.tenantId,
       table.externalReference,

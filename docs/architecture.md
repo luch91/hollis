@@ -70,7 +70,7 @@ New review cases bind to an existing published, versioned policy control. Histor
 
 ### Intake and review
 
-An authorized member creates a tenant-scoped pending review case with an idempotent external reference and a durable review deadline. A reviewer claims a pending case, may escalate it, and records an explicit, rationale-backed final decision. Conditional state changes and their audit events commit in the same transaction.
+An authorized member creates a tenant-scoped pending review case with an idempotent external reference and a durable review deadline. The database assigns a separate immutable Hollis Case Reference in the form `HL-YY-XXXX-XXXX`; it is opaque and does not encode organization, reviewer, risk, or sequence data. A reviewer claims a pending case, may escalate it, and records an explicit, rationale-backed final decision. Conditional state changes and their audit events commit in the same transaction.
 
 The signed claims-webhook endpoint is reserved for a future approved integration. It verifies its signature and then returns `claims_workspace_resolution_unconfigured`; it does not create cases for public workspaces.
 
@@ -80,7 +80,7 @@ Evidence metadata records tenant scope, provenance, media type, integrity digest
 
 ### Audit and export
 
-Events are append-only and hash-linked. A database-generated sequence, not timestamps alone, determines event traversal. Corrections create new events rather than rewriting prior history. Exports are tenant-scoped reproducible packages with a manifest hash.
+Events are append-only and hash-linked. A database-generated sequence, not timestamps alone, determines event traversal. Corrections create new events rather than rewriting prior history. Exports are tenant-scoped reproducible packages with a manifest hash. Export filenames use the Hollis Case Reference, while the package retains the source reference for reconciliation with the originating system.
 
 ### Attestation
 

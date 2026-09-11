@@ -38,6 +38,7 @@ export const reviewCaseSchema = z
   .object({
     createdAt: z.iso.datetime(),
     externalReference: z.string(),
+    hollisCaseReference: z.string().regex(/^HL-\d{2}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/),
     id: z.uuid(),
     replayed: z.boolean(),
     reviewDueAt: z.iso.datetime().nullable(),
@@ -50,6 +51,7 @@ export const reviewQueueItemSchema = z
     assignedToUserId: z.string().nullable(),
     createdAt: z.iso.datetime(),
     externalReference: z.string(),
+    hollisCaseReference: z.string().regex(/^HL-\d{2}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/),
     id: z.uuid(),
     recommendation: recommendationSchema,
     reviewDueAt: z.iso.datetime().nullable(),

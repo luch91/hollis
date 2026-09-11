@@ -8,6 +8,7 @@ export type ReviewQueueItem = {
   assignedToUserId: string | null;
   createdAt: string;
   externalReference: string;
+  hollisCaseReference: string;
   id: string;
   recommendation: "approve" | "partial_approve" | "deny" | "refer" | "investigate";
   reviewDueAt: string | null;
@@ -150,10 +151,13 @@ export function createReviewCase(input: {
   reviewDueAt: string;
   ruleId: string;
 }) {
-  return request<{ id: string; replayed: boolean }>("/v1/review-cases", {
-    body: JSON.stringify(input),
-    method: "POST",
-  });
+  return request<{ hollisCaseReference: string; id: string; replayed: boolean }>(
+    "/v1/review-cases",
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
 }
 
 export function listWorkspacePolicies() {

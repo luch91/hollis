@@ -19,13 +19,16 @@ export default async function NewReviewCasePage() {
         <fieldset>
           <legend>Decision context</legend>
           <label>
-            External reference
+            Source reference
             <input
               maxLength={128}
               name="externalReference"
               placeholder="e.g. underwriting-2026-0041"
               required
             />
+            <small>
+              Hollis creates an immutable case reference after this record is submitted.
+            </small>
           </label>
           <label>
             Automated system version

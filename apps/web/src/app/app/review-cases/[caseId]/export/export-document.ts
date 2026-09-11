@@ -51,7 +51,7 @@ function buildSections({ attestations, exported }: CaseReportSource): ReportSect
     {
       heading: "Executive summary",
       paragraphs: [
-        `Case ${reviewCase.externalReference} records a ${label(reviewCase.riskLevel)} risk automated recommendation of ${label(reviewCase.recommendation)}. Its current workflow status is ${label(reviewCase.status)}.`,
+        `Case ${reviewCase.hollisCaseReference} records a ${label(reviewCase.riskLevel)} risk automated recommendation of ${label(reviewCase.recommendation)}. Its current workflow status is ${label(reviewCase.status)}.`,
         finalDecision,
         `The case is bound to policy ${reviewCase.policyVersion}, control ${reviewCase.ruleId}, and automated system version ${reviewCase.automatedSystemVersion}.`,
         attestationSummary,
@@ -60,8 +60,9 @@ function buildSections({ attestations, exported }: CaseReportSource): ReportSect
     {
       heading: "Case facts",
       rows: [
-        ["Case ID", reviewCase.id],
-        ["External reference", reviewCase.externalReference],
+        ["Hollis Case Reference", reviewCase.hollisCaseReference],
+        ["Source reference", reviewCase.externalReference],
+        ["Internal record ID", reviewCase.id],
         ["Created", date(reviewCase.createdAt)],
         ["Review due", date(reviewCase.reviewDueAt)],
         ["Status", label(reviewCase.status)],
@@ -190,7 +191,7 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: source.exported.case.externalReference, italics: true })],
+      children: [new TextRun({ text: source.exported.case.hollisCaseReference, italics: true })],
     }),
   ];
 
@@ -225,7 +226,7 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
     creator: "Hollis",
     description: "Authenticated Hollis case decision record",
     sections: [{ children }],
-    title: `Hollis case ${source.exported.case.externalReference}`,
+    title: `Hollis case ${source.exported.case.hollisCaseReference}`,
   });
   return Packer.toBuffer(document);
 }
@@ -293,7 +294,7 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
     color: rgb(0.18, 0.28, 0.12),
     gap: 3,
   });
-  drawLines(source.exported.case.externalReference, {
+  drawLines(source.exported.case.hollisCaseReference, {
     font: regular,
     size: 11,
     color: rgb(0.4, 0.42, 0.38),

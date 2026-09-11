@@ -18,6 +18,7 @@ const exported: ReviewExport = {
     decidedByUserId: "reviewer-17",
     evidence: [{ digest, id: "evaluation-run-418", mediaType: "application/json" }],
     externalReference: "Release review 418",
+    hollisCaseReference: "HL-26-7M4K-P9Q2",
     escalatedAt: null,
     escalatedByUserId: null,
     escalationReason: null,

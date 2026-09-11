@@ -1049,6 +1049,14 @@ h1 {
   margin: 12px 0 18px;
   font-size: clamp(40px, 5vw, 68px);
 }
+.case-reference-label {
+  margin: -8px 0 18px !important;
+  color: var(--lime-soft) !important;
+  font-family: var(--font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+  font-size: 10px !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase !important;
+}
 .case-summary {
   display: flex;
   padding: 18px 0;
@@ -2112,6 +2120,10 @@ dd {
   color: var(--muted);
   font-size: 12px;
   text-transform: capitalize;
+}
+.reference-case-header > .case-reference-label {
+  margin: 0 0 6px !important;
+  text-transform: uppercase;
 }
 .reference-case-header dl {
   display: grid;

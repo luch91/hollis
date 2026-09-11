@@ -16,6 +16,7 @@ const exported: ReviewExport = {
     decidedByUserId: "user_01",
     evidence: [],
     externalReference: "claim-001",
+    hollisCaseReference: "HL-26-7M4K-P9Q2",
     escalatedAt: null,
     escalatedByUserId: null,
     escalationReason: null,

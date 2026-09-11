@@ -11,6 +11,7 @@ The first workflow focuses on high-risk commercial insurance-claim recommendatio
 - Stores tenant-scoped evidence metadata and uses a selected object-storage provider for raw evidence.
 - Requires an authorized human reviewer to claim, escalate, or record a rationale-backed decision.
 - Writes ordered, append-only review events and exports a reproducible case record without raw evidence.
+- Assigns every review case an immutable Hollis Case Reference in the form `HL-YY-XXXX-XXXX`; upstream source references remain separate idempotency keys.
 - Publishes a separate, privacy-safe adjudication case file when independent GenLayer process attestation is enabled.
 - Imports a finalized Studio Dev transaction in read-only mode after validating it against the stored case file.
 
@@ -125,7 +126,7 @@ Hollis sessions are opaque server-side records. The API returns their expiry at 
 2. Hollis records the case with a review deadline and an append-only event.
 3. An authorized user uploads evidence. The API stores metadata and provides a short-lived object-specific upload URL. Raw bytes stay in the configured object-storage provider.
 4. An authorized reviewer claims the pending case, examines its evidence and policy context, then records a rationale-backed decision or escalates it.
-5. Hollis preserves the ordered review history and can generate a tenant-scoped export containing evidence references and the event record, not raw evidence contents.
+5. Hollis preserves the ordered review history and can generate a tenant-scoped export containing evidence references and the event record, not raw evidence contents. Downloaded records use the Hollis Case Reference in their filename.
 6. When the independent-attestation gate is enabled, an authorized reviewer can generate an immutable, public-safe case file from bounded process facts. An authorized operator submits that generated URL and commitment to GenLayer Studio Dev. Hollis then validates and imports only the finalized result.
 
 The active permission model includes reading, creating, assigning, escalating, deciding, retaining, and attesting. Workspace administration controls invitations, memberships, and roles. Do not broaden a role or bypass the API authorization checks to unblock a workflow.

@@ -11,6 +11,7 @@ export type ReviewQueueItem = {
   assignedToUserId: string | null;
   createdAt: Date;
   externalReference: string;
+  hollisCaseReference: string;
   id: string;
   recommendation: CreateReviewCase["recommendation"];
   reviewDueAt: Date | null;
@@ -80,6 +81,7 @@ export function toWorkflowResponse(result: WorkflowResult) {
     decisionOutcome: result.case.decisionOutcome,
     decidedAt: result.case.decidedAt?.toISOString() ?? null,
     externalReference: result.case.externalReference,
+    hollisCaseReference: result.case.hollisCaseReference,
     id: result.case.id,
     replayed: result.replayed,
     reviewDueAt: result.case.reviewDueAt?.toISOString() ?? null,
@@ -92,6 +94,7 @@ export function toQueueResponse(item: ReviewQueueItem) {
     assignedToUserId: item.assignedToUserId,
     createdAt: item.createdAt.toISOString(),
     externalReference: item.externalReference,
+    hollisCaseReference: item.hollisCaseReference,
     id: item.id,
     recommendation: item.recommendation,
     reviewDueAt: item.reviewDueAt?.toISOString() ?? null,
@@ -115,6 +118,7 @@ export function toDetailResponse(item: ReviewCaseDetail) {
     escalatedByUserId: item.escalatedByUserId,
     evidence: item.evidence,
     externalReference: item.externalReference,
+    hollisCaseReference: item.hollisCaseReference,
     finalRecommendation: item.finalRecommendation,
     id: item.id,
     policyVersion: item.policyVersion,

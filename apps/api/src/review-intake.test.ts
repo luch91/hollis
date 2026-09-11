@@ -30,6 +30,7 @@ const context = {
 
 const occurredAt = new Date("2026-08-28T08:00:00.000Z");
 const caseId = "0198ef37-6216-7000-8000-000000000002";
+const hollisCaseReference = "HL-26-7M4K-P9Q2";
 
 describe("review intake", () => {
   it("records an adverse recommendation only as pending human review", async () => {
@@ -43,6 +44,7 @@ describe("review intake", () => {
             createdAt: record.occurredAt,
             externalReference: record.externalReference,
             fingerprint: record.fingerprint,
+            hollisCaseReference,
             id: record.caseId,
             reviewDueAt: new Date(record.reviewDueAt),
             status: "pending",
@@ -56,6 +58,7 @@ describe("review intake", () => {
     expect(result).toEqual({
       createdAt: "2026-08-28T08:00:00.000Z",
       externalReference: "claim-001",
+      hollisCaseReference,
       id: caseId,
       reviewDueAt: "2026-08-29T08:00:00.000Z",
       replayed: false,
@@ -82,6 +85,7 @@ describe("review intake", () => {
             createdAt: occurredAt,
             externalReference: record.externalReference,
             fingerprint: record.fingerprint,
+            hollisCaseReference,
             id: caseId,
             reviewDueAt: occurredAt,
             status: "in_review",
@@ -104,6 +108,7 @@ describe("review intake", () => {
             createdAt: occurredAt,
             externalReference: record.externalReference,
             fingerprint: `sha256:${"f".repeat(64)}`,
+            hollisCaseReference,
             id: caseId,
             reviewDueAt: occurredAt,
             status: "pending",
