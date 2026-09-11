@@ -14,6 +14,7 @@ The following checks were repeated after the Studio Dev release-environment docu
 | Review workflow persistence | Local Compose integration run | 7 tests passed. |
 | Local services | `GET /health/live` and `GET /sign-in` | Both returned HTTP 200 from the existing local API and web processes. |
 | Studio Dev identity | `pnpm genlayer:check-studio` | The canonical Studio Dev RPC returned chain ID `61997`. This was read-only and did not submit a transaction. |
+| Public web deployment | HTTPS checks against `thehollis.xyz` and `www.thehollis.xyz` | The apex redirects and the canonical Vercel web application returns HTTP 200. `https://www.thehollis.xyz/health/live` and the public attestation-case-file route both return HTTP 404, so the web origin is not an API origin and must not be used as `PUBLIC_ATTESTATION_ORIGIN`. |
 
 The local environment still does not configure `PUBLIC_ATTESTATION_ORIGIN` or `GENLAYER_STUDIO_CONTRACT_ADDRESS`. It therefore cannot publish a public-safe case file, import a finalized Studio Dev transaction, or exercise that workflow end to end. This is an unverified configuration boundary, not a failed application test.
 
