@@ -7,7 +7,7 @@ export default async function NewReviewCasePage() {
   return (
     <section className="new-review-case" aria-labelledby="new-review-case-title">
       <header className="new-review-case-heading">
-        <Link href="/app">← Back to review queue</Link>
+        <Link href="/app/review-cases">← Back to review queue</Link>
         <p className="eyebrow">New review case</p>
         <h1 id="new-review-case-title">Record a decision for human review.</h1>
         <p>
@@ -121,7 +121,7 @@ export default async function NewReviewCasePage() {
           </small>
         </fieldset>
         <div className="new-review-case-actions">
-          <Link className="reference-secondary" href="/app">
+          <Link className="reference-secondary" href="/app/review-cases">
             Cancel
           </Link>
           <button className="reference-primary" disabled={policies.length === 0} type="submit">

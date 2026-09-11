@@ -1,7 +1,9 @@
 import Link from "next/link";
+import type { ReviewExport } from "@hollis/contracts/review-case";
 import { notFound } from "next/navigation";
 import {
   getReviewCase,
+  getReviewExport,
   listAttestations,
   listReviewCases,
   type AttestationRecord,
@@ -9,7 +11,7 @@ import {
   type ReviewQueueItem,
 } from "../review-cases/data";
 
-const sections = ["cases", "evidence", "receipts", "exports", "policy", "admin"] as const;
+const sections = ["cases", "evidence", "receipts", "exports", "audit", "policy", "admin"] as const;
 type Section = (typeof sections)[number];
 
 function isSection(value: string): value is Section {
@@ -44,16 +46,45 @@ function SectionHeader({
   );
 }
 
-function CaseList({ cases }: { cases: ReviewQueueItem[] }) {
+function SectionSearch({ action, query, label }: { action: string; query: string; label: string }) {
+  return (
+    <search>
+      <form action={action} className="section-search" method="get">
+        <label>
+          <span>{label}</span>
+          <input defaultValue={query} name="q" placeholder={label} type="search" />
+        </label>
+        <button type="submit">Search</button>
+        {query ? <Link href={action}>Clear</Link> : null}
+      </form>
+    </search>
+  );
+}
+
+function CaseList({ cases, query }: { cases: ReviewQueueItem[]; query: string }) {
+  const normalized = query.trim().toLocaleLowerCase();
+  const filtered = normalized
+    ? cases.filter((reviewCase) =>
+        [
+          reviewCase.hollisCaseReference,
+          reviewCase.externalReference,
+          reviewCase.recommendation,
+          reviewCase.status,
+        ].some((value) => value.toLocaleLowerCase().includes(normalized)),
+      )
+    : cases;
   if (cases.length === 0) {
     return <p className="workspace-empty">No review cases are available in this workspace.</p>;
+  }
+  if (filtered.length === 0) {
+    return <p className="workspace-empty">No review case matches this search.</p>;
   }
 
   return (
     <div className="workspace-list">
-      {cases.map((reviewCase) => (
+      {filtered.map((reviewCase) => (
         <Link
-          href={`/app?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}`}
+          href={`/app/review-cases?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}`}
           key={reviewCase.id}
         >
           <span>
@@ -73,7 +104,7 @@ function CaseList({ cases }: { cases: ReviewQueueItem[] }) {
   );
 }
 
-function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
+function EvidenceInventory({ cases, query }: { cases: ReviewCaseDetail[]; query: string }) {
   const items = cases.flatMap((reviewCase) =>
     reviewCase.evidence.map((evidence) => ({
       ...evidence,
@@ -84,12 +115,23 @@ function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
   );
   if (items.length === 0)
     return <p className="workspace-empty">No managed evidence references are available.</p>;
+  const normalized = query.trim().toLocaleLowerCase();
+  const filtered = normalized
+    ? items.filter((evidence) =>
+        [evidence.id, evidence.mediaType, evidence.digest, evidence.hollisCaseReference].some(
+          (value) => value.toLocaleLowerCase().includes(normalized),
+        ),
+      )
+    : items;
+  if (filtered.length === 0) {
+    return <p className="workspace-empty">No evidence reference matches this search.</p>;
+  }
 
   return (
     <div className="workspace-list workspace-list-evidence">
-      {items.map((evidence) => (
+      {filtered.map((evidence) => (
         <Link
-          href={`/app?status=${evidence.status === "completed" ? "completed" : "active"}&caseId=${evidence.caseId}#evidence`}
+          href={`/app/review-cases?status=${evidence.status === "completed" ? "completed" : "active"}&caseId=${evidence.caseId}&tab=evidence`}
           key={`${evidence.caseId}:${evidence.id}`}
         >
           <span>
@@ -186,12 +228,68 @@ function ReceiptList({
   );
 }
 
+function AuditRegister({
+  exports: caseExports,
+  query,
+}: {
+  exports: ReviewExport[];
+  query: string;
+}) {
+  const events = caseExports
+    .flatMap((exported) =>
+      exported.events.map((event) => ({
+        ...event,
+        caseId: exported.case.id,
+        hollisCaseReference: exported.case.hollisCaseReference,
+      })),
+    )
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+
+  if (events.length === 0) {
+    return <p className="workspace-empty">No review events are available in this workspace.</p>;
+  }
+  const normalized = query.trim().toLocaleLowerCase();
+  const filtered = normalized
+    ? events.filter((event) =>
+        [event.eventType, event.hollisCaseReference, event.eventHash].some((value) =>
+          value.toLocaleLowerCase().includes(normalized),
+        ),
+      )
+    : events;
+  if (filtered.length === 0) {
+    return <p className="workspace-empty">No audit event matches this search.</p>;
+  }
+
+  return (
+    <ol className="workspace-audit-list">
+      {filtered.map((event) => (
+        <li key={`${event.caseId}:${event.eventSequence}`}>
+          <span className="audit-sequence">{String(event.eventSequence).padStart(2, "0")}</span>
+          <div>
+            <strong>{event.eventType.replaceAll("_", " ")}</strong>
+            <Link href={`/app/review-cases?caseId=${event.caseId}&tab=history`}>
+              {event.hollisCaseReference}
+            </Link>
+          </div>
+          <div>
+            <time dateTime={event.createdAt}>{formatDate(event.createdAt)}</time>
+            <code>{event.eventHash}</code>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export default async function WorkspaceSectionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ section: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const { section } = await params;
+  const { q = "" } = await searchParams;
   if (!isSection(section)) notFound();
   const [openCases, completedCases] = await Promise.all([
     listReviewCases(),
@@ -207,7 +305,8 @@ export default async function WorkspaceSectionPage({
           title="All review cases"
           summary="Every case remains tenant-scoped and is linked to its workflow, evidence references, and audit history."
         />
-        <CaseList cases={cases} />
+        <SectionSearch action="/app/cases" label="Search cases" query={q} />
+        <CaseList cases={cases} query={q} />
       </section>
     );
   }
@@ -243,6 +342,23 @@ export default async function WorkspaceSectionPage({
             ))}
           </div>
         )}
+      </section>
+    );
+  }
+
+  if (section === "audit") {
+    const caseExports = await Promise.all(
+      cases.map((reviewCase) => getReviewExport(reviewCase.id)),
+    );
+    return (
+      <section className="workspace-section-page">
+        <SectionHeader
+          eyebrow="Append-only record"
+          title="Audit activity"
+          summary="Review actions are ordered by recorded time and remain linked to their case-specific hash chain."
+        />
+        <SectionSearch action="/app/audit" label="Search audit activity" query={q} />
+        <AuditRegister exports={caseExports} query={q} />
       </section>
     );
   }
@@ -284,7 +400,8 @@ export default async function WorkspaceSectionPage({
           title="Managed evidence references"
           summary="Hollis records evidence metadata and integrity references. Raw evidence remains outside the reviewer console."
         />
-        <EvidenceInventory cases={details} />
+        <SectionSearch action="/app/evidence" label="Search evidence" query={q} />
+        <EvidenceInventory cases={details} query={q} />
       </section>
     );
   }
@@ -303,7 +420,7 @@ export default async function WorkspaceSectionPage({
           <div className="workspace-list">
             {details.map((reviewCase) => (
               <Link
-                href={`/app?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}#case-summary`}
+                href={`/app/review-cases?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}`}
                 key={reviewCase.id}
               >
                 <span>

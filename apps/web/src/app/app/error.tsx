@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-export default function ApplicationError() {
+export default function ApplicationError({ reset }: { reset: () => void }) {
   return (
     <section className="reference-dashboard reference-application-error">
       <div className="reference-dashboard-empty reference-service-unavailable">
@@ -11,9 +11,14 @@ export default function ApplicationError() {
         <p>
           Your session remains protected. No review decision or evidence record has been changed.
         </p>
-        <Link className="reference-primary" href="/app">
-          Return to workspace <span>›</span>
-        </Link>
+        <div className="application-error-actions">
+          <button className="reference-primary" onClick={reset} type="button">
+            Try again <span>›</span>
+          </button>
+          <Link className="reference-secondary" href="/app/review-cases">
+            Open review workspace
+          </Link>
+        </div>
       </div>
     </section>
   );

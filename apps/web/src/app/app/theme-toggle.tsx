@@ -31,7 +31,7 @@ export function ThemeToggle() {
         onClick={() => setTheme("dark")}
         type="button"
       >
-        ◐
+        <span aria-hidden="true">Dark</span>
       </button>
       <button
         aria-label="Use light appearance"
@@ -39,7 +39,7 @@ export function ThemeToggle() {
         onClick={() => setTheme("light")}
         type="button"
       >
-        ◑
+        <span aria-hidden="true">Light</span>
       </button>
     </fieldset>
   );

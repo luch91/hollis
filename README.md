@@ -17,6 +17,12 @@ The first workflow focuses on high-risk commercial insurance-claim recommendatio
 
 Hollis supports Google Cloud Identity Platform for Google, GitHub, and verified email-and-password sign-in. Identity Platform proves a user identity. Hollis itself owns workspaces, invitations, memberships, roles, permissions, tenant isolation, and access decisions.
 
+## Interface
+
+The protected application uses Hollis's Petrol interface system. It includes a responsive workspace header, dark and light appearance modes, a real-data review horizon, a filterable review queue, a connected evidence and policy view, a separate GenLayer attestation panel, portable export previews, and tenant-scoped administration pages.
+
+The interface does not maintain a second demonstration state. Navigation, filters, review actions, policy publishing, evidence controls, receipt links, exports, workspace switching, and administration remain connected to the existing Hollis server actions and API authorization boundaries. Local font files are distributed under their accompanying OFL license files in `apps/web/public/assets`.
+
 ## Product boundaries
 
 Hollis has explicit boundaries that must remain intact:

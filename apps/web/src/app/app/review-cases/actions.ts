@@ -24,6 +24,8 @@ function requiredValue(formData: FormData, name: string): string {
 
 function revalidateWorkspace(caseId: string) {
   revalidatePath("/app");
+  revalidatePath("/app/review-cases");
+  revalidatePath("/app/audit");
   revalidatePath("/app/cases");
   revalidatePath("/app/evidence");
   revalidatePath("/app/exports");
@@ -125,7 +127,7 @@ export async function createReviewCaseAction(formData: FormData) {
   }
   await verifyEvidence(reviewCase.id, upload.evidenceId);
   revalidateWorkspace(reviewCase.id);
-  redirect(`/app?caseId=${encodeURIComponent(reviewCase.id)}`);
+  redirect(`/app/review-cases?caseId=${encodeURIComponent(reviewCase.id)}`);
 }
 
 export async function uploadEvidenceAction(formData: FormData) {

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { readHollisSession } from "@/lib/hollis-session";
@@ -37,36 +37,43 @@ export default async function ApplicationLayout({ children }: { children: ReactN
 
   return (
     <main className="application-frame">
-      <aside className="product-rail" aria-label="Hollis workspace navigation">
-        <Link className="product-wordmark" href="/app">
-          Hollis
-        </Link>
+      <header className="product-rail">
+        <div className="product-identity">
+          <Link className="product-wordmark" href="/app" aria-label="Hollis review workspace">
+            Hollis
+          </Link>
+          <span>
+            Human oversight
+            <br />
+            for consequential decisions.
+          </span>
+        </div>
         <WorkspaceNavigation />
-      </aside>
+        <div className="workspace-account">
+          <WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} />
+          <ThemeToggle />
+          <span aria-label="Workspace member profile" className="account-avatar" role="img">
+            {workspace.name.slice(0, 1).toUpperCase()}
+          </span>
+          <div>
+            <strong>Workspace member</strong>
+            <small>{workspace.role}</small>
+          </div>
+          <form action={signOutAction}>
+            <button className="text-button" type="submit">
+              Sign out
+            </button>
+          </form>
+        </div>
+      </header>
       <section className="application-workspace" aria-label={`${workspace.name} Hollis workspace`}>
         <header className="workspace-topbar">
           <div className="workspace-title">
-            <WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} />
             <p>
               {workspace.name} <span>/</span> Compliance Review
             </p>
           </div>
-          <div className="workspace-account">
-            <ThemeToggle />
-            <span role="img" className="notification-dot" aria-label="Notifications available" />
-            <span aria-label="Workspace member profile" className="account-avatar" role="img">
-              {workspace.name.slice(0, 1).toUpperCase()}
-            </span>
-            <div>
-              <strong>Workspace member</strong>
-              <small>{workspace.role}</small>
-            </div>
-            <form action={signOutAction}>
-              <button className="text-button" type="submit">
-                Sign out
-              </button>
-            </form>
-          </div>
+          <p className="workspace-context">Evidence, policy, human judgment, and attestation</p>
         </header>
         <div className="workspace-canvas">{children}</div>
       </section>

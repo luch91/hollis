@@ -154,11 +154,32 @@ export default async function AdminPage({
   ]);
   return (
     <section className="content-panel admin-workspace">
-      <p className="eyebrow">Workspace controls</p>
-      <h1>Organization administration</h1>
-      <p className="page-intro">
-        Manage the organization profile, access roles, and recipient-bound invitations.
-      </p>
+      <header className="admin-heading">
+        <div>
+          <p className="eyebrow">Workspace controls</p>
+          <h1>Organization administration</h1>
+          <p>Manage the organization profile, access roles, and recipient-bound invitations.</p>
+        </div>
+        <aside className="organization-identity" aria-label={`${profile.name} identity`}>
+          <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
+          <div>
+            <strong>{profile.name}</strong>
+            <small>Managed organization media</small>
+          </div>
+        </aside>
+      </header>
+      <section className="admin-media-boundary" aria-labelledby="organization-media-title">
+        <div>
+          <p className="eyebrow">Organization identity</p>
+          <h2 id="organization-media-title">Logo placement reserved</h2>
+          <p className="admin-media-description">
+            Hollis will enable logo uploads only through managed media validation and tenant-scoped
+            storage. Until then, the organization initial is used without accepting external image
+            links.
+          </p>
+        </div>
+        <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
+      </section>
       <div className="admin-grid">
         <form action={updateProfile} className="admin-card">
           <h2>Organization profile</h2>
@@ -238,9 +259,14 @@ export default async function AdminPage({
         <div className="admin-list">
           {members.map((member) => (
             <div className="admin-row" key={member.userId}>
-              <div>
-                <strong>{member.displayName || member.email}</strong>
-                <small>{member.email}</small>
+              <div className="admin-member-identity">
+                <span aria-hidden="true">
+                  {(member.displayName || member.email || "M").slice(0, 1).toUpperCase()}
+                </span>
+                <div>
+                  <strong>{member.displayName || member.email}</strong>
+                  <small>{member.email}</small>
+                </div>
               </div>
               <form action={updateMember}>
                 <input name="userId" type="hidden" value={member.userId} />

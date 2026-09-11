@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   GithubAuthProvider,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -60,6 +61,7 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -83,6 +85,7 @@ export default function SignInPage() {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const credential =
         mode === "sign-up"
@@ -99,8 +102,27 @@ export default function SignInPage() {
   async function signInWith(provider: GoogleAuthProvider | GithubAuthProvider) {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await finish(await signInWithPopup(getIdentityPlatformAuth(), provider));
+    } catch (caught) {
+      setError(readableError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    setError(null);
+    setNotice(null);
+    if (!email.trim()) {
+      setError("Enter your work email before requesting a password reset.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendPasswordResetEmail(getIdentityPlatformAuth(), email.trim());
+      setNotice("If an account exists for this email, its password-reset message has been sent.");
     } catch (caught) {
       setError(readableError(caught));
     } finally {
@@ -153,7 +175,14 @@ export default function SignInPage() {
             />
           </label>
           <label>
-            Password
+            <span className="auth-password-label">
+              Password
+              {mode === "sign-in" ? (
+                <button disabled={busy} onClick={() => void resetPassword()} type="button">
+                  Forgot password?
+                </button>
+              ) : null}
+            </span>
             <input
               autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
               disabled={busy}
@@ -167,6 +196,11 @@ export default function SignInPage() {
           {error ? (
             <p className="auth-error" role="alert">
               {error}
+            </p>
+          ) : null}
+          {notice ? (
+            <p className="auth-notice" role="status">
+              {notice}
             </p>
           ) : null}
           <button className="primary-action" disabled={busy} type="submit">

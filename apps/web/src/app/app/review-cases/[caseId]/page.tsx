@@ -31,7 +31,7 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
   return (
     <section className="content case-detail" aria-labelledby="case-title">
       <div className="detail-toolbar">
-        <Link className="back-link" href={`/app?caseId=${caseId}`}>
+        <Link className="back-link" href={`/app/review-cases?caseId=${caseId}`}>
           Back to case workspace
         </Link>
         <nav aria-label="Case actions and export formats" className="detail-export-links">

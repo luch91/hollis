@@ -11,7 +11,7 @@ export default async function PolicyLibraryPage() {
   return (
     <section className="policy-library" aria-labelledby="policy-library-title">
       <header className="policy-library-heading">
-        <Link href="/app">← Back to review queue</Link>
+        <Link href="/app/review-cases">← Back to review queue</Link>
         <p className="eyebrow">Workspace governance</p>
         <h1 id="policy-library-title">Policy Library</h1>
         <p>
