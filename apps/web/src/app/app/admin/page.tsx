@@ -36,6 +36,18 @@ type WorkspaceAuditEvent = {
   eventType: string;
 };
 
+class WorkspaceAdministrationError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(
+      `Workspace administration request failed (status=${status}${code ? ` code=${code}` : ""}).`,
+    );
+    this.name = "WorkspaceAdministrationError";
+  }
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const token = (await cookies()).get("hollis_session")?.value;
   const response = await fetch(`${apiUrl}${path}`, {
@@ -49,7 +61,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (response.status === 401) redirect("/sign-in");
   if (response.status === 403) redirect("/access-required");
-  if (!response.ok) throw new Error("Workspace administration request failed.");
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => null)) as { code?: string } | null;
+    throw new WorkspaceAdministrationError(response.status, failure?.code ?? null);
+  }
   return (response.status === 204 ? null : await response.json()) as T;
 }
 
