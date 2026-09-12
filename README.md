@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/web/public/assets/hollis-mark.svg" alt="Hollis" width="64" height="64">
+</p>
+
 # Hollis
 
 Hollis is decision-control infrastructure for consequential automated decisions. It gives an organization a structured place to collect evidence, apply a published policy control, require a human decision, preserve an append-only review record, and produce an auditable export.
@@ -21,7 +25,17 @@ Hollis supports Google Cloud Identity Platform for Google, GitHub, and verified 
 
 The protected application uses Hollis's Petrol interface system. It includes a responsive workspace header, dark and light appearance modes, a real-data review horizon, a filterable review queue, a connected evidence and policy view, a separate GenLayer attestation panel, portable export previews, and tenant-scoped administration pages.
 
+The Bound Record identity is supplied as deterministic vector artwork and is embedded in the product shell, application icon, and formatted document exports. Usage rules and approved asset locations are recorded in [docs/brand.md](docs/brand.md).
+
 The interface does not maintain a second demonstration state. Navigation, filters, review actions, policy publishing, evidence controls, receipt links, exports, workspace switching, and administration remain connected to the existing Hollis server actions and API authorization boundaries. Local font files are distributed under their accompanying OFL license files in `apps/web/public/assets`.
+
+## Product documentation
+
+The web application publishes documentation at `/docs`. The primary guide at `/docs/how-hollis-works` follows the complete account-to-export workflow: identity verification, workspace setup, policy publication, case creation, evidence handling, human review, GenLayer Studio Dev attestation, and portable exports. Supporting guides cover each workflow independently, plus workspace administration and troubleshooting.
+
+Privacy, security, evaluation terms, and support guidance are available before authentication and from the documentation navigation. The privacy and terms pages describe the current evaluation release only. They are not substitutes for final operator notices, a customer data-processing agreement, or commercial terms.
+
+Documentation imagery uses controlled interface references and non-customer test data. Images must retain their original aspect ratio and must not contain credentials, session data, raw evidence, or personal information.
 
 ## Product boundaries
 
@@ -104,8 +118,9 @@ The API normally listens on `http://localhost:4000`. The web application normall
 | `IDENTITY_PLATFORM_PROJECT_ID` | API-side Identity Platform token verification | Must identify the same approved project as the web configuration. |
 | `HOLLIS_SESSION_TTL_HOURS` | Hollis session lifetime | Integer from 1 through 24. Default is 8. |
 | `RESEND_API_KEY` | Server-only Resend API key | Leave unset to disable welcome-email delivery. Never expose it to the browser or commit it. |
-| `RESEND_FROM` | Verified Resend sender | Required with `RESEND_API_KEY`. Use `Hollis <welcome@mail.thehollis.xyz>` for the approved sending subdomain. |
+| `RESEND_FROM` | Verified Resend sender | Required with `RESEND_API_KEY`. Use `Hollis <hello@mail.thehollis.xyz>` for the approved sending subdomain. |
 | `GCS_BUCKET`, `GCS_PROJECT_ID` | Google Cloud Storage evidence provider | Configure this provider or the S3 provider, never both. |
+| `GCS_SIGNER_SERVICE_ACCOUNT` | Optional Google Cloud signer principal | Overrides the default runtime signer used for short-lived evidence URLs. It is an identity, not a credential. |
 | `S3_BUCKET`, `AWS_REGION` | S3 evidence provider | `AWS_REGION` is required when `S3_BUCKET` is set. |
 | `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
 | `PUBLIC_ATTESTATION_ORIGIN` | Public HTTPS API origin for privacy-safe case files | Leave unset until the API public endpoint is deliberately deployed and verified. |
@@ -195,11 +210,11 @@ DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis pnpm --filter @
 DATABASE_TEST_URL=postgres://hollis:hollis@localhost:5434/hollis DATABASE_URL=postgres://hollis_app:hollis_app@localhost:5434/hollis pnpm --filter @hollis/api test:integration
 ```
 
-The local verification record is [docs/local-verification-2026-09-10.md](docs/local-verification-2026-09-10.md). It includes the local browser acceptance pass and identifies exactly what remains a real-provider or production-environment test.
+The baseline local verification record is [docs/local-verification-2026-09-10.md](docs/local-verification-2026-09-10.md). The latest interactive browser findings are in [docs/qa-report-2026-09-12.md](docs/qa-report-2026-09-12.md), and the current release boundary is in [docs/release-readiness-2026-09-12.md](docs/release-readiness-2026-09-12.md).
 
 ## Production status
 
-Hollis is not production-ready solely because this repository builds and passes local tests. The current blockers and required exit criteria are recorded in [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md). They include selecting an approved runnable deployment target, provider-neutral retention scheduling, real-provider acceptance tests, rate limits, backup and restoration exercises, incident response, and an independent security review.
+Hollis is not production-ready solely because this repository builds and passes local tests. The current blockers and required exit criteria are recorded in [production-readiness-2026-09-10.md](docs/production-readiness-2026-09-10.md) and the dated [release-readiness snapshot](docs/release-readiness-2026-09-12.md). They include correcting the confirmed local workflow inconsistencies, establishing the approved runnable API target, completing real-provider acceptance tests, adding deployment-wide rate limits, exercising backup restoration, and completing incident-response and independent-security reviews.
 
 Operational procedures and the approval checklist are in [docs/runbooks](docs/runbooks), including [backup and recovery](docs/runbooks/backup-and-recovery.md), [incident response](docs/runbooks/incident-response.md), and [production preflight](docs/runbooks/production-preflight.md).
 

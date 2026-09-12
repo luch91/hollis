@@ -12,7 +12,7 @@ Do not use Resend for credential verification, password recovery, invitations, o
 The approved verified sending subdomain is `mail.thehollis.xyz`. Configure the API sender as:
 
 ```dotenv
-RESEND_FROM="Hollis <welcome@mail.thehollis.xyz>"
+RESEND_FROM="Hollis <hello@mail.thehollis.xyz>"
 ```
 
 Resend does not need inbound receiving enabled for this welcome-only release.
@@ -25,7 +25,7 @@ Resend does not need inbound receiving enabled for this welcome-only release.
 
 ```dotenv
 RESEND_API_KEY=replace-with-server-only-value
-RESEND_FROM="Hollis <welcome@mail.thehollis.xyz>"
+RESEND_FROM="Hollis <hello@mail.thehollis.xyz>"
 ```
 
 4. Restart the API after setting the values.
