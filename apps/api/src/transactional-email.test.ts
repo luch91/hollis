@@ -18,7 +18,7 @@ describe("Resend transactional email adapter", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     const service = createResendTransactionalEmailService({
       apiKey: "re_test_key_value",
-      from: "Hollis <welcome@mail.thehollis.xyz>",
+      from: "Hollis <hello@mail.thehollis.xyz>",
     });
 
     await expect(
@@ -48,7 +48,7 @@ describe("Resend transactional email adapter", () => {
     ) as typeof fetch;
     const service = createResendTransactionalEmailService({
       apiKey: "re_test_key_value",
-      from: "Hollis <welcome@mail.thehollis.xyz>",
+      from: "Hollis <hello@mail.thehollis.xyz>",
     });
 
     await expect(

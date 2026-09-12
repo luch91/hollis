@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { HollisBrand } from "../../hollis-brand";
+import { PublicDocumentLinks } from "../../public-document-links";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 export default async function AcceptInvitation({
@@ -26,7 +28,7 @@ export default async function AcceptInvitation({
     <main className="auth-shell">
       <section className="auth-card">
         <a className="product-wordmark" href="/">
-          Hollis
+          <HollisBrand />
         </a>
         <p className="eyebrow">Workspace invitation</p>
         <h1>Join this workspace.</h1>
@@ -43,6 +45,7 @@ export default async function AcceptInvitation({
             Accept invitation
           </button>
         </form>
+        <PublicDocumentLinks />
       </section>
     </main>
   );

@@ -3732,6 +3732,76 @@ dd {
     "Times New Roman",
     serif;
 }
+.admin-access-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 22px 0 8px;
+  padding: 15px 18px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 90%, var(--lime) 10%);
+}
+.admin-access-notice > div {
+  display: grid;
+  gap: 4px;
+}
+.admin-access-notice span,
+.admin-access-notice small,
+.admin-role-label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.admin-access-notice strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.review-access-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 24px 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 90%, var(--lime) 10%);
+}
+.review-access-notice strong {
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.review-access-notice span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-profile-readonly dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.admin-profile-readonly dl > div {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.45fr) 1fr;
+  gap: 18px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.admin-profile-readonly dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-profile-readonly dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.admin-role-label {
+  flex: 0 0 auto;
+}
 .page-intro {
   max-width: 650px;
   color: var(--muted);

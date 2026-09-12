@@ -1,50 +1,51 @@
+import { createHash } from "node:crypto";
+import type { AttestationReceipt, PolicyVersion } from "@hollis/contracts";
 import {
   attestationRecordSchema,
   evidenceReferenceSchema,
   policyLibraryControlSchema,
   publicAttestationCaseFileSchema,
-  recommendationSchema,
   type ReviewExport,
-  riskLevelSchema,
+  recommendationSchema,
   reviewCaseStatusSchema,
   reviewOutcomeSchema,
+  riskLevelSchema,
 } from "@hollis/contracts";
+import type { createDatabase } from "@hollis/database";
 import {
   attestations,
   evidenceObjects,
   policyControls,
   policyVersions,
+  publicAttestationCaseFiles,
   retentionDeletionJobs,
   reviewCases,
   reviewEvents,
-  publicAttestationCaseFiles,
+  tenantMemberships,
   tenants,
+  users,
   workspaceAuditEvents,
   workspaceInvitations,
 } from "@hollis/database";
-import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
-import type { createDatabase } from "@hollis/database";
-import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
-import type { ApplicationSessionStore } from "./auth.js";
-import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
-import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
-import type { AttestationReceipt } from "@hollis/contracts";
+import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
+import type { ApplicationSessionStore } from "./auth.js";
+import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
-import type { PolicyVersion } from "@hollis/contracts";
-import type { RetentionDeletionJobStore, RetentionDeletionJob } from "./retention-worker.js";
+import type { RetentionDeletionJob, RetentionDeletionJobStore } from "./retention-worker.js";
+import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
+import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
+import {
+  type ReviewCaseDetail,
+  ReviewCaseNotFoundError,
+  ReviewCaseTransitionError,
+  type ReviewWorkflowStore,
+} from "./workflow.js";
+import { digestInvitationToken } from "./workspace-controls.js";
 import type {
   WorkspaceProvisioningRecord,
   WorkspaceProvisioningStore,
 } from "./workspace-provisioning.js";
-import {
-  type ReviewCaseDetail,
-  type ReviewWorkflowStore,
-  ReviewCaseNotFoundError,
-  ReviewCaseTransitionError,
-} from "./workflow.js";
-import { digestInvitationToken } from "./workspace-controls.js";
 
 type Database = ReturnType<typeof createDatabase>["database"];
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -285,6 +286,18 @@ export function createPostgresWorkspaceProvisioningStore(
 
 export function createPostgresWorkspaceControlsStore(database: Database) {
   return {
+    async getMemberIdentity(tenantId: string, actorId: string, userId: string) {
+      const [record] = await database.execute<{
+        avatarUrl: string | null;
+        displayName: string | null;
+        email: string | null;
+        role: string;
+        userId: string;
+      }>(
+        sql`select * from public.get_hollis_workspace_member_identity(${tenantId}::uuid, ${actorId}::uuid, ${userId})`,
+      );
+      return record ?? null;
+    },
     async getProfile(tenantId: string) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
@@ -322,6 +335,29 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
       }>(
         sql`select * from public.list_hollis_workspace_members(${tenantId}::uuid, ${actorId}::uuid)`,
       );
+    },
+    async searchMembers(tenantId: string, query: string) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const pattern = `%${query}%`;
+        return transaction
+          .select({
+            displayName: users.displayName,
+            email: users.email,
+            role: tenantMemberships.role,
+            userId: users.id,
+          })
+          .from(tenantMemberships)
+          .innerJoin(users, eq(users.id, tenantMemberships.userId))
+          .where(
+            and(
+              eq(tenantMemberships.tenantId, tenantId),
+              or(ilike(users.displayName, pattern), ilike(users.email, pattern)),
+            ),
+          )
+          .orderBy(asc(users.displayName), asc(users.email))
+          .limit(20);
+      });
     },
     async createInvitation(
       tenantId: string,

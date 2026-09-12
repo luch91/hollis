@@ -9,6 +9,7 @@ import {
   type HorizonRow,
   riskRow,
 } from "./review-cases/review-presentation";
+import { canCreateReviewCases } from "./workspace-capabilities";
 
 function formatDate(value: string | null) {
   if (!value) return "No deadline";
@@ -86,16 +87,26 @@ function Horizon({ cases, now }: { cases: ReviewQueueItem[]; now: Date }) {
   );
 }
 
-function NextAction({ reviewCase }: { reviewCase: ReviewQueueItem | null }) {
+function NextAction({
+  canCreate,
+  reviewCase,
+}: {
+  canCreate: boolean;
+  reviewCase: ReviewQueueItem | null;
+}) {
   if (!reviewCase) {
     return (
       <aside className="overview-next-action overview-next-action-empty">
         <p className="eyebrow">Queue clear</p>
         <h2>No active decision requires review.</h2>
         <p>New cases will appear here after they are bound to a published policy control.</p>
-        <Link href="/app/review-cases/new">
-          Create review case <span>›</span>
-        </Link>
+        {canCreate ? (
+          <Link href="/app/review-cases/new">
+            New review case <span>›</span>
+          </Link>
+        ) : (
+          <small>Read-only workspace access</small>
+        )}
       </aside>
     );
   }
@@ -208,6 +219,7 @@ export default async function ApplicationPage() {
     listReviewCases(),
     listReviewCases("completed"),
   ]);
+  const canCreate = canCreateReviewCases(session?.session.activeWorkspace?.role ?? "");
   const now = new Date();
   const nextCase =
     [...activeCases]
@@ -219,39 +231,14 @@ export default async function ApplicationPage() {
       activityCases.map((reviewCase) => getReviewExport(reviewCase.id).catch(() => null)),
     )
   ).filter((exported): exported is ReviewExport => exported !== null);
-  const attentionCount = activeCases.filter(
-    (reviewCase) => reviewCase.riskLevel === "critical" || reviewCase.status === "escalated",
-  ).length;
-
   return (
     <section className="petrol-overview">
-      <header className="petrol-page-intro">
-        <div>
-          <p className="eyebrow">Decision operations</p>
-          <h1>{session?.session.activeWorkspace?.name ?? "Workspace"} review horizon</h1>
-          <p>
-            {activeCases.length} open. {attentionCount} need immediate attention. Every
-            consequential outcome remains human-authorized.
-          </p>
-        </div>
-        <aside className="petrol-overview-metrics" aria-label="Workspace case metrics">
-          <div>
-            <strong>{activeCases.length}</strong>
-            <span>Open</span>
-          </div>
-          <div>
-            <strong>{attentionCount}</strong>
-            <span>Attention</span>
-          </div>
-          <div>
-            <strong>{completedCases.length}</strong>
-            <span>Completed</span>
-          </div>
-        </aside>
+      <header className="petrol-page-intro petrol-overview-heading">
+        <h1>Your workspace in perspective</h1>
       </header>
       <div className="overview-primary-grid">
         <Horizon cases={activeCases} now={now} />
-        <NextAction reviewCase={nextCase} />
+        <NextAction canCreate={canCreate} reviewCase={nextCase} />
       </div>
       <div className="overview-secondary-grid">
         <Activity exports={caseExports} />

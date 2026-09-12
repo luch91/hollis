@@ -2,6 +2,7 @@ import { digestApplicationSessionToken } from "./identity-platform.js";
 
 const rolePermissions = {
   administrator: [
+    "workspace:read",
     "reviews:read",
     "reviews:create",
     "reviews:assign",
@@ -12,9 +13,10 @@ const rolePermissions = {
     "workspace:manage",
     "policies:manage",
   ],
-  auditor: ["reviews:read"],
-  contributor: ["reviews:create"],
+  auditor: ["workspace:read", "reviews:read"],
+  contributor: ["workspace:read", "reviews:create"],
   owner: [
+    "workspace:read",
     "reviews:read",
     "reviews:create",
     "reviews:assign",
@@ -26,6 +28,7 @@ const rolePermissions = {
     "policies:manage",
   ],
   reviewer: [
+    "workspace:read",
     "reviews:read",
     "reviews:create",
     "reviews:assign",

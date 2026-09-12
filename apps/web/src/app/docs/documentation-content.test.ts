@@ -1,0 +1,44 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { documentationSlugs } from "./documentation-navigation";
+
+const source = readFileSync(new URL("./documentation-content.tsx", import.meta.url), "utf8");
+const normalizedSource = source.replace(/\s+/g, " ");
+
+describe("public documentation", () => {
+  it("provides content for every navigation entry", () => {
+    for (const slug of documentationSlugs) {
+      const property = slug.includes("-") ? JSON.stringify(slug) : slug;
+      expect(source, slug).toContain(`${property}:`);
+    }
+  });
+
+  it("documents the complete account-to-export workflow", () => {
+    for (const section of [
+      "create-account",
+      "create-workspace",
+      "publish-policy",
+      "create-case",
+      "add-evidence",
+      "record-decision",
+      "request-attestation",
+      "export-record",
+    ]) {
+      expect(source).toContain(`id: ${JSON.stringify(section)}`);
+    }
+    expect(source).toContain("Google Cloud Identity Platform");
+    expect(source).toContain("Upload and verify evidence");
+    expect(source).toContain("GenLayer Studio Dev");
+    expect(source).toContain("JSON");
+    expect(source).toContain("DOCX");
+    expect(source).toContain("PDF");
+    expect(source).toContain("/assets/documentation/account-access.png");
+    expect(source).toContain("/assets/documentation/account-access-mobile.png");
+  });
+
+  it("states the limits of privacy, terms, and attestation claims", () => {
+    expect(normalizedSource).toContain("not a customer data-processing agreement");
+    expect(normalizedSource).toContain("must not be presented as a final commercial agreement");
+    expect(normalizedSource).toContain("not a guarantee of legal or regulatory compliance");
+  });
+});

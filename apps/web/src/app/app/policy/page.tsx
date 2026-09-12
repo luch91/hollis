@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { readHollisSession } from "@/lib/hollis-session";
+import { OperationalPageHeader } from "../operational-page-header";
 import { createWorkspacePolicyAction } from "../review-cases/actions";
 import { listWorkspacePolicies } from "../review-cases/data";
 
@@ -10,15 +11,15 @@ export default async function PolicyLibraryPage() {
     session?.session.activeWorkspace?.role === "administrator";
   return (
     <section className="policy-library" aria-labelledby="policy-library-title">
-      <header className="policy-library-heading">
-        <Link href="/app/review-cases">← Back to review queue</Link>
-        <p className="eyebrow">Workspace governance</p>
-        <h1 id="policy-library-title">Policy Library</h1>
-        <p>
-          Published policies are immutable workspace records. New cases can only use a listed
-          control.
-        </p>
-      </header>
+      <OperationalPageHeader
+        eyebrow="Workspace governance"
+        summary="Published policies are immutable workspace records. New cases can only use a listed control."
+        title="Policy Library"
+        titleId="policy-library-title"
+      />
+      <Link className="back-link policy-library-back-link" href="/app/review-cases">
+        ← Back to review queue
+      </Link>
       <div className="policy-library-grid">
         <section className="policy-library-list" aria-labelledby="published-policies-title">
           <div className="section-heading">

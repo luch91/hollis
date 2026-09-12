@@ -10,9 +10,11 @@ import {
   signInWithPopup,
   type UserCredential,
 } from "firebase/auth";
+import { HollisBrand } from "../hollis-brand";
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getIdentityPlatformAuth } from "@/lib/identity-platform";
+import { PublicDocumentLinks } from "../public-document-links";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -134,7 +136,7 @@ export default function SignInPage() {
     <main className="auth-shell">
       <section className="auth-card" aria-labelledby="sign-in-title">
         <a className="product-wordmark" href="/">
-          Hollis
+          <HollisBrand />
         </a>
         <p className="eyebrow">Secure workspace access</p>
         <h1 id="sign-in-title">{mode === "sign-in" ? "Welcome back." : "Create your account."}</h1>
@@ -217,6 +219,7 @@ export default function SignInPage() {
             {mode === "sign-in" ? "Create an account" : "Sign in"}
           </button>
         </p>
+        <PublicDocumentLinks />
       </section>
     </main>
   );

@@ -18,6 +18,13 @@ export type ReviewQueueItem = {
 
 export type ReviewCaseDetail = ReviewQueueItem & {
   assignedAt: string | null;
+  assignedReviewer: {
+    avatarUrl: string | null;
+    displayName: string | null;
+    email: string | null;
+    role: string;
+    userId: string;
+  } | null;
   automatedSystemVersion: string;
   decisionOutcome: "approved" | "modified" | "rejected" | null;
   decisionRationale: string | null;
@@ -86,6 +93,13 @@ export type WorkspacePolicy = {
   publishedAt: string;
   title: string;
   version: string;
+};
+
+export type WorkspaceReviewerSearchResult = {
+  displayName: string | null;
+  email: string | null;
+  role: string;
+  userId: string;
 };
 
 type AttestationPolicy = {
@@ -162,6 +176,12 @@ export function createReviewCase(input: {
 
 export function listWorkspacePolicies() {
   return request<WorkspacePolicy[]>("/v1/policies");
+}
+
+export function searchWorkspaceReviewers(query: string) {
+  return request<WorkspaceReviewerSearchResult[]>(
+    `/v1/workspace/search/reviewers?q=${encodeURIComponent(query)}`,
+  );
 }
 
 export function createWorkspacePolicy(input: {

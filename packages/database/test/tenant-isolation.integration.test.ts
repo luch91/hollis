@@ -15,6 +15,9 @@ const publicCaseFileId = randomUUID();
 const organizationOneId = `org_${randomUUID()}`;
 const organizationTwoId = `org_${randomUUID()}`;
 const identityPlatformSubject = `identity_${randomUUID()}`;
+const memberActorId = randomUUID();
+const assignedMemberId = randomUUID();
+const outsideMemberId = randomUUID();
 let provisionedTenantId: string | undefined;
 let provisionedUserId: string | undefined;
 const evidence = [
@@ -27,6 +30,20 @@ beforeAll(async () => {
     values
       (${tenantOneId}, 'Isolation tenant one', ${organizationOneId}),
       (${tenantTwoId}, 'Isolation tenant two', ${organizationTwoId})
+  `;
+  await owner`
+    insert into users (id, display_name, email)
+    values
+      (${memberActorId}, 'Review lead', 'review.lead@example.test'),
+      (${assignedMemberId}, 'Jordan Blake', 'jordan.blake@example.test'),
+      (${outsideMemberId}, 'Outside reviewer', 'outside.reviewer@example.test')
+  `;
+  await owner`
+    insert into tenant_memberships (role, tenant_id, user_id)
+    values
+      ('administrator', ${tenantOneId}, ${memberActorId}),
+      ('reviewer', ${tenantOneId}, ${assignedMemberId}),
+      ('reviewer', ${tenantTwoId}, ${outsideMemberId})
   `;
 });
 
@@ -41,6 +58,18 @@ afterAll(async () => {
     await owner`delete from identity_accounts where user_id = ${provisionedUserId}`;
     await owner`delete from users where id = ${provisionedUserId}`;
   }
+  await owner`
+    delete from workspace_audit_events
+    where tenant_id in (${tenantOneId}, ${tenantTwoId})
+  `;
+  await owner`
+    delete from tenant_memberships
+    where user_id in (${memberActorId}, ${assignedMemberId}, ${outsideMemberId})
+  `;
+  await owner`
+    delete from users
+    where id in (${memberActorId}, ${assignedMemberId}, ${outsideMemberId})
+  `;
   await owner`delete from tenants where id in (${tenantOneId}, ${tenantTwoId})`;
   await owner.end();
 });
@@ -191,6 +220,118 @@ describe("PostgreSQL tenant isolation", () => {
       can_update_events: false,
       can_update_public_case_files: false,
     });
+  });
+
+  it("resolves only an assigned member from the authorized workspace", async () => {
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      const resolved = await transaction`
+        select *
+        from get_hollis_workspace_member_identity(
+          ${tenantOneId}::uuid,
+          ${memberActorId}::uuid,
+          ${assignedMemberId}
+        )
+      `;
+      const outside = await transaction`
+        select *
+        from get_hollis_workspace_member_identity(
+          ${tenantOneId}::uuid,
+          ${memberActorId}::uuid,
+          ${outsideMemberId}
+        )
+      `;
+
+      expect(resolved).toEqual([
+        {
+          avatarUrl: null,
+          displayName: "Jordan Blake",
+          email: "jordan.blake@example.test",
+          role: "reviewer",
+          userId: assignedMemberId,
+        },
+      ]);
+      expect(outside).toHaveLength(0);
+    });
+  });
+
+  it("redacts directory contact data for read-only workspace members", async () => {
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      const directory = await transaction`
+        select *
+        from list_hollis_workspace_members(${tenantOneId}::uuid, ${assignedMemberId}::uuid)
+      `;
+      const currentMember = directory.find((member) => member.userId === assignedMemberId);
+      const otherMember = directory.find((member) => member.userId === memberActorId);
+
+      expect(currentMember).toMatchObject({
+        displayName: "Jordan Blake",
+        email: "jordan.blake@example.test",
+        role: "reviewer",
+      });
+      expect(otherMember).toMatchObject({
+        avatarUrl: null,
+        displayName: "Review lead",
+        email: null,
+        role: "administrator",
+      });
+    });
+  });
+
+  it("updates a workspace profile through the guarded runtime function", async () => {
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      const updated = await transaction`
+        select *
+        from update_hollis_workspace_profile(
+          ${tenantOneId}::uuid,
+          ${memberActorId}::uuid,
+          'Isolation tenant one updated',
+          'technology',
+          'europe',
+          'https://isolation.example.test'
+        )
+      `;
+
+      expect(updated).toEqual([
+        {
+          id: tenantOneId,
+          industry: "technology",
+          name: "Isolation tenant one updated",
+          operatingRegion: "europe",
+          website: "https://isolation.example.test",
+        },
+      ]);
+    });
+
+    const [persisted] = await owner`
+      select industry, name, operating_region as "operatingRegion", website
+      from tenants
+      where id = ${tenantOneId}
+    `;
+    expect(persisted).toEqual({
+      industry: "technology",
+      name: "Isolation tenant one updated",
+      operatingRegion: "europe",
+      website: "https://isolation.example.test",
+    });
+  });
+
+  it("rejects member identity lookup by an actor outside the workspace", async () => {
+    await expect(
+      owner.begin(async (transaction) => {
+        await transaction.unsafe("set local role hollis_app");
+        await transaction`
+          select *
+          from get_hollis_workspace_member_identity(
+            ${tenantOneId}::uuid,
+            ${outsideMemberId}::uuid,
+            ${assignedMemberId}
+          )
+        `;
+      }),
+    ).rejects.toThrow(/Workspace membership required/);
   });
 
   it("allows the runtime role to provision only through the dedicated public function", async () => {

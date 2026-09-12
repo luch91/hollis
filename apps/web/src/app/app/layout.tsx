@@ -2,11 +2,13 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { HollisBrand } from "../hollis-brand";
 import { readHollisSession } from "@/lib/hollis-session";
 import {
   revokeHollisSession,
   SessionRevocationUnavailableError,
 } from "@/lib/hollis-session-revocation";
+import { GlobalSearch } from "./global-search";
 import { ThemeToggle } from "./theme-toggle";
 import { WorkspaceNavigation } from "./workspace-navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
@@ -40,7 +42,7 @@ export default async function ApplicationLayout({ children }: { children: ReactN
       <header className="product-rail">
         <div className="product-identity">
           <Link className="product-wordmark" href="/app" aria-label="Hollis review workspace">
-            Hollis
+            <HollisBrand />
           </Link>
           <span>
             Human oversight
@@ -50,15 +52,12 @@ export default async function ApplicationLayout({ children }: { children: ReactN
         </div>
         <WorkspaceNavigation />
         <div className="workspace-account">
-          <WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} />
+          <GlobalSearch />
           <ThemeToggle />
           <span aria-label="Workspace member profile" className="account-avatar" role="img">
             {workspace.name.slice(0, 1).toUpperCase()}
           </span>
-          <div>
-            <strong>Workspace member</strong>
-            <small>{workspace.role}</small>
-          </div>
+          <span className="account-role">{workspace.role}</span>
           <form action={signOutAction}>
             <button className="text-button" type="submit">
               Sign out
@@ -69,8 +68,9 @@ export default async function ApplicationLayout({ children }: { children: ReactN
       <section className="application-workspace" aria-label={`${workspace.name} Hollis workspace`}>
         <header className="workspace-topbar">
           <div className="workspace-title">
+            <WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} />
             <p>
-              {workspace.name} <span>/</span> Compliance Review
+              <span>/</span> Compliance Review
             </p>
           </div>
           <p className="workspace-context">Evidence, policy, human judgment, and attestation</p>

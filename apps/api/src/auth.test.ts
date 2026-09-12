@@ -44,6 +44,7 @@ describe("Hollis application-session verification", () => {
 
     await expect(verifier.verify("session-token")).resolves.toEqual({
       permissions: [
+        "workspace:read",
         "reviews:read",
         "reviews:create",
         "reviews:assign",

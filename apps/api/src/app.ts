@@ -88,11 +88,11 @@ import {
   createResendTransactionalEmailService,
   type TransactionalEmailService,
 } from "./transactional-email.js";
+import { claimsWebhookSchema, InvalidWebhookError, verifyClaimsWebhook } from "./webhook.js";
 import type {
   PendingWelcomeEmailDelivery,
   WelcomeEmailDeliveryStore,
 } from "./welcome-email-delivery.js";
-import { claimsWebhookSchema, InvalidWebhookError, verifyClaimsWebhook } from "./webhook.js";
 import {
   ReviewCaseNotFoundError,
   ReviewCaseTransitionError,
@@ -240,12 +240,14 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
             acceptInvitation: unavailable,
             changeMemberRole: unavailable,
             createInvitation: unavailable,
+            getMemberIdentity: unavailable,
             getProfile: unavailable,
             listInvitations: unavailable,
             listAuditEvents: unavailable,
             listMembers: unavailable,
             listUserWorkspaces: unavailable,
             revokeInvitation: unavailable,
+            searchMembers: unavailable,
             updateProfile: unavailable,
           } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
         })());
@@ -674,7 +676,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.get(
     "/v1/workspace",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read") },
     async (request) => {
       const { tenant } = requireRequestContext(request);
       return workspaceControlsStore.getProfile(tenant.id);
@@ -697,11 +699,29 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   app.get(
     "/v1/workspace/members",
     {
-      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read"),
     },
     async (request) => {
       const { principal, tenant } = requireRequestContext(request);
-      return workspaceControlsStore.listMembers(tenant.id, principal.userId);
+      const canManage = principal.permissions.includes("workspace:manage");
+      const members = await workspaceControlsStore.listMembers(tenant.id, principal.userId);
+      return members.map(({ userId, ...member }) => ({
+        ...member,
+        isCurrentUser: userId === principal.userId,
+        userId: canManage ? userId : null,
+      }));
+    },
+  );
+  app.get(
+    "/v1/workspace/search/reviewers",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request) => {
+      const { q } = z
+        .object({ q: z.string().trim().min(2).max(120) })
+        .strict()
+        .parse(request.query);
+      const { tenant } = requireRequestContext(request);
+      return workspaceControlsStore.searchMembers(tenant.id, q);
     },
   );
   app.patch(
@@ -1151,13 +1171,21 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
     async (request) => {
       const { caseId } = caseParamsSchema.parse(request.params);
-      const { tenant } = requireRequestContext(request);
+      const { principal, tenant } = requireRequestContext(request);
       const reviewCase = await workflowStore.get(tenant.id, caseId);
       if (!reviewCase) {
         throw new ReviewCaseNotFoundError();
       }
 
-      return toDetailResponse(reviewCase);
+      const assignedReviewer = reviewCase.assignedToUserId
+        ? await workspaceControlsStore.getMemberIdentity(
+            tenant.id,
+            principal.userId,
+            reviewCase.assignedToUserId,
+          )
+        : null;
+
+      return toDetailResponse(reviewCase, assignedReviewer);
     },
   );
 

@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
+import { HollisBrand } from "../hollis-brand";
+import { PublicDocumentLinks } from "../public-document-links";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -41,7 +43,7 @@ export default async function OnboardingPage({
     <main className="auth-shell">
       <section className="auth-card" aria-labelledby="workspace-title">
         <a className="product-wordmark" href="/">
-          Hollis
+          <HollisBrand />
         </a>
         <p className="eyebrow">Workspace setup</p>
         <h1 id="workspace-title">Create your organization workspace.</h1>
@@ -68,6 +70,7 @@ export default async function OnboardingPage({
         <p className="auth-switch">
           Have an invitation? Open the invitation link sent to your email.
         </p>
+        <PublicDocumentLinks />
       </section>
     </main>
   );

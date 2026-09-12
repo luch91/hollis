@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { readHollisSession } from "@/lib/hollis-session";
+import { canCreateReviewCases } from "../../workspace-capabilities";
 import { createReviewCaseAction } from "../actions";
 import { listWorkspacePolicies } from "../data";
 
 export default async function NewReviewCasePage() {
+  const session = await readHollisSession();
+  if (!canCreateReviewCases(session?.session.activeWorkspace?.role ?? "")) {
+    redirect("/app/review-cases?access=case-create-restricted");
+  }
   const policies = await listWorkspacePolicies();
   return (
     <section className="new-review-case" aria-labelledby="new-review-case-title">

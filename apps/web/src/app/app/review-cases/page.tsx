@@ -1,9 +1,11 @@
 import type { ReviewExport } from "@hollis/contracts/review-case";
-import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { readHollisSession } from "@/lib/hollis-session";
+import { OperationalPageHeader } from "../operational-page-header";
+import { canCreateReviewCases, canPerformHumanReview } from "../workspace-capabilities";
 import { claimAction, decideAction, escalateAction } from "./actions";
+import { AttestationHorizon } from "./attestation-visuals";
 import {
   type AttestationRecord,
   getReviewCase,
@@ -14,18 +16,16 @@ import {
   type ReviewQueueItem,
   ReviewServiceError,
 } from "./data";
-import { matchesReviewSearch } from "./review-presentation";
+import { keyEvidenceRecords, presentAssignee } from "./review-presentation";
 
 type ReviewerProfile = {
-  email: string;
   id: string;
-  name: string;
 };
 
 type WorkspaceQuery = {
+  access?: string;
   caseId?: string;
   risk?: string;
-  search?: string;
   status?: string;
   tab?: string;
   view?: string;
@@ -61,17 +61,19 @@ function shortId(value: string) {
 }
 
 function CaseQueue({
+  canCreate,
   cases,
   query,
   selectedId,
   totalCount,
 }: {
+  canCreate: boolean;
   cases: ReviewQueueItem[];
   query: WorkspaceQuery;
   selectedId?: string;
   totalCount: number;
 }) {
-  const filtersActive = Boolean(query.risk || query.search || query.status);
+  const filtersActive = Boolean(query.risk || query.status);
   const queueLabel =
     query.status === "completed"
       ? "Completed Cases"
@@ -87,22 +89,15 @@ function CaseQueue({
           <h1>
             {queueLabel} <span>{totalCount}</span>
           </h1>
-          <Link className="new-review-case-link" href="/app/review-cases/new">
-            New review case
-          </Link>
+          {canCreate ? (
+            <Link className="new-review-case-link" href="/app/review-cases/new">
+              New review case
+            </Link>
+          ) : null}
         </div>
         <details className="queue-filter-menu" open={filtersActive}>
           <summary aria-label="Queue filters">☷</summary>
           <form action="/app/review-cases" method="get">
-            <label>
-              Search queue
-              <input
-                defaultValue={query.search ?? ""}
-                name="search"
-                placeholder="Case reference or source"
-                type="search"
-              />
-            </label>
             <label>
               Workflow status
               <select defaultValue={query.status ?? "active"} name="status">
@@ -168,143 +163,101 @@ function CaseQueue({
   );
 }
 
-function DecisionGraph({ reviewCase }: { reviewCase: ReviewCaseDetail }) {
-  const evidence = reviewCase.evidence.slice(0, 6);
-  const sourceSlots = evidence.length
-    ? evidence
-    : [{ digest: "", id: "No evidence recorded", mediaType: "Awaiting evidence" }];
+function CaseSummaryPanel({
+  query,
+  reviewCase,
+}: {
+  query: WorkspaceQuery;
+  reviewCase: ReviewCaseDetail;
+}) {
+  const evidence = keyEvidenceRecords(reviewCase.evidence).slice(0, 3);
   return (
-    <div className="reference-graph" id="evidence" aria-label="Decision evidence graph" role="img">
-      <p className="graph-label graph-label-source">Source evidence</p>
-      <p className="graph-label graph-label-policy">Policy references</p>
-      <svg aria-hidden="true" viewBox="0 0 660 430" preserveAspectRatio="none">
-        {sourceSlots.map((item, index) => (
-          <path
-            className="graph-line graph-line-valid"
-            d={`M145 ${69 + index * 54} C210 ${69 + index * 54} 190 210 252 210`}
-            key={`source-${item.id}`}
-            style={{ "--line-index": index } as CSSProperties}
-          />
-        ))}
-        <path className="graph-line graph-line-valid" d="M390 210 C437 210 420 95 465 95" />
-        <path className="graph-line graph-line-warning" d="M390 210 C437 210 420 214 465 214" />
-        <path className="graph-line graph-line-valid" d="M390 210 C437 210 420 333 465 333" />
-      </svg>
-      <div className="source-nodes">
-        {sourceSlots.map((item, index) => (
-          <article
-            className="graph-card source-card"
-            key={item.id}
-            style={{ "--node-index": index } as CSSProperties}
-          >
-            <span className="source-icon" aria-hidden="true">
-              ▱
-            </span>
-            <div>
-              <strong>{item.id}</strong>
-              <small>{item.mediaType}</small>
-              <small>{item.digest ? shortId(item.digest) : "No integrity digest"}</small>
-            </div>
-            <span className="node-check" aria-label="Reference recorded" role="img">
-              ✓
-            </span>
-          </article>
-        ))}
-      </div>
-      <article className="graph-card model-card">
-        <div className="model-card-heading">
-          <span>Model output</span>
-          <small>{formatDate(reviewCase.createdAt, true)}</small>
-        </div>
-        <div className="model-primary">
+    <div className="case-summary-records" id="case-summary">
+      <section className="case-summary-card" aria-labelledby="case-summary-title">
+        <div className="case-record-heading">
           <div>
-            <small>Decision</small>
-            <strong>
-              <i />
-              {reviewCase.recommendation.replaceAll("_", " ")}
-            </strong>
+            <span>Case record</span>
+            <h3 id="case-summary-title">Case Summary</h3>
+          </div>
+          <em className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel} risk</em>
+        </div>
+        <dl className="case-fact-grid">
+          <div>
+            <dt>Reference</dt>
+            <dd>{reviewCase.hollisCaseReference}</dd>
           </div>
           <div>
-            <small>Risk</small>
-            <strong>{reviewCase.riskLevel}</strong>
+            <dt>Recommendation</dt>
+            <dd>{reviewCase.recommendation.replaceAll("_", " ")}</dd>
           </div>
+          <div>
+            <dt>Automated system</dt>
+            <dd>{reviewCase.automatedSystemVersion}</dd>
+          </div>
+          <div>
+            <dt>Review due</dt>
+            <dd>{formatDate(reviewCase.reviewDueAt)}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section
+        className="case-summary-card case-evidence-inventory"
+        aria-labelledby="evidence-inventory-title"
+      >
+        <div className="case-record-heading">
+          <div>
+            <span>Managed evidence</span>
+            <h3 id="evidence-inventory-title">Evidence inventory ({reviewCase.evidence.length})</h3>
+          </div>
+          <Link href={workspaceHref(query, { tab: "evidence" })}>View all</Link>
         </div>
-        <div className="factor-list">
-          <small>Recorded decision context</small>
-          <p>
-            <span>Policy trigger</span>
-            <i aria-hidden="true" />
-          </p>
-          <p>
-            <span>Risk classification</span>
-            <i aria-hidden="true" />
-          </p>
-          <p>
-            <span>Review requirement</span>
-            <i aria-hidden="true" />
-          </p>
+        {evidence.length > 0 ? (
+          <div className="case-evidence-rows">
+            {evidence.map(({ key, record: item }) => (
+              <article key={key}>
+                <span aria-hidden="true">▱</span>
+                <div>
+                  <strong>{item.id}</strong>
+                  <small>{item.mediaType}</small>
+                </div>
+                <code>{shortId(item.digest)}</code>
+                <em>Verified</em>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="case-summary-empty">No evidence references have been recorded.</p>
+        )}
+      </section>
+
+      <section
+        className="case-summary-card case-policy-binding"
+        aria-labelledby="policy-binding-title"
+      >
+        <div className="case-record-heading">
+          <div>
+            <span>Governance control</span>
+            <h3 id="policy-binding-title">Policy binding</h3>
+          </div>
+          <Link href="/app/policy">View policy</Link>
         </div>
-        <div className="model-alert">
-          ● Human review required <small>See {reviewCase.ruleId}</small>
-        </div>
-      </article>
-      <div className="policy-nodes">
-        <article className="graph-card policy-card">
-          <span>POLICY</span>
-          <strong>{reviewCase.policyVersion}</strong>
-          <p>Policy version bound to this review case.</p>
-          <small>Recorded binding</small>
-        </article>
-        <article className="graph-card policy-card policy-exception">
-          <span>CONTROL</span>
-          <strong>{reviewCase.ruleId}</strong>
-          <p>The rule that triggered or governs human review.</p>
-          <small>View control</small>
-        </article>
-        <article className="graph-card policy-card">
-          <span>GUARDRAIL</span>
-          <strong>Human decision</strong>
-          <p>An automated recommendation cannot execute a consequential action alone.</p>
-          <small>Mandatory</small>
-        </article>
-      </div>
-      <div className="reviewer-notes" id="communications">
-        <div>
-          <span>Reviewer notes</span>
-          <small>
-            {[reviewCase.escalationReason, reviewCase.decisionRationale].filter(Boolean).length}
-          </small>
-        </div>
-        {reviewCase.escalationReason ? (
-          <article>
-            <span className="note-avatar">E</span>
-            <div>
-              <strong>Escalation</strong>
-              <small>{formatDate(reviewCase.escalatedAt, true)}</small>
-              <p>{reviewCase.escalationReason}</p>
-            </div>
-          </article>
-        ) : null}
-        {reviewCase.decisionRationale ? (
-          <article>
-            <span className="note-avatar">R</span>
-            <div>
-              <strong>Decision rationale</strong>
-              <small>{formatDate(reviewCase.decidedAt, true)}</small>
-              <p>{reviewCase.decisionRationale}</p>
-            </div>
-          </article>
-        ) : null}
-        {!reviewCase.escalationReason && !reviewCase.decisionRationale ? (
-          <article>
-            <span className="note-avatar">R</span>
-            <div>
-              <strong>No note recorded</strong>
-              <p>Reviewer rationale will appear here when the case is decided or escalated.</p>
-            </div>
-          </article>
-        ) : null}
-      </div>
+        <dl>
+          <div>
+            <dt>Policy</dt>
+            <dd>{reviewCase.policyVersion}</dd>
+          </div>
+          <div>
+            <dt>Control</dt>
+            <dd>{reviewCase.ruleId}</dd>
+          </div>
+          <div>
+            <dt>Requirement</dt>
+            <dd>Human decision required</dd>
+          </div>
+        </dl>
+        <span className="policy-binding-state">Bound</span>
+      </section>
     </div>
   );
 }
@@ -335,7 +288,13 @@ function CaseHistory({ exported }: { exported: ReviewExport }) {
   );
 }
 
-function CaseEvidencePanel({ reviewCase }: { reviewCase: ReviewCaseDetail }) {
+function CaseEvidencePanel({
+  canCreate,
+  reviewCase,
+}: {
+  canCreate: boolean;
+  reviewCase: ReviewCaseDetail;
+}) {
   return (
     <section className="case-tab-panel case-evidence-panel" aria-labelledby="evidence-panel-title">
       <div className="case-tab-panel-heading">
@@ -343,12 +302,14 @@ function CaseEvidencePanel({ reviewCase }: { reviewCase: ReviewCaseDetail }) {
           <span>Managed evidence</span>
           <h3 id="evidence-panel-title">Evidence references</h3>
         </div>
-        <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
+        {canCreate ? (
+          <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
+        ) : null}
       </div>
       {reviewCase.evidence.length > 0 ? (
         <div className="case-tab-records">
-          {reviewCase.evidence.map((evidence, index) => (
-            <article key={evidence.id}>
+          {keyEvidenceRecords(reviewCase.evidence).map(({ key, record: evidence }, index) => (
+            <article key={key}>
               <span>{String(index + 1).padStart(2, "0")}</span>
               <div>
                 <strong>{evidence.id}</strong>
@@ -413,19 +374,17 @@ function CaseCommunicationsPanel({ reviewCase }: { reviewCase: ReviewCaseDetail 
 }
 
 function HumanReviewPanel({
+  canReview,
   reviewCase,
   reviewer,
 }: {
+  canReview: boolean;
   reviewCase: ReviewCaseDetail;
   reviewer: ReviewerProfile;
 }) {
   const needsClaim = reviewCase.status === "pending" || reviewCase.status === "escalated";
   const isAssignedReviewer = reviewCase.assignedToUserId === reviewer.id;
-  const assigneeName = isAssignedReviewer
-    ? reviewer.name
-    : reviewCase.assignedToUserId
-      ? shortId(reviewCase.assignedToUserId)
-      : "Unassigned";
+  const assignee = presentAssignee(reviewCase.assignedToUserId, reviewCase.assignedReviewer);
   return (
     <section className="human-review-card">
       <div className="human-review-title">
@@ -438,31 +397,35 @@ function HumanReviewPanel({
         Review the evidence references and confirm the outcome against the recorded policy control.
       </p>
       <div className="review-assignee">
-        <span
-          aria-label={isAssignedReviewer ? `${reviewer.name} profile` : "Reviewer profile"}
-          className="reviewer-avatar"
-          role="img"
-        >
-          {assigneeName.slice(0, 1).toUpperCase()}
+        <span aria-label={`${assignee.name} profile`} className="reviewer-avatar" role="img">
+          {assignee.name.slice(0, 1).toUpperCase()}
         </span>
         <div>
           <small>Assigned to</small>
-          <strong>{assigneeName}</strong>
-          {isAssignedReviewer ? <small>{reviewer.email}</small> : null}
+          <strong>{assignee.name}</strong>
+          {assignee.meta ? <small>{assignee.meta}</small> : null}
         </div>
         <div>
           <small>Due</small>
           <strong>{formatDate(reviewCase.reviewDueAt)}</strong>
         </div>
       </div>
-      {needsClaim ? (
+      {!canReview && reviewCase.status !== "completed" ? (
+        <div className="recorded-decision">
+          <span>Read-only review</span>
+          <strong>Human review actions are restricted.</strong>
+          <p>
+            Your workspace role can inspect this record but cannot claim, escalate, or decide it.
+          </p>
+        </div>
+      ) : needsClaim ? (
         <form action={claimAction} className="review-button-row">
           <input name="caseId" type="hidden" value={reviewCase.id} />
           <button className="reference-primary" type="submit">
             Claim for review <span>›</span>
           </button>
         </form>
-      ) : reviewCase.status === "in_review" ? (
+      ) : reviewCase.status === "in_review" && isAssignedReviewer ? (
         <div className="inline-review-actions">
           <form action={decideAction}>
             <input name="caseId" type="hidden" value={reviewCase.id} />
@@ -506,6 +469,12 @@ function HumanReviewPanel({
               Request changes
             </button>
           </form>
+        </div>
+      ) : reviewCase.status === "in_review" ? (
+        <div className="recorded-decision">
+          <span>Review in progress</span>
+          <strong>Assigned to {assignee.name}</strong>
+          <p>Only the assigned reviewer can record or escalate this decision.</p>
         </div>
       ) : (
         <div className="recorded-decision">
@@ -624,12 +593,16 @@ function ExportPreview({
 }
 
 function SelectedCaseWorkspace({
+  canCreate,
+  canReview,
   reviewCase,
   attestations,
   exported,
   reviewer,
   query,
 }: {
+  canCreate: boolean;
+  canReview: boolean;
   reviewCase: ReviewCaseDetail;
   attestations: AttestationRecord[];
   exported: ReviewExport;
@@ -639,7 +612,7 @@ function SelectedCaseWorkspace({
   const tab = activeCaseTab(query.tab);
   return (
     <>
-      <section className={`reference-case-workspace view-${query.view ?? "canvas"}`}>
+      <section className="reference-case-workspace">
         <header className="reference-case-header">
           <div className="case-kicker">
             <span>{reviewCase.hollisCaseReference}</span>
@@ -699,35 +672,19 @@ function SelectedCaseWorkspace({
           >
             History
           </Link>
-          <span>
-            <Link
-              aria-label="Canvas view"
-              className={query.view !== "list" ? "is-active" : undefined}
-              href={workspaceHref(query, { view: "canvas" })}
-            >
-              ⌘
-            </Link>
-            <Link
-              aria-label="List view"
-              className={query.view === "list" ? "is-active" : undefined}
-              href={workspaceHref(query, { view: "list" })}
-            >
-              ☷
-            </Link>
-            <Link aria-label="Expand view" href={`/app/review-cases/${reviewCase.id}`}>
-              ↗
-            </Link>
-          </span>
+          <Link className="case-detail-link" href={`/app/review-cases/${reviewCase.id}`}>
+            Open full case
+          </Link>
         </nav>
         {tab === "summary" ? (
           <>
-            <div id="case-summary">
-              <DecisionGraph reviewCase={reviewCase} />
-            </div>
-            <HumanReviewPanel reviewCase={reviewCase} reviewer={reviewer} />
+            <CaseSummaryPanel query={query} reviewCase={reviewCase} />
+            <HumanReviewPanel canReview={canReview} reviewCase={reviewCase} reviewer={reviewer} />
           </>
         ) : null}
-        {tab === "evidence" ? <CaseEvidencePanel reviewCase={reviewCase} /> : null}
+        {tab === "evidence" ? (
+          <CaseEvidencePanel canCreate={canCreate} reviewCase={reviewCase} />
+        ) : null}
         {tab === "communications" ? <CaseCommunicationsPanel reviewCase={reviewCase} /> : null}
         {tab === "history" ? <CaseHistory exported={exported} /> : null}
       </section>
@@ -735,14 +692,17 @@ function SelectedCaseWorkspace({
         <div className="right-rail-heading">
           <div>
             <p className="eyebrow">Independent verification</p>
-            <h2>GenLayer</h2>
-            <p>Neutral process attestation, separate from the human decision.</p>
+            <h2>Attestation Horizon</h2>
+            <p>Evidence layers progress toward a portable GenLayer receipt.</p>
           </div>
           <nav className="right-rail-actions" aria-label="Selected case actions">
-            <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
+            {canCreate ? (
+              <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
+            ) : null}
             <Link href={`/app/review-cases/${reviewCase.id}`}>View details</Link>
           </nav>
         </div>
+        <AttestationHorizon attestations={attestations} reviewCase={reviewCase} />
         <GenLayerPanel attestations={attestations} reviewCase={reviewCase} />
         <ExportPreview attestations={attestations} reviewCase={reviewCase} />
       </aside>
@@ -759,7 +719,6 @@ function GenLayerPanel({
 }) {
   const latest = attestations.at(0);
   const humanDecisionRecorded = reviewCase.decisionOutcome !== null;
-  const evidenceReferenceRecorded = reviewCase.evidence.length > 0;
   const status = latest?.status ?? (humanDecisionRecorded ? "review complete" : "awaiting review");
   return (
     <section className="genlayer-panel" aria-labelledby="genlayer-panel-title">
@@ -767,46 +726,10 @@ function GenLayerPanel({
         <span aria-hidden="true">◉</span>
         <strong>{status}</strong>
       </div>
-      <h3 id="genlayer-panel-title">Independent Attestation</h3>
-      <p>GenLayer verifies the declared process after Hollis records the human review.</p>
-      <ol className="genlayer-readiness">
-        <li>
-          <span>Policy locked</span>
-          <strong>✓</strong>
-          <small>
-            {reviewCase.policyVersion} / {reviewCase.ruleId}
-          </small>
-        </li>
-        <li>
-          <span>Evidence reference</span>
-          <strong className={evidenceReferenceRecorded ? "is-ready" : "is-pending"}>
-            {evidenceReferenceRecorded ? "✓" : "○"}
-          </strong>
-          <small>{reviewCase.evidence.length} recorded</small>
-        </li>
-        <li>
-          <span>Human decision</span>
-          <strong className={humanDecisionRecorded ? "is-ready" : "is-pending"}>
-            {humanDecisionRecorded ? "✓" : "○"}
-          </strong>
-          <small>{humanDecisionRecorded ? "Recorded" : "Required"}</small>
-        </li>
-        <li>
-          <span>Case commitment</span>
-          <strong className={latest ? "is-ready" : "is-pending"}>{latest ? "✓" : "○"}</strong>
-          <small>{latest?.caseCommitment ?? "Generated after review"}</small>
-        </li>
-      </ol>
-      <section
-        className="genlayer-flow"
-        aria-label="Hollis case through GenLayer contract to a portable receipt"
-      >
-        <span>Hollis case</span>
-        <i>›</i>
-        <span>GenLayer contract</span>
-        <i>›</i>
-        <span>Receipt</span>
-      </section>
+      <h3 id="genlayer-panel-title">GenLayer attestation</h3>
+      <p>
+        GenLayer independently checks the declared process after Hollis records the human review.
+      </p>
       {latest ? (
         <dl className="genlayer-result">
           <div>
@@ -887,6 +810,9 @@ export default async function ReviewCasesPage({
   const query = explicitQuery ?? (searchParams ? await searchParams : {});
   const session = await readHollisSession();
   if (!session) throw new Error("An authenticated reviewer profile is required.");
+  const activeRole = session.session.activeWorkspace?.role ?? "";
+  const canCreate = canCreateReviewCases(activeRole);
+  const canReview = canPerformHumanReview(activeRole);
 
   const [activeCasesResult, completedCasesResult] = await Promise.allSettled([
     listReviewCases(),
@@ -910,9 +836,7 @@ export default async function ReviewCasesPage({
   const activeCases = activeCasesResult.value;
   const completedCases = completedCasesResult.value;
   const reviewer: ReviewerProfile = {
-    email: "",
     id: session.session.userId,
-    name: "Workspace member",
   };
   const allCases = [...activeCases, ...completedCases];
   const statusCases =
@@ -926,11 +850,7 @@ export default async function ReviewCasesPage({
   const riskCases = query.risk
     ? statusCases.filter((item) => item.riskLevel === query.risk)
     : statusCases;
-  const searchTerm = query.search?.trim().toLocaleLowerCase();
-  const matchingQueue = searchTerm
-    ? riskCases.filter((item) => matchesReviewSearch(item, searchTerm))
-    : riskCases;
-  const filteredQueue = matchingQueue.slice(0, 12);
+  const filteredQueue = riskCases.slice(0, 12);
   const explicitlySelected = query.caseId
     ? allCases.find((item) => item.id === query.caseId)
     : undefined;
@@ -957,39 +877,30 @@ export default async function ReviewCasesPage({
 
   return (
     <>
-      <header className="petrol-page-intro">
-        <div>
-          <p className="eyebrow">Decision operations</p>
-          <h1>Review operations</h1>
-          <p>
-            {activeCases.length} active {activeCases.length === 1 ? "case" : "cases"}. Human
-            judgment remains the authority for consequential outcomes.
-          </p>
-        </div>
-        <aside className="petrol-brand-art" aria-label="Hollis decision workflow">
-          <Image
-            alt="Abstract petrol and ice prism"
-            height={320}
-            priority
-            src="/assets/petrol-prism.webp"
-            width={720}
-          />
-          <div>
-            <strong>People. Policy. Evidence.</strong>
-            <span>One accountable record.</span>
-          </div>
+      <OperationalPageHeader
+        eyebrow="Decision operations"
+        title="Review operations"
+        summary={`${activeCases.length} active ${activeCases.length === 1 ? "case" : "cases"}. Human judgment remains the authority for consequential outcomes.`}
+      />
+      {query.access === "case-create-restricted" ? (
+        <aside className="review-access-notice" role="status">
+          <strong>Read-only review access</strong>
+          <span>Your workspace role cannot create review cases.</span>
         </aside>
-      </header>
+      ) : null}
       <section className="reference-dashboard">
         <CaseQueue
+          canCreate={canCreate}
           cases={queue}
           query={query}
           selectedId={reviewCase?.id}
-          totalCount={matchingQueue.length}
+          totalCount={riskCases.length}
         />
         {reviewCase && exported ? (
           <SelectedCaseWorkspace
             attestations={attestations}
+            canCreate={canCreate}
+            canReview={canReview}
             exported={exported}
             query={query}
             reviewCase={reviewCase}
@@ -999,9 +910,13 @@ export default async function ReviewCasesPage({
           <div className="reference-dashboard-empty">
             <h1>No review cases</h1>
             <p>Start a privacy-safe intake record for a decision that requires human review.</p>
-            <Link className="reference-primary" href="/app/review-cases/new">
-              Create review case <span>›</span>
-            </Link>
+            {canCreate ? (
+              <Link className="reference-primary" href="/app/review-cases/new">
+                New review case <span>›</span>
+              </Link>
+            ) : (
+              <p className="case-tab-empty">Your workspace role has read-only case access.</p>
+            )}
           </div>
         )}
       </section>

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { caseUrgency, dueBucket, matchesReviewSearch, riskRow } from "./review-presentation";
+import {
+  caseUrgency,
+  dueBucket,
+  keyEvidenceRecords,
+  presentAssignee,
+  riskRow,
+} from "./review-presentation";
 
 const now = new Date("2026-09-11T12:00:00.000Z");
 
@@ -31,15 +37,36 @@ describe("review presentation", () => {
     expect(overdueLow).toBeLessThan(futureCritical);
   });
 
-  it("searches case, source, and recommendation without case sensitivity", () => {
-    const reviewCase = {
-      externalReference: "Gaymused Access Review",
-      hollisCaseReference: "HL-26-7M4K-P9Q2",
-      recommendation: "investigate" as const,
-    };
-    expect(matchesReviewSearch(reviewCase, "7m4k")).toBe(true);
-    expect(matchesReviewSearch(reviewCase, "ACCESS")).toBe(true);
-    expect(matchesReviewSearch(reviewCase, "investigate")).toBe(true);
-    expect(matchesReviewSearch(reviewCase, "unrelated")).toBe(false);
+  it("assigns deterministic unique keys to repeated evidence references", () => {
+    const evidence = [
+      { digest: "sha256:abc", id: "decision-record.txt" },
+      { digest: "sha256:abc", id: "decision-record.txt" },
+    ];
+
+    expect(keyEvidenceRecords(evidence).map(({ key }) => key)).toEqual([
+      "decision-record.txt:sha256:abc:0",
+      "decision-record.txt:sha256:abc:1",
+    ]);
+  });
+
+  it("presents an assigned workspace member without exposing the internal identifier", () => {
+    expect(
+      presentAssignee("0198ef37-6216-7000-8000-000000000010", {
+        displayName: "Jordan Blake",
+        email: "jordan.blake@example.test",
+        role: "reviewer",
+      }),
+    ).toEqual({
+      meta: "reviewer · jordan.blake@example.test",
+      name: "Jordan Blake",
+    });
+  });
+
+  it("uses safe labels for an unassigned case and an unavailable former member", () => {
+    expect(presentAssignee(null, null)).toEqual({ meta: null, name: "Unassigned" });
+    expect(presentAssignee("0198ef37-6216-7000-8000-000000000010", null)).toEqual({
+      meta: null,
+      name: "Unknown former member",
+    });
   });
 });

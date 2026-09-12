@@ -3,16 +3,31 @@ import {
   AlignmentType,
   Document,
   HeadingLevel,
+  Header,
+  HorizontalPositionAlign,
+  HorizontalPositionRelativeFrom,
+  ImageRun,
   Packer,
   Paragraph,
   Table,
   TableCell,
   TableRow,
   TextRun,
+  TextWrappingType,
+  VerticalPositionAlign,
+  VerticalPositionRelativeFrom,
   WidthType,
 } from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { HOLLIS_MARK_PATH } from "../../../../hollis-brand-assets";
 import type { AttestationRecord } from "../../data";
+
+const HOLLIS_WATERMARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><title>Hollis watermark</title><path fill="#073954" fill-opacity="0.07" d="${HOLLIS_MARK_PATH}"/></svg>`;
+
+const transparentPixel = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
 
 export type CaseReportSource = {
   attestations: AttestationRecord[];
@@ -187,7 +202,7 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: "Hollis case decision record", bold: true })],
+      children: [new TextRun({ text: "Case decision record", bold: true })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -225,7 +240,45 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
   const document = new Document({
     creator: "Hollis",
     description: "Authenticated Hollis case decision record",
-    sections: [{ children }],
+    sections: [
+      {
+        children,
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    altText: {
+                      description: "Subtle Hollis Bound Record watermark",
+                      name: "Hollis watermark",
+                      title: "Hollis watermark",
+                    },
+                    data: Buffer.from(HOLLIS_WATERMARK_SVG),
+                    fallback: { data: transparentPixel, type: "png" },
+                    floating: {
+                      allowOverlap: true,
+                      behindDocument: true,
+                      horizontalPosition: {
+                        align: HorizontalPositionAlign.CENTER,
+                        relative: HorizontalPositionRelativeFrom.PAGE,
+                      },
+                      verticalPosition: {
+                        align: VerticalPositionAlign.CENTER,
+                        relative: VerticalPositionRelativeFrom.PAGE,
+                      },
+                      wrap: { type: TextWrappingType.NONE },
+                    },
+                    transformation: { height: 210, width: 210 },
+                    type: "svg",
+                  }),
+                ],
+              }),
+            ],
+          }),
+        },
+      },
+    ],
     title: `Hollis case ${source.exported.case.hollisCaseReference}`,
   });
   return Packer.toBuffer(document);
@@ -265,8 +318,23 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
   let page: PDFPage = pdf.addPage(pageSize);
   let y = pageSize[1] - margin;
 
+  const drawWatermark = (target: PDFPage) => {
+    const scale = 3.75;
+    const markSize = 48 * scale;
+    target.drawSvgPath(HOLLIS_MARK_PATH, {
+      color: rgb(0.027, 0.224, 0.329),
+      opacity: 0.055,
+      scale,
+      x: (pageSize[0] - markSize) / 2 - 8 * scale,
+      y: (pageSize[1] + markSize) / 2 + 8 * scale,
+    });
+  };
+
+  drawWatermark(page);
+
   const newPage = () => {
     page = pdf.addPage(pageSize);
+    drawWatermark(page);
     y = pageSize[1] - margin;
   };
   const drawLines = (
@@ -288,10 +356,10 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
     y -= options.gap ?? 7;
   };
 
-  drawLines("Hollis case decision record", {
+  drawLines("Case decision record", {
     font: bold,
     size: 24,
-    color: rgb(0.18, 0.28, 0.12),
+    color: rgb(0.027, 0.224, 0.329),
     gap: 3,
   });
   drawLines(source.exported.case.hollisCaseReference, {
@@ -302,7 +370,12 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
   });
 
   for (const section of buildSections(source)) {
-    drawLines(section.heading, { font: bold, size: 15, color: rgb(0.18, 0.28, 0.12), gap: 8 });
+    drawLines(section.heading, {
+      font: bold,
+      size: 15,
+      color: rgb(0.027, 0.224, 0.329),
+      gap: 8,
+    });
     for (const paragraph of section.paragraphs ?? [])
       drawLines(paragraph, { font: regular, size: 9.5, gap: 8 });
     for (const [field, value] of section.rows ?? []) {

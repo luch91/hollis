@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { readHollisSession } from "@/lib/hollis-session";
+import {
+  canCreateReviewCases,
+  canManageAttestations,
+  canPerformHumanReview,
+} from "../../workspace-capabilities";
 import {
   claimAction,
   createPublicAttestationCaseFileAction,
@@ -10,10 +16,16 @@ import {
   refreshAttestationAction,
 } from "../actions";
 import { getReviewCase, listAttestations, listPublicAttestationCaseFiles } from "../data";
-import { AttestationHorizon, EvidenceFlow } from "../attestation-visuals";
+import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
+import { keyEvidenceRecords } from "../review-presentation";
 
 export default async function ReviewCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await params;
+  const session = await readHollisSession();
+  const activeRole = session?.session.activeWorkspace?.role ?? "";
+  const canCreate = canCreateReviewCases(activeRole);
+  const canReview = canPerformHumanReview(activeRole);
+  const canAttest = canManageAttestations(activeRole);
   let reviewCase: Awaited<ReturnType<typeof getReviewCase>>;
   try {
     reviewCase = await getReviewCase(caseId);
@@ -35,9 +47,11 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           Back to case workspace
         </Link>
         <nav aria-label="Case actions and export formats" className="detail-export-links">
-          <a className="detail-add-evidence" href="#add-evidence">
-            Add evidence
-          </a>
+          {canCreate ? (
+            <a className="detail-add-evidence" href="#add-evidence">
+              Add evidence
+            </a>
+          ) : null}
           <a href={`/app/review-cases/${caseId}/export?format=json`}>JSON</a>
           <a href={`/app/review-cases/${caseId}/export?format=md`}>MD</a>
           <a href={`/app/review-cases/${caseId}/export?format=docx`}>DOCX</a>
@@ -61,7 +75,7 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
       </div>
       <div className="case-workspace-grid">
         <div className="case-workspace-main">
-          <EvidenceFlow
+          <CaseRecordOverview
             decisionOutcome={reviewCase.decisionOutcome}
             evidenceCount={reviewCase.evidence.length}
             policyLabel={`${reviewCase.policyVersion} / ${reviewCase.ruleId}`}
@@ -70,8 +84,8 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           />
           <div className="evidence-panel">
             <h2>Evidence references</h2>
-            {reviewCase.evidence.map((evidence) => (
-              <p key={evidence.id}>
+            {keyEvidenceRecords(reviewCase.evidence).map(({ key, record: evidence }) => (
+              <p key={key}>
                 {evidence.id} · {evidence.mediaType} · {evidence.digest}
               </p>
             ))}
@@ -121,7 +135,7 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
             </dd>
           </div>
         </dl>
-        {reviewCase.status === "completed" && publicCaseFileResult.available ? (
+        {reviewCase.status === "completed" && publicCaseFileResult.available && canAttest ? (
           <form action={createPublicAttestationCaseFileAction} className="attestation-form">
             <input name="caseId" type="hidden" value={caseId} />
             <h3>Generate controlled case file</h3>
@@ -180,9 +194,13 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
             </div>
             <button type="submit">Generate case file</button>
           </form>
-        ) : reviewCase.status === "completed" ? (
+        ) : reviewCase.status === "completed" && !publicCaseFileResult.available ? (
           <p className="attestation-notice">
             The controlled public case-file publisher is not configured for this environment.
+          </p>
+        ) : reviewCase.status === "completed" && !canAttest ? (
+          <p className="attestation-notice">
+            Your workspace role can inspect attestation records but cannot generate or import them.
           </p>
         ) : (
           <p className="attestation-notice">
@@ -212,22 +230,24 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
                     <dd>{publicCaseFile.caseFile.policy.control.controlId}</dd>
                   </div>
                 </dl>
-                <form action={importFinalizedAttestationAction} className="attestation-form">
-                  <input name="caseId" type="hidden" value={caseId} />
-                  <input name="publicCaseFileId" type="hidden" value={publicCaseFile.publicId} />
-                  <label>
-                    Finalized GenLayer transaction hash
-                    <input
-                      name="transactionHash"
-                      required
-                      pattern="0x[a-fA-F0-9]{64}"
-                      placeholder="0x..."
-                    />
-                  </label>
-                  <button className="secondary-action" type="submit">
-                    Verify and import finalized attestation
-                  </button>
-                </form>
+                {canAttest ? (
+                  <form action={importFinalizedAttestationAction} className="attestation-form">
+                    <input name="caseId" type="hidden" value={caseId} />
+                    <input name="publicCaseFileId" type="hidden" value={publicCaseFile.publicId} />
+                    <label>
+                      Finalized GenLayer transaction hash
+                      <input
+                        name="transactionHash"
+                        required
+                        pattern="0x[a-fA-F0-9]{64}"
+                        placeholder="0x..."
+                      />
+                    </label>
+                    <button className="secondary-action" type="submit">
+                      Verify and import finalized attestation
+                    </button>
+                  </form>
+                ) : null}
               </article>
             ))}
           </div>
@@ -257,35 +277,39 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
                     </div>
                   ) : null}
                 </dl>
-                <form action={refreshAttestationAction}>
-                  <input name="caseId" type="hidden" value={caseId} />
-                  <input name="attestationId" type="hidden" value={attestation.id} />
-                  <button className="secondary-action" type="submit">
-                    Refresh status
-                  </button>
-                </form>
+                {canAttest ? (
+                  <form action={refreshAttestationAction}>
+                    <input name="caseId" type="hidden" value={caseId} />
+                    <input name="attestationId" type="hidden" value={attestation.id} />
+                    <button className="secondary-action" type="submit">
+                      Refresh status
+                    </button>
+                  </form>
+                ) : null}
               </article>
             ))}
           </div>
         ) : null}
       </section>
-      <section className="detail-evidence-upload" id="add-evidence">
-        <div>
-          <p className="eyebrow">Controlled evidence</p>
-          <h2>Add evidence</h2>
-          <p>
-            Files are integrity checked and stored outside the public attestation record. Maximum
-            file size is 5 MB.
-          </p>
-        </div>
-        <form action={uploadEvidenceAction}>
-          <input name="caseId" type="hidden" value={caseId} />
-          <label htmlFor="evidence-file">Select evidence file</label>
-          <input id="evidence-file" name="file" required type="file" />
-          <button type="submit">Upload and verify evidence</button>
-        </form>
-      </section>
-      {reviewCase.status === "pending" || reviewCase.status === "escalated" ? (
+      {canCreate ? (
+        <section className="detail-evidence-upload" id="add-evidence">
+          <div>
+            <p className="eyebrow">Controlled evidence</p>
+            <h2>Add evidence</h2>
+            <p>
+              Files are integrity checked and stored outside the public attestation record. Maximum
+              file size is 5 MB.
+            </p>
+          </div>
+          <form action={uploadEvidenceAction}>
+            <input name="caseId" type="hidden" value={caseId} />
+            <label htmlFor="evidence-file">Select evidence file</label>
+            <input id="evidence-file" name="file" required type="file" />
+            <button type="submit">Upload and verify evidence</button>
+          </form>
+        </section>
+      ) : null}
+      {canReview && (reviewCase.status === "pending" || reviewCase.status === "escalated") ? (
         <form action={claimAction}>
           <input name="caseId" type="hidden" value={caseId} />
           <button className="primary-action" type="submit">
@@ -293,7 +317,7 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
           </button>
         </form>
       ) : null}
-      {reviewCase.status === "in_review" ? (
+      {canReview && reviewCase.status === "in_review" ? (
         <div className="action-grid">
           <form action={escalateAction} className="action-card">
             <input name="caseId" type="hidden" value={caseId} />

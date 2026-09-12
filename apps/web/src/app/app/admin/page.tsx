@@ -1,7 +1,9 @@
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { readHollisSession } from "@/lib/hollis-session";
 import { InvitationLink } from "./invitation-link";
+import { createWorkspaceRequestHeaders } from "./request-headers";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -34,6 +36,11 @@ const operatingRegions = [
   ["other", "Other"],
 ] as const;
 
+function optionLabel(options: ReadonlyArray<readonly [string, string]>, value: string | null) {
+  if (!value) return "Not specified";
+  return options.find(([option]) => option === value)?.[1] ?? value;
+}
+
 type WorkspaceProfile = {
   industry: string | null;
   name: string;
@@ -45,8 +52,9 @@ type WorkspaceMember = {
   avatarUrl: string | null;
   displayName: string | null;
   email: string | null;
+  isCurrentUser: boolean;
   role: string;
-  userId: string;
+  userId: string | null;
 };
 
 type WorkspaceInvitation = {
@@ -82,11 +90,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     cache: "no-store",
     ...init,
-    headers: {
-      authorization: `Bearer ${token ?? ""}`,
-      "content-type": "application/json",
-      ...init?.headers,
-    },
+    headers: createWorkspaceRequestHeaders(token, init),
   });
   if (response.status === 401) redirect("/sign-in");
   if (response.status === 403) redirect("/access-required");
@@ -145,11 +149,16 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ invite?: string }>;
 }) {
+  const session = await readHollisSession();
+  if (!session?.session.activeWorkspace) redirect("/onboarding");
+  const role = session.session.activeWorkspace.role;
+  const canManage = role === "owner" || role === "administrator";
+  const isOwner = role === "owner";
   const [profile, members, invitations, auditEvents, params] = await Promise.all([
     api<WorkspaceProfile>("/v1/workspace"),
     api<WorkspaceMember[]>("/v1/workspace/members"),
-    api<WorkspaceInvitation[]>("/v1/workspace/invitations"),
-    api<WorkspaceAuditEvent[]>("/v1/workspace/audit-events"),
+    canManage ? api<WorkspaceInvitation[]>("/v1/workspace/invitations") : Promise.resolve([]),
+    canManage ? api<WorkspaceAuditEvent[]>("/v1/workspace/audit-events") : Promise.resolve([]),
     searchParams,
   ]);
   return (
@@ -158,7 +167,11 @@ export default async function AdminPage({
         <div>
           <p className="eyebrow">Workspace controls</p>
           <h1>Organization administration</h1>
-          <p>Manage the organization profile, access roles, and recipient-bound invitations.</p>
+          <p>
+            {canManage
+              ? "Manage the organization profile, access roles, and recipient-bound invitations."
+              : "Review the organization profile and member directory."}
+          </p>
         </div>
         <aside className="organization-identity" aria-label={`${profile.name} identity`}>
           <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
@@ -168,6 +181,15 @@ export default async function AdminPage({
           </div>
         </aside>
       </header>
+      {!canManage ? (
+        <aside className="admin-access-notice" aria-label="Workspace access level">
+          <div>
+            <span>Read-only access</span>
+            <strong>Workspace information is available without administrative controls.</strong>
+          </div>
+          <small>{role.replaceAll("_", " ")}</small>
+        </aside>
+      ) : null}
       <section className="admin-media-boundary" aria-labelledby="organization-media-title">
         <div>
           <p className="eyebrow">Organization identity</p>
@@ -181,74 +203,108 @@ export default async function AdminPage({
         <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
       </section>
       <div className="admin-grid">
-        <form action={updateProfile} className="admin-card">
-          <h2>Organization profile</h2>
-          <label>
-            Name
-            <input name="name" defaultValue={profile.name} required />
-          </label>
-          <label>
-            Industry
-            <select defaultValue={profile.industry ?? ""} name="industry">
-              <option value="">Select an industry</option>
-              {profile.industry && !industries.some(([value]) => value === profile.industry) ? (
-                <option value={profile.industry}>{profile.industry}</option>
-              ) : null}
-              {industries.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Operating region
-            <select defaultValue={profile.operatingRegion ?? ""} name="operatingRegion">
-              <option value="">Select an operating region</option>
-              {profile.operatingRegion &&
-              !operatingRegions.some(([value]) => value === profile.operatingRegion) ? (
-                <option value={profile.operatingRegion}>{profile.operatingRegion}</option>
-              ) : null}
-              {operatingRegions.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Website
-            <input name="website" defaultValue={profile.website ?? ""} type="url" />
-          </label>
-          <button className="primary-action" type="submit">
-            Save profile
-          </button>
-        </form>
-        <form action={inviteMember} className="admin-card">
-          <h2>Invite a member</h2>
-          <p>
-            Hollis creates a single-use invitation link. Send it only to the intended verified-email
-            recipient.
-          </p>
-          <label>
-            Email
-            <input name="email" required type="email" />
-          </label>
-          <label>
-            Role
-            <select name="role" defaultValue="reviewer">
-              <option value="reviewer">Reviewer</option>
-              <option value="contributor">Contributor</option>
-              <option value="auditor">Auditor</option>
-              <option value="administrator">Administrator</option>
-            </select>
-          </label>
-          <button className="primary-action" type="submit">
-            Create invitation link
-          </button>
-        </form>
+        {canManage ? (
+          <form action={updateProfile} className="admin-card">
+            <h2>Organization profile</h2>
+            <label>
+              Name
+              <input name="name" defaultValue={profile.name} required />
+            </label>
+            <label>
+              Industry
+              <select defaultValue={profile.industry ?? ""} name="industry">
+                <option value="">Select an industry</option>
+                {profile.industry && !industries.some(([value]) => value === profile.industry) ? (
+                  <option value={profile.industry}>{profile.industry}</option>
+                ) : null}
+                {industries.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Operating region
+              <select defaultValue={profile.operatingRegion ?? ""} name="operatingRegion">
+                <option value="">Select an operating region</option>
+                {profile.operatingRegion &&
+                !operatingRegions.some(([value]) => value === profile.operatingRegion) ? (
+                  <option value={profile.operatingRegion}>{profile.operatingRegion}</option>
+                ) : null}
+                {operatingRegions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Website
+              <input name="website" defaultValue={profile.website ?? ""} type="url" />
+            </label>
+            <button className="primary-action" type="submit">
+              Save profile
+            </button>
+          </form>
+        ) : (
+          <section className="admin-card admin-profile-readonly">
+            <h2>Organization profile</h2>
+            <dl>
+              <div>
+                <dt>Name</dt>
+                <dd>{profile.name}</dd>
+              </div>
+              <div>
+                <dt>Industry</dt>
+                <dd>{optionLabel(industries, profile.industry)}</dd>
+              </div>
+              <div>
+                <dt>Operating region</dt>
+                <dd>{optionLabel(operatingRegions, profile.operatingRegion)}</dd>
+              </div>
+              <div>
+                <dt>Website</dt>
+                <dd>{profile.website || "Not specified"}</dd>
+              </div>
+            </dl>
+          </section>
+        )}
+        {canManage ? (
+          <form action={inviteMember} className="admin-card">
+            <h2>Invite a member</h2>
+            <p>
+              Hollis creates a single-use invitation link. Send it only to the intended
+              verified-email recipient.
+            </p>
+            <label>
+              Email
+              <input name="email" required type="email" />
+            </label>
+            <label>
+              Role
+              <select name="role" defaultValue="reviewer">
+                <option value="reviewer">Reviewer</option>
+                <option value="contributor">Contributor</option>
+                <option value="auditor">Auditor</option>
+                {isOwner ? <option value="administrator">Administrator</option> : null}
+              </select>
+            </label>
+            <button className="primary-action" type="submit">
+              Create invitation link
+            </button>
+          </form>
+        ) : (
+          <section className="admin-card admin-permission-summary">
+            <h2>Your access</h2>
+            <p>
+              Your {role.replaceAll("_", " ")} role can view the organization profile and member
+              directory. An owner can authorize administrative access by changing your role.
+            </p>
+          </section>
+        )}
       </div>
-      {params.invite === "ready" ? (
+      {canManage && params.invite === "ready" ? (
         <section className="admin-card invitation-link">
           <h2>Invitation link</h2>
           <InvitationLink />
@@ -257,90 +313,102 @@ export default async function AdminPage({
       <section className="admin-card">
         <h2>Members</h2>
         <div className="admin-list">
-          {members.map((member) => (
-            <div className="admin-row" key={member.userId}>
+          {members.map((member, index) => (
+            <div
+              className="admin-row"
+              key={member.userId ?? `${member.displayName ?? "member"}:${member.role}:${index}`}
+            >
               <div className="admin-member-identity">
                 <span aria-hidden="true">
                   {(member.displayName || member.email || "M").slice(0, 1).toUpperCase()}
                 </span>
                 <div>
-                  <strong>{member.displayName || member.email}</strong>
-                  <small>{member.email}</small>
+                  <strong>{member.displayName || member.email || "Workspace member"}</strong>
+                  {member.email ? <small>{member.email}</small> : null}
                 </div>
               </div>
-              <form action={updateMember}>
-                <input name="userId" type="hidden" value={member.userId} />
-                <select
-                  aria-label={`Role for ${member.email}`}
-                  defaultValue={member.role}
-                  name="role"
-                  disabled={member.role === "owner"}
-                >
-                  <option value="administrator">Administrator</option>
-                  <option value="reviewer">Reviewer</option>
-                  <option value="contributor">Contributor</option>
-                  <option value="auditor">Auditor</option>
-                  <option value="owner">Owner</option>
-                </select>
-                <button className="text-button" disabled={member.role === "owner"} type="submit">
-                  Update role
-                </button>
-              </form>
+              {canManage &&
+              member.userId &&
+              member.role !== "owner" &&
+              (isOwner || member.role !== "administrator") ? (
+                <form action={updateMember}>
+                  <input name="userId" type="hidden" value={member.userId} />
+                  <select
+                    aria-label={`Role for ${member.displayName || member.email || "workspace member"}`}
+                    defaultValue={member.role}
+                    name="role"
+                  >
+                    {isOwner ? <option value="administrator">Administrator</option> : null}
+                    <option value="reviewer">Reviewer</option>
+                    <option value="contributor">Contributor</option>
+                    <option value="auditor">Auditor</option>
+                  </select>
+                  <button className="text-button" type="submit">
+                    Update role
+                  </button>
+                </form>
+              ) : (
+                <span className="admin-role-label">{member.role.replaceAll("_", " ")}</span>
+              )}
             </div>
           ))}
         </div>
       </section>
-      <section className="admin-card">
-        <h2>Invitation activity</h2>
-        <div className="admin-list">
-          {invitations.length ? (
-            invitations.map((invitation) => (
-              <div className="admin-row" key={invitation.id}>
-                <div>
-                  <strong>{invitation.email}</strong>
-                  <small>
-                    {invitation.role} · expires{" "}
-                    {new Date(invitation.expiresAt).toLocaleDateString()}
-                  </small>
+      {canManage ? (
+        <section className="admin-card">
+          <h2>Invitation activity</h2>
+          <div className="admin-list">
+            {invitations.length ? (
+              invitations.map((invitation) => (
+                <div className="admin-row" key={invitation.id}>
+                  <div>
+                    <strong>{invitation.email}</strong>
+                    <small>
+                      {invitation.role} · expires{" "}
+                      {new Date(invitation.expiresAt).toLocaleDateString()}
+                    </small>
+                  </div>
+                  {!invitation.acceptedAt && !invitation.revokedAt ? (
+                    <form action={revokeInvitation}>
+                      <input name="invitationId" type="hidden" value={invitation.id} />
+                      <button className="text-button" type="submit">
+                        Revoke
+                      </button>
+                    </form>
+                  ) : (
+                    <small>{invitation.acceptedAt ? "Accepted" : "Revoked"}</small>
+                  )}
                 </div>
-                {!invitation.acceptedAt && !invitation.revokedAt ? (
-                  <form action={revokeInvitation}>
-                    <input name="invitationId" type="hidden" value={invitation.id} />
-                    <button className="text-button" type="submit">
-                      Revoke
-                    </button>
-                  </form>
-                ) : (
-                  <small>{invitation.acceptedAt ? "Accepted" : "Revoked"}</small>
-                )}
-              </div>
-            ))
-          ) : (
-            <p>No invitations yet.</p>
-          )}
-        </div>
-      </section>
-      <section className="admin-card">
-        <h2>Control history</h2>
-        <p>Workspace changes are recorded in an append-only hash chain.</p>
-        <div className="admin-list">
-          {auditEvents.length ? (
-            auditEvents.map((event) => (
-              <div className="admin-row" key={`${event.eventSequence}-${event.eventHash}`}>
-                <div>
-                  <strong>{event.eventType.replaceAll("_", " ")}</strong>
-                  <small>
-                    {new Date(event.createdAt).toLocaleString()} · {event.eventHash.slice(0, 20)}…
-                  </small>
+              ))
+            ) : (
+              <p>No invitations yet.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
+      {canManage ? (
+        <section className="admin-card">
+          <h2>Control history</h2>
+          <p>Workspace changes are recorded in an append-only hash chain.</p>
+          <div className="admin-list">
+            {auditEvents.length ? (
+              auditEvents.map((event) => (
+                <div className="admin-row" key={`${event.eventSequence}-${event.eventHash}`}>
+                  <div>
+                    <strong>{event.eventType.replaceAll("_", " ")}</strong>
+                    <small>
+                      {new Date(event.createdAt).toLocaleString()} · {event.eventHash.slice(0, 20)}…
+                    </small>
+                  </div>
+                  <small>#{event.eventSequence}</small>
                 </div>
-                <small>#{event.eventSequence}</small>
-              </div>
-            ))
-          ) : (
-            <p>No workspace control events yet.</p>
-          )}
-        </div>
-      </section>
+              ))
+            ) : (
+              <p>No workspace control events yet.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }

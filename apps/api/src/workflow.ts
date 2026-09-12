@@ -40,6 +40,14 @@ export type WorkflowResult = {
   replayed: boolean;
 };
 
+export type ReviewMemberIdentity = {
+  avatarUrl: string | null;
+  displayName: string | null;
+  email: string | null;
+  role: string;
+  userId: string;
+};
+
 export interface ReviewWorkflowStore {
   claim(tenantId: string, actorId: string, caseId: string): Promise<WorkflowResult>;
   decide(
@@ -103,9 +111,13 @@ export function toQueueResponse(item: ReviewQueueItem) {
   };
 }
 
-export function toDetailResponse(item: ReviewCaseDetail) {
+export function toDetailResponse(
+  item: ReviewCaseDetail,
+  assignedReviewer: ReviewMemberIdentity | null = null,
+) {
   return {
     assignedAt: item.assignedAt?.toISOString() ?? null,
+    assignedReviewer,
     assignedToUserId: item.assignedToUserId,
     automatedSystemVersion: item.automatedSystemVersion,
     createdAt: item.createdAt.toISOString(),

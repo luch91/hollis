@@ -1,5 +1,12 @@
+import type { ReviewExport } from "@hollis/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "./app.js";
+import type {
+  AttestationProvider,
+  AttestationStore,
+  FinalizedAttestationImporter,
+  PublicAttestationCaseFileStore,
+} from "./attestation.js";
 import { buildAdjudicationCaseFile } from "./attestation-workflow.js";
 import type {
   AccessTokenVerifier,
@@ -7,22 +14,15 @@ import type {
   AuthenticatedPrincipal,
   UnscopedAccessTokenVerifier,
 } from "./auth.js";
-import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
-import type {
-  AttestationProvider,
-  AttestationStore,
-  FinalizedAttestationImporter,
-  PublicAttestationCaseFileStore,
-} from "./attestation.js";
-import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
-import type { ReviewExport } from "@hollis/contracts";
-import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
-import type { PolicyLibraryStore } from "./policy-library.js";
-import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
 import type { IdentityPlatformTokenVerifier } from "./identity-platform.js";
+import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
+import type { PolicyLibraryStore } from "./policy-library.js";
+import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { TransactionalEmailService } from "./transactional-email.js";
 import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
+import type { ReviewCaseDetail, ReviewQueueItem, ReviewWorkflowStore } from "./workflow.js";
+import type { WorkspaceProvisioner } from "./workspace-provisioning.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -720,6 +720,95 @@ describe("API boundaries", () => {
     ]);
   });
 
+  it("returns the assigned workspace member identity with review-case detail", async () => {
+    const reviewCase = {
+      assignedAt: new Date("2026-08-28T08:05:00.000Z"),
+      assignedToUserId: "0198ef37-6216-7000-8000-000000000010",
+      automatedSystemVersion: "claims-model-2026-08",
+      createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      decisionOutcome: null,
+      decisionRationale: null,
+      decidedAt: null,
+      decidedByUserId: null,
+      escalationReason: null,
+      escalatedAt: null,
+      escalatedByUserId: null,
+      evidence: [
+        {
+          digest: `sha256:${"a".repeat(64)}`,
+          id: "evidence-001",
+          mediaType: "application/pdf",
+        },
+      ],
+      externalReference: "claim-001",
+      finalRecommendation: null,
+      hollisCaseReference: "HL-26-7M4K-P9Q2",
+      id: "0198ef37-6216-7000-8000-000000000002",
+      policyVersion: "commercial-property-2026-01",
+      recommendation: "deny",
+      reviewDueAt: new Date("2026-08-29T08:00:00.000Z"),
+      riskLevel: "high",
+      ruleId: "human-review-adverse-action",
+      status: "in_review",
+    } satisfies ReviewCaseDetail;
+    const workflowStore = {
+      async exportCase() {
+        throw new Error("Not expected.");
+      },
+      async claim() {
+        throw new Error("Not expected.");
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        return reviewCase;
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    } satisfies ReviewWorkflowStore;
+    const workspaceControlsStore = {
+      async getMemberIdentity(receivedTenantId: string, actorId: string, userId: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(actorId).toBe("user_01");
+        expect(userId).toBe(reviewCase.assignedToUserId);
+        return {
+          avatarUrl: null,
+          displayName: "Jordan Blake",
+          email: "jordan.blake@example.test",
+          role: "reviewer",
+          userId,
+        };
+      },
+    } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    const app = await buildApp(
+      environment,
+      createDependencies({ workflowStore, workspaceControlsStore }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "GET",
+      url: `/v1/review-cases/${reviewCase.id}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      assignedReviewer: {
+        displayName: "Jordan Blake",
+        email: "jordan.blake@example.test",
+        role: "reviewer",
+        userId: reviewCase.assignedToUserId,
+      },
+      assignedToUserId: reviewCase.assignedToUserId,
+    });
+  });
+
   it("submits a completed review as a GenLayer attestation and persists its receipt", async () => {
     let providerInput: unknown;
     let storedCaseId: string | undefined;
@@ -1170,6 +1259,101 @@ describe("API boundaries", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       { tenantId, workspaceName: "Northstar Claims", role: "owner" },
+    ]);
+  });
+
+  it("allows a workspace member to read the redacted member directory", async () => {
+    const workspaceControlsStore = {
+      async listMembers(receivedTenantId: string, actorId: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(actorId).toBe("user_01");
+        return [
+          {
+            avatarUrl: null,
+            displayName: "Jordan Blake",
+            email: null,
+            joinedAt: new Date("2026-08-28T08:00:00.000Z"),
+            role: "reviewer",
+            userId: "0198ef37-6216-7000-8000-000000000010",
+          },
+        ];
+      },
+    } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    const app = await buildApp(
+      environment,
+      createDependencies({ permissions: ["workspace:read"], workspaceControlsStore }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "GET",
+      url: "/v1/workspace/members",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      {
+        avatarUrl: null,
+        displayName: "Jordan Blake",
+        email: null,
+        isCurrentUser: false,
+        joinedAt: "2026-08-28T08:00:00.000Z",
+        role: "reviewer",
+        userId: null,
+      },
+    ]);
+  });
+
+  it("keeps workspace invitations restricted to management permission", async () => {
+    const app = await buildApp(
+      environment,
+      createDependencies({ permissions: ["workspace:read"] }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "GET",
+      url: "/v1/workspace/invitations",
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ code: "forbidden" });
+  });
+
+  it("searches reviewers only within the authenticated workspace", async () => {
+    const workspaceControlsStore = {
+      async searchMembers(receivedTenantId: string, query: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(query).toBe("Jordan");
+        return [
+          {
+            displayName: "Jordan Blake",
+            email: "jordan.blake@example.test",
+            role: "reviewer",
+            userId: "reviewer_01",
+          },
+        ];
+      },
+    } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    const app = await buildApp(environment, createDependencies({ workspaceControlsStore }));
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "GET",
+      url: "/v1/workspace/search/reviewers?q=Jordan",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      {
+        displayName: "Jordan Blake",
+        email: "jordan.blake@example.test",
+        role: "reviewer",
+        userId: "reviewer_01",
+      },
     ]);
   });
 

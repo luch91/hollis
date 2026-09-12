@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReviewExport } from "@hollis/contracts/review-case";
 import { notFound } from "next/navigation";
+import { OperationalPageHeader } from "../operational-page-header";
 import {
   getReviewCase,
   getReviewExport,
@@ -37,52 +38,17 @@ function SectionHeader({
   title: string;
   summary: string;
 }) {
-  return (
-    <header className="workspace-section-header">
-      <p className="eyebrow">{eyebrow}</p>
-      <h1>{title}</h1>
-      <p>{summary}</p>
-    </header>
-  );
+  return <OperationalPageHeader eyebrow={eyebrow} summary={summary} title={title} />;
 }
 
-function SectionSearch({ action, query, label }: { action: string; query: string; label: string }) {
-  return (
-    <search>
-      <form action={action} className="section-search" method="get">
-        <label>
-          <span>{label}</span>
-          <input defaultValue={query} name="q" placeholder={label} type="search" />
-        </label>
-        <button type="submit">Search</button>
-        {query ? <Link href={action}>Clear</Link> : null}
-      </form>
-    </search>
-  );
-}
-
-function CaseList({ cases, query }: { cases: ReviewQueueItem[]; query: string }) {
-  const normalized = query.trim().toLocaleLowerCase();
-  const filtered = normalized
-    ? cases.filter((reviewCase) =>
-        [
-          reviewCase.hollisCaseReference,
-          reviewCase.externalReference,
-          reviewCase.recommendation,
-          reviewCase.status,
-        ].some((value) => value.toLocaleLowerCase().includes(normalized)),
-      )
-    : cases;
+function CaseList({ cases }: { cases: ReviewQueueItem[] }) {
   if (cases.length === 0) {
     return <p className="workspace-empty">No review cases are available in this workspace.</p>;
-  }
-  if (filtered.length === 0) {
-    return <p className="workspace-empty">No review case matches this search.</p>;
   }
 
   return (
     <div className="workspace-list">
-      {filtered.map((reviewCase) => (
+      {cases.map((reviewCase) => (
         <Link
           href={`/app/review-cases?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}`}
           key={reviewCase.id}
@@ -104,7 +70,7 @@ function CaseList({ cases, query }: { cases: ReviewQueueItem[]; query: string })
   );
 }
 
-function EvidenceInventory({ cases, query }: { cases: ReviewCaseDetail[]; query: string }) {
+function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
   const items = cases.flatMap((reviewCase) =>
     reviewCase.evidence.map((evidence) => ({
       ...evidence,
@@ -115,21 +81,9 @@ function EvidenceInventory({ cases, query }: { cases: ReviewCaseDetail[]; query:
   );
   if (items.length === 0)
     return <p className="workspace-empty">No managed evidence references are available.</p>;
-  const normalized = query.trim().toLocaleLowerCase();
-  const filtered = normalized
-    ? items.filter((evidence) =>
-        [evidence.id, evidence.mediaType, evidence.digest, evidence.hollisCaseReference].some(
-          (value) => value.toLocaleLowerCase().includes(normalized),
-        ),
-      )
-    : items;
-  if (filtered.length === 0) {
-    return <p className="workspace-empty">No evidence reference matches this search.</p>;
-  }
-
   return (
     <div className="workspace-list workspace-list-evidence">
-      {filtered.map((evidence) => (
+      {items.map((evidence) => (
         <Link
           href={`/app/review-cases?status=${evidence.status === "completed" ? "completed" : "active"}&caseId=${evidence.caseId}&tab=evidence`}
           key={`${evidence.caseId}:${evidence.id}`}
@@ -228,13 +182,7 @@ function ReceiptList({
   );
 }
 
-function AuditRegister({
-  exports: caseExports,
-  query,
-}: {
-  exports: ReviewExport[];
-  query: string;
-}) {
+function AuditRegister({ exports: caseExports }: { exports: ReviewExport[] }) {
   const events = caseExports
     .flatMap((exported) =>
       exported.events.map((event) => ({
@@ -248,21 +196,9 @@ function AuditRegister({
   if (events.length === 0) {
     return <p className="workspace-empty">No review events are available in this workspace.</p>;
   }
-  const normalized = query.trim().toLocaleLowerCase();
-  const filtered = normalized
-    ? events.filter((event) =>
-        [event.eventType, event.hollisCaseReference, event.eventHash].some((value) =>
-          value.toLocaleLowerCase().includes(normalized),
-        ),
-      )
-    : events;
-  if (filtered.length === 0) {
-    return <p className="workspace-empty">No audit event matches this search.</p>;
-  }
-
   return (
     <ol className="workspace-audit-list">
-      {filtered.map((event) => (
+      {events.map((event) => (
         <li key={`${event.caseId}:${event.eventSequence}`}>
           <span className="audit-sequence">{String(event.eventSequence).padStart(2, "0")}</span>
           <div>
@@ -283,13 +219,10 @@ function AuditRegister({
 
 export default async function WorkspaceSectionPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ section: string }>;
-  searchParams: Promise<{ q?: string }>;
 }) {
   const { section } = await params;
-  const { q = "" } = await searchParams;
   if (!isSection(section)) notFound();
   const [openCases, completedCases] = await Promise.all([
     listReviewCases(),
@@ -305,8 +238,7 @@ export default async function WorkspaceSectionPage({
           title="All review cases"
           summary="Every case remains tenant-scoped and is linked to its workflow, evidence references, and audit history."
         />
-        <SectionSearch action="/app/cases" label="Search cases" query={q} />
-        <CaseList cases={cases} query={q} />
+        <CaseList cases={cases} />
       </section>
     );
   }
@@ -357,8 +289,7 @@ export default async function WorkspaceSectionPage({
           title="Audit activity"
           summary="Review actions are ordered by recorded time and remain linked to their case-specific hash chain."
         />
-        <SectionSearch action="/app/audit" label="Search audit activity" query={q} />
-        <AuditRegister exports={caseExports} query={q} />
+        <AuditRegister exports={caseExports} />
       </section>
     );
   }
@@ -366,11 +297,14 @@ export default async function WorkspaceSectionPage({
   if (section === "admin") {
     return (
       <section className="workspace-section-page">
-        <SectionHeader
-          eyebrow="Workspace administration"
-          title="Controlled workspace access"
-          summary="Hollis assigns access through verified workspace membership and roles. Review records remain isolated to the active workspace."
-        />
+        <header className="workspace-section-header">
+          <p className="eyebrow">Workspace administration</p>
+          <h1>Controlled workspace access</h1>
+          <p>
+            Hollis assigns access through verified workspace membership and roles. Review records
+            remain isolated to the active workspace.
+          </p>
+        </header>
         <div className="workspace-list">
           <Link href="/app/cases">
             <span>
@@ -400,8 +334,7 @@ export default async function WorkspaceSectionPage({
           title="Managed evidence references"
           summary="Hollis records evidence metadata and integrity references. Raw evidence remains outside the reviewer console."
         />
-        <SectionSearch action="/app/evidence" label="Search evidence" query={q} />
-        <EvidenceInventory cases={details} query={q} />
+        <EvidenceInventory cases={details} />
       </section>
     );
   }

@@ -3,6 +3,36 @@ import type { ReviewQueueItem } from "./data";
 export type HorizonBucket = "overdue" | "today" | "soon" | "later";
 export type HorizonRow = "critical" | "high" | "standard";
 
+type AssignedReviewer = {
+  displayName: string | null;
+  email: string | null;
+  role: string;
+};
+
+export function presentAssignee(
+  assignedToUserId: string | null,
+  assignedReviewer: AssignedReviewer | null,
+) {
+  if (!assignedToUserId) return { meta: null, name: "Unassigned" };
+  if (!assignedReviewer) return { meta: null, name: "Unknown former member" };
+
+  const role = assignedReviewer.role.replaceAll("_", " ");
+  return {
+    meta: [role, assignedReviewer.email].filter(Boolean).join(" · "),
+    name: assignedReviewer.displayName || assignedReviewer.email || "Workspace member",
+  };
+}
+
+export function keyEvidenceRecords<T extends { digest: string; id: string }>(records: T[]) {
+  const occurrences = new Map<string, number>();
+  return records.map((record) => {
+    const baseKey = `${record.id}:${record.digest}`;
+    const occurrence = occurrences.get(baseKey) ?? 0;
+    occurrences.set(baseKey, occurrence + 1);
+    return { key: `${baseKey}:${occurrence}`, record };
+  });
+}
+
 export function dueBucket(value: string | null, now: Date): HorizonBucket {
   if (!value) return "later";
   const due = new Date(value);
@@ -30,17 +60,4 @@ export function caseUrgency(
   };
   const riskRank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
   return bucketRank[dueBucket(reviewCase.reviewDueAt, now)] * 10 + riskRank[reviewCase.riskLevel];
-}
-
-export function matchesReviewSearch(
-  reviewCase: Pick<ReviewQueueItem, "externalReference" | "hollisCaseReference" | "recommendation">,
-  searchTerm: string,
-) {
-  const normalized = searchTerm.trim().toLocaleLowerCase();
-  if (!normalized) return true;
-  return [
-    reviewCase.hollisCaseReference,
-    reviewCase.externalReference,
-    reviewCase.recommendation,
-  ].some((value) => value.toLocaleLowerCase().includes(normalized));
 }

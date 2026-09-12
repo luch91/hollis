@@ -31,13 +31,15 @@ export async function WorkspaceSwitcher({
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-  if (!response.ok) return null;
+  if (!response.ok) return <span className="workspace-current">{workspaceName}</span>;
   const workspaces = (await response.json()) as Array<{
     tenantId: string;
     workspaceName: string;
     role: string;
   }>;
-  if (workspaces.length < 2) return null;
+  if (workspaces.length < 2) {
+    return <span className="workspace-current">{workspaceName}</span>;
+  }
   return (
     <details className="workspace-switcher">
       <summary>{workspaceName}</summary>
