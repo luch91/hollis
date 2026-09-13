@@ -16,6 +16,7 @@ const input = {
     },
   ],
   externalReference: "claim-001",
+  policyId: "commercial-property",
   policyVersion: "commercial-property-2026-01",
   recommendation: "deny" as const,
   riskLevel: "high" as const,

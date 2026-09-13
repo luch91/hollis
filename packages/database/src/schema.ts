@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  foreignKey,
   integer,
   index,
   jsonb,
@@ -235,6 +236,7 @@ export const reviewCases = pgTable(
       .default(sql`public.generate_hollis_case_reference(now())`),
     id: uuid("id").primaryKey().defaultRandom(),
     intakeFingerprint: text("intake_fingerprint").notNull(),
+    policyId: text("policy_id"),
     policyVersion: text("policy_version").notNull(),
     recommendation: text("recommendation").notNull(),
     reviewDueAt: timestamp("review_due_at", { withTimezone: true }),
@@ -247,6 +249,7 @@ export const reviewCases = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex("review_cases_id_tenant_unique").on(table.id, table.tenantId),
     uniqueIndex("review_cases_hollis_case_reference_unique").on(table.hollisCaseReference),
     uniqueIndex("review_cases_tenant_external_reference_unique").on(
       table.tenantId,
@@ -414,7 +417,107 @@ export const policyControls = pgTable(
       table.policyVersionId,
       table.controlId,
     ),
+    uniqueIndex("policy_controls_id_tenant_unique").on(table.id, table.tenantId),
     index("policy_controls_tenant_version_idx").on(table.tenantId, table.policyVersionId),
+  ],
+);
+
+export const policyContractDeployments = pgTable(
+  "policy_contract_deployments",
+  {
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    binding: jsonb("binding").notNull(),
+    bindingDigest: text("binding_digest").notNull(),
+    contractAddress: text("contract_address"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    deploymentTransactionHash: text("deployment_transaction_hash").unique(),
+    failureCode: text("failure_code"),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    network: text("network").notNull(),
+    networkChainId: integer("network_chain_id").notNull(),
+    policyControlRecordId: uuid("policy_control_record_id")
+      .notNull()
+      .references(() => policyControls.id),
+    runtimeAddress: text("runtime_address").notNull(),
+    sourceDigest: text("source_digest").notNull(),
+    sourceVersion: text("source_version").notNull(),
+    status: text("status").notNull().default("pending"),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.policyControlRecordId, table.tenantId],
+      foreignColumns: [policyControls.id, policyControls.tenantId],
+      name: "policy_contract_deployments_control_tenant_fk",
+    }),
+    uniqueIndex("policy_contract_deployments_binding_unique").on(
+      table.tenantId,
+      table.bindingDigest,
+      table.networkChainId,
+      table.sourceDigest,
+    ),
+    uniqueIndex("policy_contract_deployments_id_tenant_unique").on(table.id, table.tenantId),
+    index("policy_contract_deployments_control_idx").on(
+      table.tenantId,
+      table.policyControlRecordId,
+      table.createdAt,
+    ),
+    index("policy_contract_deployments_status_idx").on(table.status, table.updatedAt),
+  ],
+);
+
+export const managedAttestationSubmissions = pgTable(
+  "managed_attestation_submissions",
+  {
+    caseCommitment: text("case_commitment").notNull(),
+    caseId: uuid("case_id").notNull(),
+    contractAddress: text("contract_address").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deploymentId: uuid("deployment_id").notNull(),
+    evaluationReason: text("evaluation_reason"),
+    failureCode: text("failure_code"),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    publicCaseFileUrl: text("public_case_file_url").notNull(),
+    runtimeAddress: text("runtime_address").notNull(),
+    status: text("status").notNull().default("pending"),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    transactionHash: text("transaction_hash").unique(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    verdict: text("verdict"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.caseId, table.tenantId],
+      foreignColumns: [reviewCases.id, reviewCases.tenantId],
+      name: "managed_attestation_submissions_case_tenant_fk",
+    }),
+    foreignKey({
+      columns: [table.deploymentId, table.tenantId],
+      foreignColumns: [policyContractDeployments.id, policyContractDeployments.tenantId],
+      name: "managed_attestation_submissions_deployment_tenant_fk",
+    }),
+    uniqueIndex("managed_attestation_submissions_idempotency_unique").on(
+      table.tenantId,
+      table.idempotencyKey,
+    ),
+    index("managed_attestation_submissions_case_idx").on(
+      table.tenantId,
+      table.caseId,
+      table.createdAt,
+    ),
+    index("managed_attestation_submissions_status_idx").on(table.status, table.updatedAt),
   ],
 );
 

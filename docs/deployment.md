@@ -48,6 +48,7 @@ The selected runtime must supply configuration through its approved secret and e
 | Claims webhook | Set a `CLAIMS_WEBHOOK_SECRET` of at least 32 characters only when the closed claims integration is deliberately enabled. |
 | Public attestation files | Set `PUBLIC_ATTESTATION_ORIGIN` only to the verified HTTPS API origin that serves the limited public case-file route. |
 | Studio Dev importer | Set `GENLAYER_STUDIO_CONTRACT_ADDRESS` only for the documented read-only attestation-import flow. |
+| Managed Studio Dev runtime | Configure `GENLAYER_NETWORK`, `GENLAYER_RPC_URL`, `GENLAYER_CHAIN_ID`, `GENLAYER_RUNTIME_ADDRESS`, and `GENLAYER_RUNTIME_PRIVATE_KEY` together. The private key is a server-only secret and the address must be derived from that key. |
 
 Production configuration fails closed when the claims secret, evidence provider, HTTPS `WEB_ORIGIN`, or API host binding are absent or invalid. It rejects simultaneous Google Cloud Storage and S3 configuration.
 

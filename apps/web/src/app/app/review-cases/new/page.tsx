@@ -85,7 +85,7 @@ export default async function NewReviewCasePage() {
                   policy.controls.map((control) => (
                     <option
                       key={`${policy.id}-${control.controlId}`}
-                      value={`${policy.version}::${control.controlId}`}
+                      value={`${policy.policyId}::${policy.version}::${control.controlId}`}
                     >
                       {policy.title} · {policy.version} · {control.title}
                     </option>

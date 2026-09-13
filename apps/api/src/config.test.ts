@@ -96,6 +96,33 @@ describe("readEnvironment", () => {
     ).toMatchObject({ RESEND_FROM: "Hollis <hello@mail.thehollis.xyz>" });
   });
 
+  it("accepts only a complete canonical Studio Dev runtime configuration", () => {
+    const runtime = {
+      GENLAYER_CHAIN_ID: "61997",
+      GENLAYER_NETWORK: "studio-dev",
+      GENLAYER_RPC_URL: "https://studio-dev.genlayer.com/api",
+      GENLAYER_RUNTIME_ADDRESS: `0x${"1".repeat(40)}`,
+      GENLAYER_RUNTIME_PRIVATE_KEY: `0x${"2".repeat(64)}`,
+    };
+    expect(readEnvironment({ ...baseEnvironment, ...runtime })).toMatchObject({
+      GENLAYER_CHAIN_ID: 61997,
+      GENLAYER_NETWORK: "studio-dev",
+    });
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        GENLAYER_RUNTIME_ADDRESS: runtime.GENLAYER_RUNTIME_ADDRESS,
+      }),
+    ).toThrow(/complete group/);
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        ...runtime,
+        GENLAYER_CHAIN_ID: "61999",
+      }),
+    ).toThrow(/61997/);
+  });
+
   it("uses the Cloud SQL Unix socket settings without a composed database URL", () => {
     const environment = readEnvironment({
       ...baseEnvironment,

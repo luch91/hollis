@@ -1271,6 +1271,91 @@ dd {
   background: color-mix(in srgb, var(--ink) 1%, transparent);
   gap: 15px;
 }
+.attestation-success {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  margin-top: 22px;
+  border: 1px solid color-mix(in srgb, var(--lime) 65%, var(--line));
+  background: color-mix(in srgb, var(--lime) 8%, var(--panel));
+  gap: 20px;
+}
+.attestation-success p,
+.attestation-success strong,
+.attestation-success span {
+  display: block;
+}
+.attestation-success strong {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.attestation-success span {
+  max-width: 610px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.attestation-record-page {
+  max-width: 940px;
+}
+.attestation-record-hero {
+  max-width: 690px;
+  padding: 34px 0 30px;
+  border-bottom: 1px solid var(--line);
+}
+.attestation-record-hero h1 {
+  margin: 9px 0 12px;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(36px, 5vw, 62px);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+.attestation-record-hero p:last-child {
+  max-width: 570px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.attestation-record-summary {
+  display: grid;
+  margin: 26px 0 0;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 1%, transparent);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.attestation-record-summary div {
+  display: grid;
+  min-height: 90px;
+  padding: 17px 19px;
+  border-right: 1px solid var(--line);
+  gap: 9px;
+}
+.attestation-record-summary div:last-child {
+  border-right: 0;
+}
+.attestation-record-summary span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.attestation-record-summary strong {
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+.attestation-record-section {
+  padding: 31px 0;
+  border-bottom: 1px solid var(--line);
+}
 .attestation-record dl {
   margin: 0;
 }
@@ -3512,6 +3597,16 @@ dd {
   gap: 24px;
   align-items: start;
 }
+.policy-library-notice {
+  max-width: 760px;
+  margin: 0 0 24px;
+  padding: 12px 14px;
+  border-left: 2px solid var(--lime);
+  background: color-mix(in srgb, var(--lime) 7%, var(--panel));
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .policy-library-list,
 .policy-library-form {
   border: 1px solid var(--line);
@@ -3565,6 +3660,22 @@ dd {
   border-top: 1px solid var(--line);
   padding: 18px 0;
 }
+.policy-library-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.policy-library-card-link + .policy-library-card-link .policy-library-card {
+  border-top: 1px solid var(--line);
+}
+.policy-library-card-link:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 4px;
+}
+.policy-library-card-link:hover .policy-library-card h3,
+.policy-library-card-link:focus-visible .policy-library-card h3 {
+  color: var(--lime);
+}
 .policy-library-card h3 {
   margin: 6px 0;
   color: var(--ink);
@@ -3610,8 +3721,107 @@ dd {
   color: var(--muted);
   font-size: 12px;
 }
+.policy-library-card-action {
+  display: inline-flex;
+  gap: 7px;
+  margin-top: 16px;
+  color: var(--lime);
+  font-size: 13px;
+}
 .policy-library-empty {
   color: var(--muted);
+}
+.policy-detail {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 48px clamp(20px, 5vw, 64px);
+}
+.policy-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 24px;
+  margin-top: 28px;
+}
+.policy-detail-record,
+.policy-detail-guidance,
+.policy-detail-controls {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 24px;
+}
+.policy-detail-status {
+  color: var(--lime);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.policy-detail-list,
+.policy-detail-control dl {
+  display: grid;
+  gap: 18px;
+  margin: 24px 0 0;
+}
+.policy-detail-list div,
+.policy-detail-control dl div {
+  display: grid;
+  gap: 5px;
+}
+.policy-detail-list dt,
+.policy-detail-control dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.policy-detail-list dd,
+.policy-detail-control dd {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+}
+.policy-detail-digest {
+  overflow-wrap: anywhere;
+}
+.policy-detail-guidance {
+  align-self: start;
+  border-color: color-mix(in srgb, var(--lime) 38%, var(--line));
+}
+.policy-detail-guidance h2,
+.policy-detail-controls h2,
+.policy-detail-control h3 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font:
+    400 26px / 1.08 Georgia,
+    "Times New Roman",
+    serif;
+}
+.policy-detail-guidance > p:last-child {
+  margin: 16px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.policy-detail-controls {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+.policy-detail-control {
+  padding: 20px;
+  border: 1px solid var(--line);
+}
+.policy-detail-control header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.policy-detail-control header > span {
+  align-self: start;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .policy-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .genlayer-panel {
   display: grid;
@@ -3820,6 +4030,15 @@ dd {
   border: 1px solid var(--line);
   background: var(--panel);
 }
+.admin-success-notice {
+  margin: 18px 0 -8px;
+  border: 1px solid color-mix(in srgb, var(--lime) 52%, var(--line));
+  background: var(--lime-glow);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 11px 13px;
+}
 .admin-card h2 {
   margin: 0;
   font:
@@ -3827,6 +4046,27 @@ dd {
     "Times New Roman",
     serif;
   color: var(--ink);
+}
+.admin-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.admin-card-heading .eyebrow {
+  margin: 0 0 6px;
+}
+.admin-card-heading .secondary-action {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+}
+.admin-card-heading .text-button {
+  flex: 0 0 auto;
+  padding: 6px 0;
+}
+.admin-profile-summary dl {
+  margin-top: 5px;
 }
 .admin-card > p {
   margin: 0;
@@ -3990,6 +4230,21 @@ dd {
   }
 }
 @media (max-width: 760px) {
+  .attestation-success {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .attestation-record-summary {
+    grid-template-columns: 1fr;
+  }
+  .attestation-record-summary div {
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .attestation-record-summary div:last-child {
+    border-bottom: 0;
+  }
   .reference-dashboard {
     min-width: 1260px;
   }

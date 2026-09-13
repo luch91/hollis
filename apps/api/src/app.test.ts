@@ -227,7 +227,10 @@ function createDependencies(
       async create() {
         throw new Error("Policy creation was not expected.");
       },
-      async findControl(_tenantId, policyVersion, controlId) {
+      async findControlRecord() {
+        throw new Error("Policy control lookup was not expected.");
+      },
+      async findControl(_tenantId, policyId, policyVersion, controlId) {
         return {
           controls: [
             {
@@ -243,7 +246,7 @@ function createDependencies(
           createdByUserId: "00000000-0000-4000-8000-000000000001",
           documentDigest: `sha256:${"a".repeat(64)}`,
           id: "00000000-0000-4000-8000-000000000002",
-          policyId: "test-policy",
+          policyId,
           publishedAt: "2026-08-28T08:00:00.000Z",
           title: "Test policy",
           version: policyVersion,
@@ -332,6 +335,7 @@ const validIntake = {
     },
   ],
   externalReference: "claim-001",
+  policyId: "test-policy",
   policyVersion: "commercial-property-2026-01",
   recommendation: "deny",
   riskLevel: "high",

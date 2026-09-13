@@ -51,6 +51,17 @@ const environmentSchema = z
       .string()
       .regex(/^0x[a-fA-F0-9]{40}$/)
       .optional(),
+    GENLAYER_CHAIN_ID: z.coerce.number().int().optional(),
+    GENLAYER_NETWORK: z.string().optional(),
+    GENLAYER_RPC_URL: z.url().optional(),
+    GENLAYER_RUNTIME_ADDRESS: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/)
+      .optional(),
+    GENLAYER_RUNTIME_PRIVATE_KEY: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{64}$/)
+      .optional(),
     PUBLIC_ATTESTATION_ORIGIN: z
       .url()
       .refine((value) => new URL(value).protocol === "https:", {
@@ -96,6 +107,46 @@ const environmentSchema = z
         message: "RESEND_API_KEY is required when RESEND_FROM is configured.",
         path: ["RESEND_API_KEY"],
       });
+    }
+
+    const genLayerRuntimeValues = [
+      value.GENLAYER_CHAIN_ID,
+      value.GENLAYER_NETWORK,
+      value.GENLAYER_RPC_URL,
+      value.GENLAYER_RUNTIME_ADDRESS,
+      value.GENLAYER_RUNTIME_PRIVATE_KEY,
+    ];
+    const hasGenLayerRuntimeValue = genLayerRuntimeValues.some((item) => item !== undefined);
+    const hasCompleteGenLayerRuntime = genLayerRuntimeValues.every((item) => item !== undefined);
+    if (hasGenLayerRuntimeValue && !hasCompleteGenLayerRuntime) {
+      context.addIssue({
+        code: "custom",
+        message: "The GenLayer runtime configuration must be set as one complete group.",
+        path: ["GENLAYER_RUNTIME_ADDRESS"],
+      });
+    }
+    if (hasCompleteGenLayerRuntime) {
+      if (value.GENLAYER_NETWORK !== "studio-dev") {
+        context.addIssue({
+          code: "custom",
+          message: "GENLAYER_NETWORK must be studio-dev.",
+          path: ["GENLAYER_NETWORK"],
+        });
+      }
+      if (value.GENLAYER_CHAIN_ID !== 61997) {
+        context.addIssue({
+          code: "custom",
+          message: "GENLAYER_CHAIN_ID must be 61997 for Studio Dev.",
+          path: ["GENLAYER_CHAIN_ID"],
+        });
+      }
+      if (value.GENLAYER_RPC_URL !== "https://studio-dev.genlayer.com/api") {
+        context.addIssue({
+          code: "custom",
+          message: "GENLAYER_RPC_URL must use the canonical Studio Dev endpoint.",
+          path: ["GENLAYER_RPC_URL"],
+        });
+      }
     }
 
     if (value.NODE_ENV !== "production") return;

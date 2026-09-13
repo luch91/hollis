@@ -42,7 +42,7 @@ Hollis is a modular monolith:
 - `packages/database` owns the PostgreSQL schema, migrations, and database access.
 - PostgreSQL is the source of truth for transactional state and ordered review history.
 - The evidence adapter selects exactly one configured provider: Google Cloud Storage or S3. PostgreSQL retains tenant-scoped metadata, not raw evidence bytes.
-- The GenLayer adapter is optional, read-only on the Hollis side, and isolated from the core human-review transaction.
+- The validated GenLayer importer remains optional and isolated from the core human-review transaction. The managed-runtime foundation adds a dedicated server-side execution identity and tenant-scoped policy-contract registry without changing review finality.
 
 The production runtime has not been approved or deployed. The repository contains historical Cloud Run material and an AWS evaluation path, neither of which is a current deployment authorization. See [production-readiness-2026-09-10.md](production-readiness-2026-09-10.md).
 
@@ -88,7 +88,9 @@ An authorized reviewer can generate a privacy-safe `hollis.adjudication-case.v1`
 
 The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is a configured HTTPS API origin. Hollis generates a random public identifier and persists an immutable record before publication. Callers cannot supply their own public case-file URL.
 
-For the current Studio Dev attestation environment, an authorized operator submits the generated URL and exact commitment outside Hollis. The importer validates a finalized external transaction against the configured V6 contract, stored commitment, generated case-file URL, and finalized per-case views. It records the result without submitting transactions, holding a signing key, altering a human decision, or blocking the core review workflow.
+The completed Studio Dev validation path allows an authorized operator to submit the generated URL and exact commitment outside Hollis. The importer validates a finalized external transaction against the configured V7 contract, stored commitment, generated case-file URL, and finalized per-case views. It records the result without altering a human decision or blocking the core review workflow.
+
+The managed-runtime foundation validates a dedicated server-side execution account and records one reusable contract deployment per exact tenant, policy-control binding, chain, and contract-source digest. Before activation, Hollis reads the immutable V7 policy binding from finalized state and compares it exactly with the registry request. Deployment retries resume from a recorded transaction hash; an uncertain submission is stopped for reconciliation instead of being submitted again. Per-case submissions use a separate durable idempotency record, retain their transaction hash, and read all three case-result views from finalized state. Managed operations are not exposed to customers until their authorization, queueing, balance monitoring, reconciliation, and operational controls are complete. See [ADR 0015](adr/0015-hollis-managed-genlayer-runtime.md).
 
 Studio Dev verifies declared process behavior only. Its result cannot establish legal correctness, substantive fairness, or the truth of private evidence.
 

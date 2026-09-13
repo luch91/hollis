@@ -1,11 +1,17 @@
 import { createHash } from "node:crypto";
-import type { AttestationReceipt, PolicyVersion } from "@hollis/contracts";
+import type { AttestationReceipt, CreatePolicyVersion, PolicyVersion } from "@hollis/contracts";
 import {
   attestationRecordSchema,
   evidenceReferenceSchema,
+  managedAttestationSubmissionSchema,
+  policyContractBindingSchema,
+  policyContractDeploymentSchema,
   policyLibraryControlSchema,
+  policyVersionSchema,
   publicAttestationCaseFileSchema,
   type ReviewExport,
+  type PolicyContractDeployment,
+  type ManagedAttestationSubmission,
   recommendationSchema,
   reviewCaseStatusSchema,
   reviewOutcomeSchema,
@@ -15,6 +21,8 @@ import type { createDatabase } from "@hollis/database";
 import {
   attestations,
   evidenceObjects,
+  managedAttestationSubmissions,
+  policyContractDeployments,
   policyControls,
   policyVersions,
   publicAttestationCaseFiles,
@@ -31,7 +39,9 @@ import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
 import type { ApplicationSessionStore } from "./auth.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
-import type { PolicyLibraryStore } from "./policy-library.js";
+import { PolicyVersionConflictError, type PolicyLibraryStore } from "./policy-library.js";
+import type { PolicyContractDeploymentStore } from "./policy-contract-deployment.js";
+import type { ManagedAttestationSubmissionStore } from "./managed-attestation-submission.js";
 import type { RetentionDeletionJob, RetentionDeletionJobStore } from "./retention-worker.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
@@ -50,6 +60,42 @@ import type {
 type Database = ReturnType<typeof createDatabase>["database"];
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
+function isUniqueViolation(error: unknown): boolean {
+  const candidate =
+    error instanceof Error && typeof error.cause === "object" && error.cause !== null
+      ? error.cause
+      : error;
+  return (
+    typeof candidate === "object" &&
+    candidate !== null &&
+    "code" in candidate &&
+    candidate.code === "23505"
+  );
+}
+
+function samePublishedPolicy(existing: PolicyVersion, input: CreatePolicyVersion): boolean {
+  if (
+    existing.documentDigest !== input.documentDigest ||
+    existing.policyId !== input.policyId ||
+    existing.title !== input.title ||
+    existing.version !== input.version ||
+    existing.controls.length !== input.controls.length
+  ) {
+    return false;
+  }
+  const controlsById = new Map(existing.controls.map((control) => [control.controlId, control]));
+  return input.controls.every((control) => {
+    const existingControl = controlsById.get(control.controlId);
+    return (
+      existingControl?.attestationCriterion === control.attestationCriterion &&
+      existingControl.controlVersion === control.controlVersion &&
+      existingControl.evidenceRequirement === control.evidenceRequirement &&
+      existingControl.interpretation === control.interpretation &&
+      existingControl.title === control.title
+    );
+  });
+}
+
 const caseColumns = {
   assignedAt: reviewCases.assignedAt,
   assignedToUserId: reviewCases.assignedToUserId,
@@ -67,6 +113,7 @@ const caseColumns = {
   finalRecommendation: reviewCases.finalRecommendation,
   hollisCaseReference: reviewCases.hollisCaseReference,
   id: reviewCases.id,
+  policyId: reviewCases.policyId,
   policyVersion: reviewCases.policyVersion,
   recommendation: reviewCases.recommendation,
   reviewDueAt: reviewCases.reviewDueAt,
@@ -79,6 +126,31 @@ const caseColumns = {
 
 function hashEvent(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+}
+
+function mapPolicyContractDeployment(
+  row: typeof policyContractDeployments.$inferSelect,
+): PolicyContractDeployment {
+  return policyContractDeploymentSchema.parse({
+    ...row,
+    activatedAt: row.activatedAt?.toISOString() ?? null,
+    binding: policyContractBindingSchema.parse(row.binding),
+    createdAt: row.createdAt.toISOString(),
+    finalizedAt: row.finalizedAt?.toISOString() ?? null,
+    updatedAt: row.updatedAt.toISOString(),
+    verifiedAt: row.verifiedAt?.toISOString() ?? null,
+  });
+}
+
+function mapManagedAttestationSubmission(
+  row: typeof managedAttestationSubmissions.$inferSelect,
+): ManagedAttestationSubmission {
+  return managedAttestationSubmissionSchema.parse({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    finalizedAt: row.finalizedAt?.toISOString() ?? null,
+    updatedAt: row.updatedAt.toISOString(),
+  });
 }
 
 function parseEvidence(value: unknown) {
@@ -437,57 +509,155 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
 }
 
 export function createPostgresPolicyLibraryStore(database: Database): PolicyLibraryStore {
+  async function findByIdentity(
+    tenantId: string,
+    policyId: string,
+    version: string,
+  ): Promise<PolicyVersion | null> {
+    return database.transaction(async (transaction) => {
+      await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+      const [policy] = await transaction
+        .select({
+          createdAt: policyVersions.createdAt,
+          createdByUserId: policyVersions.createdByUserId,
+          documentDigest: policyVersions.documentDigest,
+          id: policyVersions.id,
+          policyId: policyVersions.policyId,
+          publishedAt: policyVersions.publishedAt,
+          title: policyVersions.title,
+          version: policyVersions.version,
+        })
+        .from(policyVersions)
+        .where(
+          and(
+            eq(policyVersions.tenantId, tenantId),
+            eq(policyVersions.policyId, policyId),
+            eq(policyVersions.version, version),
+          ),
+        )
+        .limit(1);
+      if (!policy) return null;
+      const controls = await transaction
+        .select({
+          attestationCriterion: policyControls.attestationCriterion,
+          controlId: policyControls.controlId,
+          controlVersion: policyControls.controlVersion,
+          evidenceRequirement: policyControls.evidenceRequirement,
+          interpretation: policyControls.interpretation,
+          title: policyControls.title,
+        })
+        .from(policyControls)
+        .where(eq(policyControls.policyVersionId, policy.id));
+      return policyVersionSchema.parse({
+        ...policy,
+        controls,
+        createdAt: policy.createdAt.toISOString(),
+        publishedAt: policy.publishedAt.toISOString(),
+      });
+    });
+  }
+
   return {
-    async create(tenantId, actorId, input) {
+    async findControlRecord(tenantId, policyVersionId, controlId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        const [created] = await transaction
-          .insert(policyVersions)
-          .values({
-            createdByUserId: actorId,
-            documentDigest: input.documentDigest,
-            policyId: input.policyId,
-            tenantId,
-            title: input.title,
-            version: input.version,
-          })
-          .returning({
-            createdAt: policyVersions.createdAt,
-            createdByUserId: policyVersions.createdByUserId,
-            documentDigest: policyVersions.documentDigest,
-            id: policyVersions.id,
-            policyId: policyVersions.policyId,
-            publishedAt: policyVersions.publishedAt,
-            title: policyVersions.title,
-            version: policyVersions.version,
-          });
-        if (!created) throw new Error("Policy version could not be created.");
-        const controls = await transaction
-          .insert(policyControls)
-          .values(
-            input.controls.map((control) => ({
-              ...control,
-              policyVersionId: created.id,
-              tenantId,
-            })),
-          )
-          .returning({
+        const [record] = await transaction
+          .select({
             attestationCriterion: policyControls.attestationCriterion,
             controlId: policyControls.controlId,
+            controlRecordId: policyControls.id,
             controlVersion: policyControls.controlVersion,
+            documentDigest: policyVersions.documentDigest,
             evidenceRequirement: policyControls.evidenceRequirement,
             interpretation: policyControls.interpretation,
-            title: policyControls.title,
-          });
+            policyId: policyVersions.policyId,
+            policyVersion: policyVersions.version,
+          })
+          .from(policyControls)
+          .innerJoin(policyVersions, eq(policyControls.policyVersionId, policyVersions.id))
+          .where(
+            and(
+              eq(policyControls.tenantId, tenantId),
+              eq(policyControls.policyVersionId, policyVersionId),
+              eq(policyControls.controlId, controlId),
+            ),
+          )
+          .limit(1);
+        if (!record) return null;
         return {
-          ...created,
-          controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
-          createdAt: created.createdAt.toISOString(),
-          publishedAt: created.publishedAt.toISOString(),
-        } satisfies PolicyVersion;
+          binding: policyContractBindingSchema.parse({
+            control: {
+              attestationCriterion: record.attestationCriterion,
+              controlId: record.controlId,
+              controlVersion: record.controlVersion,
+              evidenceRequirement: record.evidenceRequirement,
+              interpretation: record.interpretation,
+              policyDocumentDigest: record.documentDigest,
+            },
+            policyId: record.policyId,
+            policyVersion: record.policyVersion,
+          }),
+          controlRecordId: record.controlRecordId,
+        };
       });
     },
-    async findControl(tenantId, version, controlId) {
+    async create(tenantId, actorId, input) {
+      try {
+        return await database.transaction(async (transaction) => {
+          await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+          const [created] = await transaction
+            .insert(policyVersions)
+            .values({
+              createdByUserId: actorId,
+              documentDigest: input.documentDigest,
+              policyId: input.policyId,
+              tenantId,
+              title: input.title,
+              version: input.version,
+            })
+            .returning({
+              createdAt: policyVersions.createdAt,
+              createdByUserId: policyVersions.createdByUserId,
+              documentDigest: policyVersions.documentDigest,
+              id: policyVersions.id,
+              policyId: policyVersions.policyId,
+              publishedAt: policyVersions.publishedAt,
+              title: policyVersions.title,
+              version: policyVersions.version,
+            });
+          if (!created) throw new Error("Policy version could not be created.");
+          const controls = await transaction
+            .insert(policyControls)
+            .values(
+              input.controls.map((control) => ({
+                ...control,
+                policyVersionId: created.id,
+                tenantId,
+              })),
+            )
+            .returning({
+              attestationCriterion: policyControls.attestationCriterion,
+              controlId: policyControls.controlId,
+              controlVersion: policyControls.controlVersion,
+              evidenceRequirement: policyControls.evidenceRequirement,
+              interpretation: policyControls.interpretation,
+              title: policyControls.title,
+            });
+          return {
+            ...created,
+            controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
+            createdAt: created.createdAt.toISOString(),
+            publishedAt: created.publishedAt.toISOString(),
+          } satisfies PolicyVersion;
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        const existing = await findByIdentity(tenantId, input.policyId, input.version);
+        if (existing && samePublishedPolicy(existing, input)) return existing;
+        throw new PolicyVersionConflictError();
+      }
+    },
+    async findControl(tenantId, policyId, version, controlId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         const [policy] = await transaction
@@ -506,6 +676,7 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
           .where(
             and(
               eq(policyVersions.tenantId, tenantId),
+              eq(policyVersions.policyId, policyId),
               eq(policyVersions.version, version),
               eq(policyControls.controlId, controlId),
             ),
@@ -575,6 +746,312 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
   };
 }
 
+export function createPostgresPolicyContractDeploymentStore(
+  database: Database,
+): PolicyContractDeploymentStore {
+  async function updateOne(
+    tenantId: string,
+    deploymentId: string,
+    allowedStatuses: PolicyContractDeployment["status"][],
+    values: Partial<typeof policyContractDeployments.$inferInsert>,
+  ): Promise<PolicyContractDeployment> {
+    return database.transaction(async (transaction) => {
+      await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+      const [updated] = await transaction
+        .update(policyContractDeployments)
+        .set({ ...values, updatedAt: new Date() })
+        .where(
+          and(
+            eq(policyContractDeployments.tenantId, tenantId),
+            eq(policyContractDeployments.id, deploymentId),
+            inArray(policyContractDeployments.status, allowedStatuses),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        throw new Error("The policy contract deployment transition was not permitted.");
+      }
+      return mapPolicyContractDeployment(updated);
+    });
+  }
+
+  return {
+    async findByPolicyControl(tenantId, policyControlRecordId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [deployment] = await transaction
+          .select()
+          .from(policyContractDeployments)
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, tenantId),
+              eq(policyContractDeployments.policyControlRecordId, policyControlRecordId),
+            ),
+          )
+          .orderBy(desc(policyContractDeployments.updatedAt))
+          .limit(1);
+        return deployment ? mapPolicyContractDeployment(deployment) : null;
+      });
+    },
+    async reserve(input) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${input.tenantId}, true)`);
+        const [created] = await transaction
+          .insert(policyContractDeployments)
+          .values(input)
+          .onConflictDoNothing({
+            target: [
+              policyContractDeployments.tenantId,
+              policyContractDeployments.bindingDigest,
+              policyContractDeployments.networkChainId,
+              policyContractDeployments.sourceDigest,
+            ],
+          })
+          .returning();
+        if (created) return mapPolicyContractDeployment(created);
+
+        const [existing] = await transaction
+          .select()
+          .from(policyContractDeployments)
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, input.tenantId),
+              eq(policyContractDeployments.bindingDigest, input.bindingDigest),
+              eq(policyContractDeployments.networkChainId, input.networkChainId),
+              eq(policyContractDeployments.sourceDigest, input.sourceDigest),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new Error("The policy contract deployment could not be reserved.");
+        return mapPolicyContractDeployment(existing);
+      });
+    },
+    async find(tenantId, deploymentId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [deployment] = await transaction
+          .select()
+          .from(policyContractDeployments)
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, tenantId),
+              eq(policyContractDeployments.id, deploymentId),
+            ),
+          )
+          .limit(1);
+        return deployment ? mapPolicyContractDeployment(deployment) : null;
+      });
+    },
+    markSubmitting(tenantId, deploymentId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [updated] = await transaction
+          .update(policyContractDeployments)
+          .set({ status: "submitting", updatedAt: new Date() })
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, tenantId),
+              eq(policyContractDeployments.id, deploymentId),
+              eq(policyContractDeployments.status, "pending"),
+            ),
+          )
+          .returning();
+        return updated ? mapPolicyContractDeployment(updated) : null;
+      });
+    },
+    markSubmitted(tenantId, deploymentId, transactionHash) {
+      return updateOne(tenantId, deploymentId, ["submitting"], {
+        deploymentTransactionHash: transactionHash,
+        failureCode: null,
+        status: "submitted",
+      });
+    },
+    markFinalized(tenantId, deploymentId, contractAddress) {
+      return updateOne(tenantId, deploymentId, ["submitted"], {
+        contractAddress,
+        failureCode: null,
+        finalizedAt: new Date(),
+        status: "finalized",
+      });
+    },
+    markVerified(tenantId, deploymentId) {
+      return updateOne(tenantId, deploymentId, ["finalized"], {
+        failureCode: null,
+        status: "verified",
+        verifiedAt: new Date(),
+      });
+    },
+    async activate(tenantId, deploymentId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [candidate] = await transaction
+          .select({ policyControlRecordId: policyContractDeployments.policyControlRecordId })
+          .from(policyContractDeployments)
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, tenantId),
+              eq(policyContractDeployments.id, deploymentId),
+              eq(policyContractDeployments.status, "verified"),
+            ),
+          )
+          .limit(1);
+        if (!candidate) {
+          throw new Error("The policy contract deployment is not ready for activation.");
+        }
+        await transaction
+          .update(policyContractDeployments)
+          .set({ status: "superseded", updatedAt: new Date() })
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, tenantId),
+              eq(policyContractDeployments.policyControlRecordId, candidate.policyControlRecordId),
+              eq(policyContractDeployments.status, "active"),
+              not(eq(policyContractDeployments.id, deploymentId)),
+            ),
+          );
+        const now = new Date();
+        const [activated] = await transaction
+          .update(policyContractDeployments)
+          .set({ activatedAt: now, status: "active", updatedAt: now })
+          .where(
+            and(
+              eq(policyContractDeployments.tenantId, tenantId),
+              eq(policyContractDeployments.id, deploymentId),
+              eq(policyContractDeployments.status, "verified"),
+            ),
+          )
+          .returning();
+        if (!activated) throw new Error("The policy contract deployment could not be activated.");
+        return mapPolicyContractDeployment(activated);
+      });
+    },
+    markFailed(tenantId, deploymentId, status, failureCode) {
+      return updateOne(
+        tenantId,
+        deploymentId,
+        ["pending", "submitting", "submitted", "finalized", "verified"],
+        { failureCode, status },
+      );
+    },
+  };
+}
+
+export function createPostgresManagedAttestationSubmissionStore(
+  database: Database,
+): ManagedAttestationSubmissionStore {
+  async function updateOne(
+    tenantId: string,
+    submissionId: string,
+    allowedStatuses: ManagedAttestationSubmission["status"][],
+    values: Partial<typeof managedAttestationSubmissions.$inferInsert>,
+  ): Promise<ManagedAttestationSubmission> {
+    return database.transaction(async (transaction) => {
+      await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+      const [updated] = await transaction
+        .update(managedAttestationSubmissions)
+        .set({ ...values, updatedAt: new Date() })
+        .where(
+          and(
+            eq(managedAttestationSubmissions.tenantId, tenantId),
+            eq(managedAttestationSubmissions.id, submissionId),
+            inArray(managedAttestationSubmissions.status, allowedStatuses),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        throw new Error("The managed attestation submission transition was not permitted.");
+      }
+      return mapManagedAttestationSubmission(updated);
+    });
+  }
+
+  return {
+    async reserve(input) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${input.tenantId}, true)`);
+        const [created] = await transaction
+          .insert(managedAttestationSubmissions)
+          .values(input)
+          .onConflictDoNothing({
+            target: [
+              managedAttestationSubmissions.tenantId,
+              managedAttestationSubmissions.idempotencyKey,
+            ],
+          })
+          .returning();
+        if (created) return mapManagedAttestationSubmission(created);
+        const [existing] = await transaction
+          .select()
+          .from(managedAttestationSubmissions)
+          .where(
+            and(
+              eq(managedAttestationSubmissions.tenantId, input.tenantId),
+              eq(managedAttestationSubmissions.idempotencyKey, input.idempotencyKey),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new Error("The managed attestation submission was not reserved.");
+        return mapManagedAttestationSubmission(existing);
+      });
+    },
+    async find(tenantId, submissionId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [submission] = await transaction
+          .select()
+          .from(managedAttestationSubmissions)
+          .where(
+            and(
+              eq(managedAttestationSubmissions.tenantId, tenantId),
+              eq(managedAttestationSubmissions.id, submissionId),
+            ),
+          )
+          .limit(1);
+        return submission ? mapManagedAttestationSubmission(submission) : null;
+      });
+    },
+    markSubmitting(tenantId, submissionId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [updated] = await transaction
+          .update(managedAttestationSubmissions)
+          .set({ status: "submitting", updatedAt: new Date() })
+          .where(
+            and(
+              eq(managedAttestationSubmissions.tenantId, tenantId),
+              eq(managedAttestationSubmissions.id, submissionId),
+              eq(managedAttestationSubmissions.status, "pending"),
+            ),
+          )
+          .returning();
+        return updated ? mapManagedAttestationSubmission(updated) : null;
+      });
+    },
+    markSubmitted(tenantId, submissionId, transactionHash) {
+      return updateOne(tenantId, submissionId, ["submitting"], {
+        failureCode: null,
+        status: "submitted",
+        transactionHash,
+      });
+    },
+    markFinalized(tenantId, submissionId, result) {
+      return updateOne(tenantId, submissionId, ["submitted"], {
+        evaluationReason: result.evaluationReason,
+        failureCode: null,
+        finalizedAt: new Date(),
+        status: "finalized",
+        verdict: result.verdict,
+      });
+    },
+    markFailed(tenantId, submissionId, status, failureCode) {
+      return updateOne(tenantId, submissionId, ["pending", "submitting", "submitted"], {
+        failureCode,
+        status,
+      });
+    },
+  };
+}
+
 export function createPostgresReviewIntakeStore(database: Database): ReviewIntakeStore {
   return {
     async create(record: ReviewIntakeRecord) {
@@ -592,6 +1069,7 @@ export function createPostgresReviewIntakeStore(database: Database): ReviewIntak
             evidence: record.evidence,
             id: record.caseId,
             intakeFingerprint: record.fingerprint,
+            policyId: record.policyId,
             policyVersion: record.policyVersion,
             recommendation: record.recommendation,
             riskLevel: record.riskLevel,
@@ -624,6 +1102,7 @@ export function createPostgresReviewIntakeStore(database: Database): ReviewIntak
               automatedSystemVersion: record.automatedSystemVersion,
               evidence: record.evidence,
               externalReference: record.externalReference,
+              policyId: record.policyId,
               policyVersion: record.policyVersion,
               recommendation: record.recommendation,
               riskLevel: record.riskLevel,
@@ -708,6 +1187,7 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
             finalRecommendation: detail.finalRecommendation,
             hollisCaseReference: detail.hollisCaseReference,
             id: detail.id,
+            policyId: detail.policyId,
             policyVersion: detail.policyVersion,
             recommendation: detail.recommendation,
             reviewDueAt: detail.reviewDueAt?.toISOString() ?? null,

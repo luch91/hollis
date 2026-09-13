@@ -125,6 +125,11 @@ The API normally listens on `http://localhost:4000`. The web application normall
 | `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
 | `PUBLIC_ATTESTATION_ORIGIN` | Public HTTPS API origin for privacy-safe case files | Leave unset until the API public endpoint is deliberately deployed and verified. |
 | `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Read-only Studio Dev attestation importer | Set only to a contract that has passed the recorded policy-binding and representative-state checks. |
+| `GENLAYER_NETWORK` | Managed GenLayer network | Use `studio-dev` only. Configure it with the other managed-runtime values as one complete group. |
+| `GENLAYER_RPC_URL` | Managed GenLayer JSON-RPC endpoint | Use `https://studio-dev.genlayer.com/api` only. |
+| `GENLAYER_CHAIN_ID` | Managed GenLayer chain ID | Use `61997` only. |
+| `GENLAYER_RUNTIME_ADDRESS` | Dedicated Hollis execution address | Server-only runtime configuration. The API verifies that it matches the configured private key. |
+| `GENLAYER_RUNTIME_PRIVATE_KEY` | Dedicated Hollis execution key | Secret-manager or local ignored environment only. Never expose it to the browser or commit it. |
 | `RETENTION_TENANT_IDS` | Explicit tenant list for the one-shot retention scheduler | This does not run as part of `pnpm dev`. |
 
 The runtime validates configuration at startup. In production it rejects missing evidence storage, claims-webhook secret, HTTPS `WEB_ORIGIN`, or the required API host binding. It also rejects configuring Google Cloud Storage and S3 together.

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   createReviewCase,
   createWorkspacePolicy,
+  deployPolicyContract,
   createPublicAttestationCaseFile,
   createEvidenceUpload,
   claimReviewCase,
@@ -13,6 +14,7 @@ import {
   refreshAttestation,
   importFinalizedAttestation,
   recoverWorkspace,
+  ReviewServiceError,
   verifyEvidence,
 } from "./data";
 
@@ -44,41 +46,57 @@ function dueAtUtc(value: string): string {
 }
 
 function selectedPolicyBinding(value: string) {
-  const [policyVersion, ruleId, ...unexpected] = value.split("::");
-  if (!policyVersion || !ruleId || unexpected.length > 0) {
+  const [policyId, policyVersion, ruleId, ...unexpected] = value.split("::");
+  if (!policyId || !policyVersion || !ruleId || unexpected.length > 0) {
     throw new Error("Select a published policy control.");
   }
-  return { policyVersion, ruleId };
+  return { policyId, policyVersion, ruleId };
 }
 
 export async function createWorkspacePolicyAction(formData: FormData) {
   const policyId = requiredValue(formData, "policyId");
   const version = requiredValue(formData, "version");
   const controlId = requiredValue(formData, "controlId");
-  await createWorkspacePolicy({
-    controls: [
-      {
-        attestationCriterion: requiredValue(formData, "attestationCriterion"),
-        controlId,
-        controlVersion: requiredValue(formData, "controlVersion"),
-        evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
-          | "none"
-          | "reference_required"
-          | "verified_reference_required",
-        interpretation: requiredValue(formData, "interpretation") as
-          | "deterministic"
-          | "judgment_required",
-        title: requiredValue(formData, "controlTitle"),
-      },
-    ],
-    documentDigest: requiredValue(formData, "documentDigest"),
-    policyId,
-    title: requiredValue(formData, "title"),
-    version,
-  });
+  try {
+    await createWorkspacePolicy({
+      controls: [
+        {
+          attestationCriterion: requiredValue(formData, "attestationCriterion"),
+          controlId,
+          controlVersion: requiredValue(formData, "controlVersion"),
+          evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
+            | "none"
+            | "reference_required"
+            | "verified_reference_required",
+          interpretation: requiredValue(formData, "interpretation") as
+            | "deterministic"
+            | "judgment_required",
+          title: requiredValue(formData, "controlTitle"),
+        },
+      ],
+      documentDigest: requiredValue(formData, "documentDigest"),
+      policyId,
+      title: requiredValue(formData, "title"),
+      version,
+    });
+  } catch (error) {
+    if (error instanceof ReviewServiceError && error.code === "policy_version_conflict") {
+      revalidatePath("/app/policy");
+      redirect("/app/policy?publish=conflict");
+    }
+    throw error;
+  }
   revalidatePath("/app/policy");
   revalidatePath("/app/review-cases/new");
   redirect("/app/policy");
+}
+
+export async function deployPolicyContractAction(formData: FormData) {
+  const policyVersionId = requiredValue(formData, "policyVersionId");
+  const controlId = requiredValue(formData, "controlId");
+  await deployPolicyContract(policyVersionId, controlId);
+  revalidatePath(`/app/policy/${policyVersionId}`);
+  redirect(`/app/policy/${policyVersionId}?deployment=${encodeURIComponent(controlId)}`);
 }
 
 export async function createReviewCaseAction(formData: FormData) {
@@ -101,6 +119,7 @@ export async function createReviewCaseAction(formData: FormData) {
     automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
     evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
     externalReference: requiredValue(formData, "externalReference"),
+    policyId: policyBinding.policyId,
     policyVersion: policyBinding.policyVersion,
     recommendation: requiredValue(formData, "recommendation") as Parameters<
       typeof createReviewCase
@@ -211,8 +230,9 @@ function policyFromForm(formData: FormData) {
 
 export async function createPublicAttestationCaseFileAction(formData: FormData) {
   const caseId = requiredValue(formData, "caseId");
-  await createPublicAttestationCaseFile(caseId, policyFromForm(formData));
+  const caseFile = await createPublicAttestationCaseFile(caseId, policyFromForm(formData));
   revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}?caseFile=${caseFile.publicId}#attestation`);
 }
 
 export async function importFinalizedAttestationAction(formData: FormData) {

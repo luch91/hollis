@@ -19,8 +19,15 @@ import { getReviewCase, listAttestations, listPublicAttestationCaseFiles } from 
 import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
 import { keyEvidenceRecords } from "../review-presentation";
 
-export default async function ReviewCasePage({ params }: { params: Promise<{ caseId: string }> }) {
+export default async function ReviewCasePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ caseId: string }>;
+  searchParams: Promise<{ caseFile?: string }>;
+}) {
   const { caseId } = await params;
+  const { caseFile: generatedCaseFileId } = await searchParams;
   const session = await readHollisSession();
   const activeRole = session?.session.activeWorkspace?.role ?? "";
   const canCreate = canCreateReviewCases(activeRole);
@@ -39,6 +46,9 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
       .catch(() => ({ caseFiles: [], available: false })),
   ]);
   const publicCaseFiles = publicCaseFileResult.caseFiles;
+  const generatedCaseFile = publicCaseFiles.find(
+    (publicCaseFile) => publicCaseFile.publicId === generatedCaseFileId,
+  );
 
   return (
     <section className="content case-detail" aria-labelledby="case-title">
@@ -135,6 +145,21 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
             </dd>
           </div>
         </dl>
+        {generatedCaseFile ? (
+          <div className="attestation-success" role="status">
+            <div>
+              <p className="eyebrow">Case file generated</p>
+              <strong>Hollis recorded an immutable, public-safe attestation input.</strong>
+              <span>{generatedCaseFile.caseFile.caseCommitment}</span>
+            </div>
+            <Link
+              className="secondary-action"
+              href={`/app/review-cases/${caseId}/attestation-case-files/${generatedCaseFile.publicId}`}
+            >
+              View attestation record
+            </Link>
+          </div>
+        ) : null}
         {reviewCase.status === "completed" && publicCaseFileResult.available && canAttest ? (
           <form action={createPublicAttestationCaseFileAction} className="attestation-form">
             <input name="caseId" type="hidden" value={caseId} />
@@ -220,8 +245,18 @@ export default async function ReviewCasePage({ params }: { params: Promise<{ cas
                   <div>
                     <dt>Case file</dt>
                     <dd>
+                      <Link
+                        href={`/app/review-cases/${caseId}/attestation-case-files/${publicCaseFile.publicId}`}
+                      >
+                        View attestation record
+                      </Link>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Canonical record</dt>
+                    <dd>
                       <a href={publicCaseFile.publicCaseFileUrl} target="_blank" rel="noreferrer">
-                        Open generated file
+                        Open JSON
                       </a>
                     </dd>
                   </div>

@@ -4,8 +4,16 @@ import { OperationalPageHeader } from "../operational-page-header";
 import { createWorkspacePolicyAction } from "../review-cases/actions";
 import { listWorkspacePolicies } from "../review-cases/data";
 
-export default async function PolicyLibraryPage() {
-  const [policies, session] = await Promise.all([listWorkspacePolicies(), readHollisSession()]);
+export default async function PolicyLibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ publish?: string }>;
+}) {
+  const [policies, session, params] = await Promise.all([
+    listWorkspacePolicies(),
+    readHollisSession(),
+    searchParams,
+  ]);
   const canManagePolicies =
     session?.session.activeWorkspace?.role === "owner" ||
     session?.session.activeWorkspace?.role === "administrator";
@@ -20,6 +28,12 @@ export default async function PolicyLibraryPage() {
       <Link className="back-link policy-library-back-link" href="/app/review-cases">
         ← Back to review queue
       </Link>
+      {params.publish === "conflict" ? (
+        <p className="policy-library-notice" role="status">
+          This policy ID and version already exist with different immutable content. Review the
+          published record below, or publish the revised policy under a new version.
+        </p>
+      ) : null}
       <div className="policy-library-grid">
         <section className="policy-library-list" aria-labelledby="published-policies-title">
           <div className="section-heading">
@@ -31,31 +45,41 @@ export default async function PolicyLibraryPage() {
           </div>
           {policies.length ? (
             policies.map((policy) => (
-              <article className="policy-library-card" key={policy.id}>
-                <p className="eyebrow">Published · {policy.version}</p>
-                <h3>{policy.title}</h3>
-                <p>{policy.policyId}</p>
-                <dl>
-                  <div>
-                    <dt>Document digest</dt>
-                    <dd>{policy.documentDigest}</dd>
-                  </div>
-                  <div>
-                    <dt>Controls</dt>
-                    <dd>{policy.controls.length}</dd>
-                  </div>
-                </dl>
-                <ul>
-                  {policy.controls.map((control) => (
-                    <li key={control.controlId}>
-                      <strong>{control.title}</strong>
-                      <span>
-                        {control.controlId} · {control.controlVersion}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
+              <Link
+                aria-label={`Open ${policy.title}, version ${policy.version}`}
+                className="policy-library-card-link"
+                href={`/app/policy/${policy.id}`}
+                key={policy.id}
+              >
+                <article className="policy-library-card">
+                  <p className="eyebrow">Published · {policy.version}</p>
+                  <h3>{policy.title}</h3>
+                  <p>{policy.policyId}</p>
+                  <dl>
+                    <div>
+                      <dt>Document digest</dt>
+                      <dd>{policy.documentDigest}</dd>
+                    </div>
+                    <div>
+                      <dt>Controls</dt>
+                      <dd>{policy.controls.length}</dd>
+                    </div>
+                  </dl>
+                  <ul>
+                    {policy.controls.map((control) => (
+                      <li key={control.controlId}>
+                        <strong>{control.title}</strong>
+                        <span>
+                          {control.controlId} · {control.controlVersion}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="policy-library-card-action" aria-hidden="true">
+                    View immutable record <span>›</span>
+                  </span>
+                </article>
+              </Link>
             ))
           ) : (
             <p className="policy-library-empty">No policy has been published in this workspace.</p>

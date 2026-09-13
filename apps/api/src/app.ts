@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
@@ -52,6 +53,7 @@ import {
   createPostgresAttestationStore,
   createPostgresEvidenceMetadataStore,
   createPostgresPolicyLibraryStore,
+  createPostgresPolicyContractDeploymentStore,
   createPostgresPublicAttestationCaseFileStore,
   createPostgresReviewIntakeStore,
   createPostgresReviewWorkflowStore,
@@ -62,9 +64,16 @@ import {
   setEvidenceLegalHold,
 } from "./persistence.js";
 import {
+  ensurePolicyContractDeployment,
+  PolicyContractDeploymentError,
+  type PolicyContractDeploymentClient,
+  type PolicyContractDeploymentStore,
+} from "./policy-contract-deployment.js";
+import {
   assertPublishedCasePolicy,
   createPublishedPolicy,
   PolicyBindingError,
+  PolicyVersionConflictError,
   type PolicyLibraryStore,
 } from "./policy-library.js";
 import {
@@ -121,6 +130,9 @@ type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
   reviewIntakeStore?: ReviewIntakeStore;
   policyLibraryStore?: PolicyLibraryStore;
+  policyContractDeploymentStore?: PolicyContractDeploymentStore;
+  policyContractDeploymentClient?: PolicyContractDeploymentClient;
+  policyContractSource?: string;
   tenantResolver?: TenantResolver;
   workflowStore?: ReviewWorkflowStore;
   evidenceStorage?: import("./evidence-storage.js").EvidenceStorage;
@@ -183,6 +195,17 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.reviewIntakeStore ?? createPostgresReviewIntakeStore(requireDatabase());
   const policyLibraryStore =
     dependencies.policyLibraryStore ?? createPostgresPolicyLibraryStore(requireDatabase());
+  const policyContractDeploymentStore =
+    dependencies.policyContractDeploymentStore ??
+    (databaseResource
+      ? createPostgresPolicyContractDeploymentStore(databaseResource.database)
+      : null);
+  const policyContractSource =
+    dependencies.policyContractSource ??
+    readFileSync(
+      new URL("../../../contracts/genlayer/policy_process_attestation_v7.py", import.meta.url),
+      "utf8",
+    );
   const tenantResolver =
     dependencies.tenantResolver ?? createPostgresTenantResolver(requireDatabase());
   const workflowStore =
@@ -296,6 +319,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   const caseParamsSchema = z.object({ caseId: z.uuid() }).strict();
+  const policyContractParamsSchema = z
+    .object({ controlId: z.string().min(1).max(128), policyVersionId: z.uuid() })
+    .strict();
   const attestationParamsSchema = z.object({ attestationId: z.uuid(), caseId: z.uuid() }).strict();
   const publicCaseFileParamsSchema = z.object({ publicCaseFileId: z.uuid() }).strict();
   const evidenceParamsSchema = z.object({ caseId: z.uuid(), evidenceId: z.uuid() }).strict();
@@ -364,7 +390,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     app.addHook("onClose", async () => databaseResource.client.end());
   }
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (
       error instanceof InvalidAccessTokenError ||
       error instanceof InsufficientPermissionError ||
@@ -395,6 +421,17 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         code: "policy_not_published",
         message: "The selected policy control is not published for this workspace.",
       });
+    }
+
+    if (error instanceof PolicyVersionConflictError) {
+      return reply.code(409).send({
+        code: "policy_version_conflict",
+        message: "A different policy version already exists for this policy ID and version.",
+      });
+    }
+
+    if (error instanceof PolicyContractDeploymentError) {
+      return reply.code(409).send({ code: error.code, message: error.message });
     }
 
     if (
@@ -455,15 +492,45 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       });
     }
 
+    const causedError =
+      error instanceof Error &&
+      typeof error.cause === "object" &&
+      error.cause !== null &&
+      "name" in error.cause
+        ? error.cause
+        : null;
+    const diagnosticSource = causedError ?? error;
     const errorCode =
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      typeof error.code === "string"
-        ? error.code
+      typeof diagnosticSource === "object" &&
+      diagnosticSource !== null &&
+      "code" in diagnosticSource &&
+      typeof diagnosticSource.code === "string"
+        ? diagnosticSource.code
+        : undefined;
+    const databaseDiagnostic =
+      typeof diagnosticSource === "object" && diagnosticSource !== null
+        ? {
+            constraint:
+              "constraint" in diagnosticSource && typeof diagnosticSource.constraint === "string"
+                ? diagnosticSource.constraint
+                : undefined,
+            routine:
+              "routine" in diagnosticSource && typeof diagnosticSource.routine === "string"
+                ? diagnosticSource.routine
+                : undefined,
+          }
         : undefined;
     app.log.error(
-      { errorCode, errorName: error instanceof Error ? error.name : "unknown" },
+      {
+        ...databaseDiagnostic,
+        errorCode,
+        errorCauseName:
+          causedError && "name" in causedError && typeof causedError.name === "string"
+            ? causedError.name
+            : undefined,
+        errorName: error instanceof Error ? error.name : "unknown",
+        path: request.routeOptions.url ?? request.url,
+      },
       "request failed",
     );
     return reply.code(500).send({ code: "internal_error", message: "Request failed." });
@@ -1017,8 +1084,20 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     async (request, reply) => {
       const input = createReviewCaseSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
+      if (!input.policyId) {
+        return reply.code(400).send({
+          code: "policy_identity_required",
+          message: "A published policy ID is required for a new review case.",
+        });
+      }
       assertPublishedCasePolicy(
-        await policyLibraryStore.findControl(tenant.id, input.policyVersion, input.ruleId),
+        await policyLibraryStore.findControl(
+          tenant.id,
+          input.policyId,
+          input.policyVersion,
+          input.ruleId,
+        ),
+        input.policyId,
         input.policyVersion,
         input.ruleId,
       );
@@ -1052,6 +1131,73 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       return reply
         .code(201)
         .send(await createPublishedPolicy(tenant.id, principal.userId, input, policyLibraryStore));
+    },
+  );
+
+  app.post(
+    "/v1/policies/:policyVersionId/controls/:controlId/genlayer-deployment",
+    {
+      preHandler: [
+        rateLimit("attestation"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "policies:manage"),
+      ],
+    },
+    async (request, reply) => {
+      if (
+        !environment.GENLAYER_RUNTIME_ADDRESS ||
+        !environment.GENLAYER_RUNTIME_PRIVATE_KEY ||
+        !dependencies.policyContractDeploymentClient ||
+        !policyContractDeploymentStore
+      ) {
+        return reply.code(503).send({
+          code: "managed_genlayer_unconfigured",
+          message: "The Hollis-managed GenLayer deployment runtime is not activated.",
+        });
+      }
+      const { controlId, policyVersionId } = policyContractParamsSchema.parse(request.params);
+      const { principal, tenant } = requireRequestContext(request);
+      const control = await policyLibraryStore.findControlRecord(
+        tenant.id,
+        policyVersionId,
+        controlId,
+      );
+      if (!control) {
+        return reply.code(404).send({
+          code: "policy_control_not_found",
+          message: "The published policy control was not found.",
+        });
+      }
+      return reply.code(200).send(
+        await ensurePolicyContractDeployment({
+          binding: control.binding,
+          client: dependencies.policyContractDeploymentClient,
+          createdByUserId: principal.userId,
+          policyControlRecordId: control.controlRecordId,
+          runtimeAddress: environment.GENLAYER_RUNTIME_ADDRESS,
+          source: policyContractSource,
+          sourceVersion: "v7",
+          store: policyContractDeploymentStore,
+          tenantId: tenant.id,
+        }),
+      );
+    },
+  );
+
+  app.get(
+    "/v1/policies/:policyVersionId/controls/:controlId/genlayer-deployment",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "policies:read") },
+    async (request, reply) => {
+      if (!policyContractDeploymentStore)
+        return reply.code(503).send({ code: "managed_genlayer_unconfigured" });
+      const { controlId, policyVersionId } = policyContractParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      const control = await policyLibraryStore.findControlRecord(
+        tenant.id,
+        policyVersionId,
+        controlId,
+      );
+      if (!control) return reply.code(404).send({ code: "policy_control_not_found" });
+      return policyContractDeploymentStore.findByPolicyControl(tenant.id, control.controlRecordId);
     },
   );
 

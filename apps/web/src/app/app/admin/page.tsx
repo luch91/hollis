@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
 import { InvitationLink } from "./invitation-link";
@@ -103,17 +104,19 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function updateProfile(formData: FormData) {
   "use server";
+  const website = String(formData.get("website") ?? "").trim();
   await api("/v1/workspace", {
     method: "PUT",
     body: JSON.stringify({
       name: formData.get("name"),
       industry: formData.get("industry"),
       operatingRegion: formData.get("operatingRegion"),
-      website: formData.get("website"),
+      website: website && !/^https?:\/\//i.test(website) ? `https://${website}` : website,
     }),
   });
   revalidatePath("/app/admin");
   revalidatePath("/app", "layout");
+  redirect("/app/admin?profile=updated");
 }
 async function inviteMember(formData: FormData) {
   "use server";
@@ -147,7 +150,7 @@ async function updateMember(formData: FormData) {
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invite?: string }>;
+  searchParams: Promise<{ edit?: string; invite?: string; profile?: string }>;
 }) {
   const session = await readHollisSession();
   if (!session?.session.activeWorkspace) redirect("/onboarding");
@@ -190,6 +193,11 @@ export default async function AdminPage({
           <small>{role.replaceAll("_", " ")}</small>
         </aside>
       ) : null}
+      {canManage && params.profile === "updated" ? (
+        <aside className="admin-success-notice" aria-live="polite">
+          Organization profile saved.
+        </aside>
+      ) : null}
       <section className="admin-media-boundary" aria-labelledby="organization-media-title">
         <div>
           <p className="eyebrow">Organization identity</p>
@@ -203,9 +211,17 @@ export default async function AdminPage({
         <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
       </section>
       <div className="admin-grid">
-        {canManage ? (
+        {canManage && params.edit === "profile" ? (
           <form action={updateProfile} className="admin-card">
-            <h2>Organization profile</h2>
+            <div className="admin-card-heading">
+              <div>
+                <p className="eyebrow">Editing</p>
+                <h2>Organization profile</h2>
+              </div>
+              <Link className="text-button" href="/app/admin">
+                Cancel
+              </Link>
+            </div>
             <label>
               Name
               <input name="name" defaultValue={profile.name} required />
@@ -241,15 +257,32 @@ export default async function AdminPage({
             </label>
             <label>
               Website
-              <input name="website" defaultValue={profile.website ?? ""} type="url" />
+              <input
+                autoComplete="url"
+                inputMode="url"
+                name="website"
+                defaultValue={profile.website ?? ""}
+                placeholder="example.com"
+                type="text"
+              />
             </label>
             <button className="primary-action" type="submit">
-              Save profile
+              Save changes
             </button>
           </form>
         ) : (
-          <section className="admin-card admin-profile-readonly">
-            <h2>Organization profile</h2>
+          <section className="admin-card admin-profile-readonly admin-profile-summary">
+            <div className="admin-card-heading">
+              <div>
+                <p className="eyebrow">Current profile</p>
+                <h2>Organization profile</h2>
+              </div>
+              {canManage ? (
+                <Link className="secondary-action" href="/app/admin?edit=profile">
+                  Edit profile
+                </Link>
+              ) : null}
+            </div>
             <dl>
               <div>
                 <dt>Name</dt>

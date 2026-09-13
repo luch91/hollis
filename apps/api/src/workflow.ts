@@ -31,6 +31,7 @@ export type ReviewCaseDetail = ReviewQueueItem & {
   escalatedByUserId: string | null;
   evidence: Array<{ digest: string; id: string; mediaType: string }>;
   finalRecommendation: CreateReviewCase["recommendation"] | null;
+  policyId?: string | null;
   policyVersion: string;
   ruleId: string;
 };
@@ -133,6 +134,7 @@ export function toDetailResponse(
     hollisCaseReference: item.hollisCaseReference,
     finalRecommendation: item.finalRecommendation,
     id: item.id,
+    policyId: item.policyId,
     policyVersion: item.policyVersion,
     recommendation: item.recommendation,
     reviewDueAt: item.reviewDueAt?.toISOString() ?? null,

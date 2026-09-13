@@ -35,6 +35,7 @@ export type ReviewCaseDetail = ReviewQueueItem & {
   escalatedByUserId: string | null;
   evidence: Array<{ digest: string; id: string; mediaType: string }>;
   finalRecommendation: ReviewQueueItem["recommendation"] | null;
+  policyId?: string | null;
   policyVersion: string;
   recommendation: ReviewQueueItem["recommendation"];
   riskLevel: ReviewQueueItem["riskLevel"];
@@ -57,7 +58,13 @@ export type AttestationRecord = {
 
 export type PublicAttestationCaseFile = {
   caseFile: {
+    auditManifestHash: string;
     caseCommitment: string;
+    evidence: Array<{
+      digest: string;
+      mediaType: string;
+      verified: boolean;
+    }>;
     policy: {
       control: {
         attestationCriterion: string;
@@ -70,6 +77,13 @@ export type PublicAttestationCaseFile = {
       policyId: string;
       policyVersion: string;
     };
+    review: {
+      decisionRecorded: boolean;
+      escalationRecorded: boolean;
+      humanDecisionOutcome: "approved" | "modified" | "rejected" | null;
+      reviewerActionCommitment: string | null;
+    };
+    schemaVersion: string;
   };
   createdAt: string;
   publicCaseFileUrl: string;
@@ -93,6 +107,13 @@ export type WorkspacePolicy = {
   publishedAt: string;
   title: string;
   version: string;
+};
+
+export type PolicyContractDeployment = {
+  contractAddress: string | null;
+  deploymentTransactionHash: string | null;
+  failureCode: string | null;
+  status: string;
 };
 
 export type WorkspaceReviewerSearchResult = {
@@ -159,6 +180,7 @@ export function createReviewCase(input: {
   automatedSystemVersion: string;
   evidence: Array<{ digest: string; id: string; mediaType: string }>;
   externalReference: string;
+  policyId: string;
   policyVersion: string;
   recommendation: ReviewQueueItem["recommendation"];
   riskLevel: ReviewQueueItem["riskLevel"];
@@ -176,6 +198,19 @@ export function createReviewCase(input: {
 
 export function listWorkspacePolicies() {
   return request<WorkspacePolicy[]>("/v1/policies");
+}
+
+export function getPolicyContractDeployment(policyVersionId: string, controlId: string) {
+  return request<PolicyContractDeployment | null>(
+    `/v1/policies/${policyVersionId}/controls/${encodeURIComponent(controlId)}/genlayer-deployment`,
+  );
+}
+
+export function deployPolicyContract(policyVersionId: string, controlId: string) {
+  return request<PolicyContractDeployment>(
+    `/v1/policies/${policyVersionId}/controls/${encodeURIComponent(controlId)}/genlayer-deployment`,
+    { method: "POST" },
+  );
 }
 
 export function searchWorkspaceReviewers(query: string) {

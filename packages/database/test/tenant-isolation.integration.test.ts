@@ -19,6 +19,8 @@ const memberActorId = randomUUID();
 const assignedMemberId = randomUUID();
 const assignedMemberLegacyId = `user_${randomUUID()}`;
 const outsideMemberId = randomUUID();
+const policyVersionRecordId = randomUUID();
+const policyControlRecordId = randomUUID();
 let provisionedTenantId: string | undefined;
 let provisionedUserId: string | undefined;
 const evidence = [
@@ -46,9 +48,31 @@ beforeAll(async () => {
       ('reviewer', ${tenantOneId}, ${assignedMemberId}),
       ('reviewer', ${tenantTwoId}, ${outsideMemberId})
   `;
+  await owner`
+    insert into policy_versions (
+      created_by_user_id, document_digest, id, policy_id, tenant_id, title, version
+    ) values (
+      ${memberActorId}, ${`sha256:${"8".repeat(64)}`}, ${policyVersionRecordId},
+      'isolation-policy', ${tenantOneId}, 'Isolation policy', '2026.1'
+    )
+  `;
+  await owner`
+    insert into policy_controls (
+      attestation_criterion, control_id, control_version, evidence_requirement,
+      id, interpretation, policy_version_id, tenant_id, title
+    ) values (
+      'A human decision must be recorded.', 'human-review-required', '1.0',
+      'verified_reference_required', ${policyControlRecordId}, 'deterministic',
+      ${policyVersionRecordId}, ${tenantOneId}, 'Human review required'
+    )
+  `;
 });
 
 afterAll(async () => {
+  await owner`delete from managed_attestation_submissions where deployment_id in (select id from policy_contract_deployments where policy_control_record_id = ${policyControlRecordId})`;
+  await owner`delete from policy_contract_deployments where policy_control_record_id = ${policyControlRecordId}`;
+  await owner`delete from policy_controls where id = ${policyControlRecordId}`;
+  await owner`delete from policy_versions where id = ${policyVersionRecordId}`;
   await owner`delete from public_attestation_case_files where public_id = ${publicCaseFileId}`;
   await owner`delete from review_cases where id = ${caseId}`;
   if (provisionedTenantId) {
@@ -220,6 +244,92 @@ describe("PostgreSQL tenant isolation", () => {
       can_delete_public_case_files: false,
       can_update_events: false,
       can_update_public_case_files: false,
+    });
+  });
+
+  it("isolates policy contract deployments and binds controls to the same tenant", async () => {
+    const deploymentId = randomUUID();
+    const binding = {
+      control: {
+        attestationCriterion: "A human decision must be recorded.",
+        controlId: "human-review-required",
+        controlVersion: "1.0",
+        evidenceRequirement: "verified_reference_required",
+        interpretation: "deterministic",
+        policyDocumentDigest: `sha256:${"8".repeat(64)}`,
+      },
+      policyId: "isolation-policy",
+      policyVersion: "2026.1",
+    };
+
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      await transaction`select set_config('app.tenant_id', ${tenantOneId}, true)`;
+      await transaction`
+        insert into policy_contract_deployments (
+          binding, binding_digest, created_by_user_id, id, network, network_chain_id,
+          policy_control_record_id, runtime_address, source_digest, source_version,
+          status, tenant_id
+        ) values (
+          ${JSON.stringify(binding)}::jsonb, ${`sha256:${"9".repeat(64)}`}, ${memberActorId},
+          ${deploymentId}, 'studio-dev', 61997, ${policyControlRecordId},
+          ${`0x${"a".repeat(40)}`}, ${`sha256:${"b".repeat(64)}`}, 'v7', 'pending',
+          ${tenantOneId}
+        )
+      `;
+    });
+
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      await transaction`select set_config('app.tenant_id', ${tenantTwoId}, true)`;
+      const rows = await transaction`
+        select id from policy_contract_deployments where id = ${deploymentId}
+      `;
+      expect(rows).toHaveLength(0);
+    });
+
+    await expect(
+      owner.begin(async (transaction) => {
+        await transaction.unsafe("set local role hollis_app");
+        await transaction`select set_config('app.tenant_id', ${tenantTwoId}, true)`;
+        await transaction`
+          insert into policy_contract_deployments (
+            binding, binding_digest, created_by_user_id, network, network_chain_id,
+            policy_control_record_id, runtime_address, source_digest, source_version,
+            status, tenant_id
+          ) values (
+            ${JSON.stringify(binding)}::jsonb, ${`sha256:${"c".repeat(64)}`}, ${memberActorId},
+            'studio-dev', 61997, ${policyControlRecordId}, ${`0x${"d".repeat(40)}`},
+            ${`sha256:${"e".repeat(64)}`}, 'v7', 'pending', ${tenantTwoId}
+          )
+        `;
+      }),
+    ).rejects.toThrow(/foreign key constraint/);
+
+    const submissionId = randomUUID();
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      await transaction`select set_config('app.tenant_id', ${tenantOneId}, true)`;
+      await transaction`
+        insert into managed_attestation_submissions (
+          case_commitment, case_id, contract_address, deployment_id, id,
+          idempotency_key, public_case_file_url, runtime_address, status, tenant_id
+        ) values (
+          ${`sha256:${"f".repeat(64)}`}, ${caseId}, ${`0x${"a".repeat(40)}`},
+          ${deploymentId}, ${submissionId}, ${`sha256:${"0".repeat(64)}`},
+          'https://api.hollis.test/v1/public/attestation-case-files/isolation',
+          ${`0x${"a".repeat(40)}`}, 'pending', ${tenantOneId}
+        )
+      `;
+    });
+
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      await transaction`select set_config('app.tenant_id', ${tenantTwoId}, true)`;
+      const rows = await transaction`
+        select id from managed_attestation_submissions where id = ${submissionId}
+      `;
+      expect(rows).toHaveLength(0);
     });
   });
 

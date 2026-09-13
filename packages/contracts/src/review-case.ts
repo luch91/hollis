@@ -26,6 +26,10 @@ export const createReviewCaseSchema = z
     automatedSystemVersion: z.string().min(1).max(128),
     evidence: z.array(evidenceReferenceSchema).min(1).max(100),
     externalReference: z.string().min(1).max(128),
+    policyId: z
+      .string()
+      .regex(/^[a-z][a-z0-9-]{0,127}$/)
+      .optional(),
     policyVersion: z.string().min(1).max(128),
     recommendation: recommendationSchema,
     riskLevel: riskLevelSchema,
@@ -102,6 +106,7 @@ export const reviewExportSchema = z
       escalatedByUserId: z.string().nullable(),
       escalationReason: z.string().nullable(),
       finalRecommendation: recommendationSchema.nullable(),
+      policyId: z.string().nullable().optional(),
       policyVersion: z.string(),
       ruleId: z.string(),
     }),
