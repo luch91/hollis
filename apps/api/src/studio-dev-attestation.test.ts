@@ -80,7 +80,7 @@ describe("StudioDevAttestationVerifier", () => {
   it("requires retained representative results before the importer can be activated", async () => {
     const verifier = new StudioDevAttestationVerifier(createClient(), contractAddress);
 
-    await expect(verifier.assertV6RepresentativeState()).resolves.toBeUndefined();
+    await expect(verifier.assertRepresentativeState()).resolves.toBeUndefined();
   });
 
   it("rejects activation when the representative results are absent", async () => {
@@ -91,11 +91,11 @@ describe("StudioDevAttestationVerifier", () => {
     });
 
     await expect(
-      new StudioDevAttestationVerifier(client, contractAddress).assertV6RepresentativeState(),
+      new StudioDevAttestationVerifier(client, contractAddress).assertRepresentativeState(),
     ).rejects.toThrow("has not retained the required representative pass and fail results");
   });
 
-  it("imports only a finalized V6 attestation that matches the case and public case file", async () => {
+  it("imports only a finalized attestation that matches the case and public case file", async () => {
     const receipt = await new StudioDevAttestationVerifier(
       createClient(),
       contractAddress,
@@ -166,7 +166,7 @@ describe("StudioDevAttestationVerifier", () => {
     ).rejects.toThrow("case commitment does not match");
   });
 
-  it("rejects a V6 transaction without a finalized stored case result", async () => {
+  it("rejects a transaction without a finalized stored case result", async () => {
     const client = createClient({
       async readContract({ functionName }) {
         const results = {

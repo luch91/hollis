@@ -62,14 +62,14 @@ function parseSubmittedAdjudication(calldata: string): SubmittedAdjudication {
 
   if (!match) {
     throw new StudioDevAttestationVerificationError(
-      "The transaction is not a readable V6 adjudicate call.",
+      "The transaction is not a readable adjudicate call.",
     );
   }
 
   const [, caseCommitment, publicCaseFileUrl] = match;
   if (!caseCommitment || !publicCaseFileUrl) {
     throw new StudioDevAttestationVerificationError(
-      "The transaction does not contain complete V6 adjudicate arguments.",
+      "The transaction does not contain complete adjudicate arguments.",
     );
   }
 
@@ -79,7 +79,7 @@ function parseSubmittedAdjudication(calldata: string): SubmittedAdjudication {
 function parseViewResult(value: unknown, field: string): string {
   if (typeof value !== "string") {
     throw new StudioDevAttestationVerificationError(
-      `The V6 ${field} view did not return a string result.`,
+      `The configured contract ${field} view did not return a string result.`,
     );
   }
 
@@ -125,11 +125,13 @@ export class StudioDevAttestationVerifier {
     ]);
 
     if (status !== "finalized") {
-      throw new StudioDevAttestationVerificationError("The V6 case result is not finalized.");
+      throw new StudioDevAttestationVerificationError(
+        "The configured contract case result is not finalized.",
+      );
     }
     if (evaluationReason === "not_found") {
       throw new StudioDevAttestationVerificationError(
-        "The V6 contract has no result for the submitted case commitment.",
+        "The configured contract has no result for the submitted case commitment.",
       );
     }
 
@@ -143,7 +145,7 @@ export class StudioDevAttestationVerifier {
     });
   }
 
-  async assertV6RepresentativeState(): Promise<void> {
+  async assertRepresentativeState(): Promise<void> {
     const [passStatus, passVerdict, passReason, failStatus, failVerdict, failReason] =
       await Promise.all([
         this.read("get_status", representativePassCommitment),
@@ -163,7 +165,7 @@ export class StudioDevAttestationVerifier {
       failReason !== "human_decision_missing"
     ) {
       throw new StudioDevAttestationVerificationError(
-        "The configured V6 contract has not retained the required representative pass and fail results.",
+        "The configured contract has not retained the required representative pass and fail results.",
       );
     }
   }

@@ -8,7 +8,7 @@ const finalizedAttestationImporter = environment.GENLAYER_STUDIO_CONTRACT_ADDRES
   : undefined;
 
 if (finalizedAttestationImporter) {
-  await finalizedAttestationImporter.assertV6RepresentativeState();
+  await finalizedAttestationImporter.assertRepresentativeState();
 }
 
 const app = await buildApp(environment, {

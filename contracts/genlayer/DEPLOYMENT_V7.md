@@ -55,8 +55,26 @@ this address in the API importer.
 | `truvyx-deterministic-pass.json` | `finalized` | `pass` | `requirements_satisfied` |
 | `truvyx-deterministic-fail.json` | `finalized` | `fail` | `human_decision_missing` |
 
-The local linter completed its three source checks. Studio Dev schema extraction currently reports
-the approved runner as absent for both unchanged V6 and V7. The matching Windows direct-mode test
-environment downloads the runner successfully but fails before contract loading because its
-temporary-file cleanup is not Windows compatible. Neither condition is evidence of a contract
-logic failure, and neither may be reported as a passing runtime test.
+## Verified Studio Dev deployment
+
+| Item | Value |
+| --- | --- |
+| Rejected deployment transaction | `0xac7c81e736cef55e1dc898d7f32cda95b0572e041913e62b65e4531b1bd25d74` |
+| Rejected contract | `0x1C1860C32CcB99202AeDa14AD91e80A049eb9a25` |
+| Activated deployment transaction | `0x6f86467baa0765da897e31a55a098c33fd1f2e822888be8c384eb5dd3aa364b6` |
+| Activated contract | `0x74f5350e52b36BEB59677514D2e91fBaDED4080F` |
+| Representative pass transaction | `0xfd551e3a6e98b2a3c806b5e33b4fe90f08685a8a214b75a68b0aa4f2044712dd` |
+| Representative fail transaction | `0xd8fd271b8a68f557ed6dc88c1988dcf629332c324bdc7210fb352463a3d4b7f4` |
+
+The rejected deployment omitted the final period from `attestation_criterion`. Its
+`get_policy_binding` result exposed the mismatch before any adjudication was submitted. The
+activated deployment finalized with `MAJORITY_AGREE`, and its policy-binding view matches all eight
+constructor values in this document. Its representative pass retains `finalized` / `pass` /
+`requirements_satisfied`. Its representative fail retains `finalized` / `fail` /
+`human_decision_missing`.
+
+The local linter completed its three source checks. Studio Dev subsequently accepted the V7 schema,
+deployed the source, exposed its policy binding, and retained both representative results. The
+matching Windows direct-mode test environment downloads the runner successfully but fails before
+contract loading because its temporary-file cleanup is not Windows compatible. Do not report the
+Windows direct-mode suite as a passing runtime test.
