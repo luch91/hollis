@@ -33,7 +33,7 @@ const exported: ReviewExport = {
   },
   events: [
     {
-      actorId: "system:decision-engine-4.2",
+      actorId: "reviewer-17",
       createdAt: "2026-09-05T10:00:00.000Z",
       eventHash: hash,
       eventSequence: 1,
@@ -63,7 +63,13 @@ const attestations: AttestationRecord[] = [
 ];
 
 describe("case decision document exports", () => {
-  const source = { attestations, exported };
+  const source = {
+    attestations,
+    exported,
+    identityLabels: {
+      "reviewer-17": "Jordan Blake",
+    },
+  };
 
   it("builds a decision-oriented Markdown record", () => {
     const result = buildMarkdownReport(source);
@@ -71,6 +77,9 @@ describe("case decision document exports", () => {
     expect(result).toContain("## Evidence inventory");
     expect(result).toContain("## Decision-use considerations");
     expect(result).toContain(exported.manifestHash);
+    expect(result).toContain("| Assigned reviewer | Jordan Blake |");
+    expect(result).toContain("Jordan Blake (reviewer-17)");
+    expect(result).toContain("| Attestation 1 provider | GenLayer |");
   });
 
   it("builds a DOCX package", async () => {

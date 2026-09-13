@@ -2,8 +2,8 @@ import type { ReviewExport } from "@hollis/contracts/review-case";
 import {
   AlignmentType,
   Document,
-  HeadingLevel,
   Header,
+  HeadingLevel,
   HorizontalPositionAlign,
   HorizontalPositionRelativeFrom,
   ImageRun,
@@ -18,7 +18,7 @@ import {
   VerticalPositionRelativeFrom,
   WidthType,
 } from "docx";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, type PDFFont, type PDFPage, rgb, StandardFonts } from "pdf-lib";
 import { HOLLIS_MARK_PATH } from "../../../../hollis-brand-assets";
 import type { AttestationRecord } from "../../data";
 
@@ -32,6 +32,7 @@ const transparentPixel = Buffer.from(
 export type CaseReportSource = {
   attestations: AttestationRecord[];
   exported: ReviewExport;
+  identityLabels: Record<string, string>;
 };
 
 type ReportSection = {
@@ -53,7 +54,22 @@ function date(value: string | null | undefined): string {
   }).format(new Date(value));
 }
 
-function buildSections({ attestations, exported }: CaseReportSource): ReportSection[] {
+function providerLabel(provider: AttestationRecord["provider"]): string {
+  return provider === "genlayer" ? "GenLayer" : label(provider);
+}
+
+function identityLabel(source: CaseReportSource, actorId: string | null | undefined): string {
+  if (!actorId) return "Not recorded";
+  return source.identityLabels[actorId] ?? actorId;
+}
+
+function auditActorLabel(source: CaseReportSource, actorId: string): string {
+  const displayName = source.identityLabels[actorId];
+  return displayName ? `${displayName} (${actorId})` : actorId;
+}
+
+function buildSections(source: CaseReportSource): ReportSection[] {
+  const { attestations, exported } = source;
   const reviewCase = exported.case;
   const finalDecision = reviewCase.decisionOutcome
     ? `A human reviewer recorded the outcome as ${label(reviewCase.decisionOutcome)} and the final recommendation as ${label(reviewCase.finalRecommendation)}.`
@@ -111,7 +127,7 @@ function buildSections({ attestations, exported }: CaseReportSource): ReportSect
       heading: "Human review outcome",
       paragraphs: [finalDecision],
       rows: [
-        ["Assigned reviewer", label(reviewCase.assignedToUserId)],
+        ["Assigned reviewer", identityLabel(source, reviewCase.assignedToUserId)],
         ["Assigned", date(reviewCase.assignedAt)],
         ["Decision outcome", label(reviewCase.decisionOutcome)],
         ["Final recommendation", label(reviewCase.finalRecommendation)],
@@ -128,7 +144,7 @@ function buildSections({ attestations, exported }: CaseReportSource): ReportSect
       rows: exported.events.flatMap((event) => [
         [
           `Event ${event.eventSequence}`,
-          `${label(event.eventType)} at ${date(event.createdAt)} by ${event.actorId}`,
+          `${label(event.eventType)} at ${date(event.createdAt)} by ${auditActorLabel(source, event.actorId)}`,
         ],
         [`Event ${event.eventSequence} hash`, event.eventHash],
         [`Event ${event.eventSequence} previous hash`, event.previousHash ?? "Genesis event"],
@@ -138,6 +154,7 @@ function buildSections({ attestations, exported }: CaseReportSource): ReportSect
       heading: "Attestation status",
       paragraphs: [attestationSummary],
       rows: attestations.flatMap((item, index) => [
+        [`Attestation ${index + 1} provider`, providerLabel(item.provider)],
         [`Attestation ${index + 1} status`, label(item.status)],
         [`Attestation ${index + 1} verdict`, label(item.verdict)],
         [`Attestation ${index + 1} transaction`, label(item.transactionHash)],

@@ -1,4 +1,8 @@
-import { reviewExportSchema, type ReviewExport } from "@hollis/contracts/review-case";
+import {
+  type ReviewExport,
+  reviewExportIdentityLabelsSchema,
+  reviewExportSchema,
+} from "@hollis/contracts/review-case";
 import { NextResponse } from "next/server";
 import { readHollisSessionToken } from "@/lib/hollis-session";
 import type { AttestationRecord } from "../../data";
@@ -29,9 +33,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ case
   const requestedFormat = new URL(request.url).searchParams.get("format");
   const format: ExportFormat = isExportFormat(requestedFormat) ? requestedFormat : "json";
   const headers = { authorization: `Bearer ${sessionToken}` };
-  const [response, attestationResponse] = await Promise.all([
+  const [response, attestationResponse, identityResponse] = await Promise.all([
     fetch(`${apiUrl}/v1/review-cases/${caseId}/export`, { cache: "no-store", headers }),
     fetch(`${apiUrl}/v1/review-cases/${caseId}/attestations`, { cache: "no-store", headers }),
+    fetch(`${apiUrl}/v1/review-cases/${caseId}/export-identities`, {
+      cache: "no-store",
+      headers,
+    }),
   ]);
 
   if (!response.ok) {
@@ -52,7 +60,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ case
   const attestations = attestationResponse.ok
     ? ((await attestationResponse.json()) as AttestationRecord[])
     : [];
-  const source = { attestations, exported };
+  const parsedIdentities = identityResponse.ok
+    ? reviewExportIdentityLabelsSchema.safeParse(await identityResponse.json())
+    : null;
+  const identityLabels = Object.fromEntries(
+    parsedIdentities?.success
+      ? parsedIdentities.data.identities.map(({ actorId, displayName }) => [actorId, displayName])
+      : [],
+  );
+  const source = { attestations, exported, identityLabels };
   let body: BodyInit;
   let contentType: string;
 

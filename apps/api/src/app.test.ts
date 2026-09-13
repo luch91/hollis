@@ -809,6 +809,79 @@ describe("API boundaries", () => {
     });
   });
 
+  it("returns tenant-authorized identity labels for export presentation", async () => {
+    const exportWithProviderEvent: ReviewExport = {
+      ...completedExport,
+      events: [
+        ...completedExport.events,
+        {
+          actorId: "attestation-provider",
+          createdAt: "2026-08-28T08:15:00.000Z",
+          eventHash: `sha256:${"d".repeat(64)}`,
+          eventSequence: 2,
+          eventType: "attestation_recorded",
+          payload: {},
+          previousHash: completedExport.events[0]?.eventHash ?? null,
+        },
+      ],
+    };
+    const workflowStore = {
+      async exportCase(receivedTenantId: string, caseId: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(caseId).toBe(completedExport.case.id);
+        return exportWithProviderEvent;
+      },
+      async claim() {
+        throw new Error("Not expected.");
+      },
+      async decide() {
+        throw new Error("Not expected.");
+      },
+      async escalate() {
+        throw new Error("Not expected.");
+      },
+      async get() {
+        throw new Error("Not expected.");
+      },
+      async list() {
+        throw new Error("Not expected.");
+      },
+    } satisfies ReviewWorkflowStore;
+    const workspaceControlsStore = {
+      async getMemberIdentity(receivedTenantId: string, actorId: string, userId: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(actorId).toBe("user_01");
+        expect(userId).toBe("user_01");
+        return {
+          avatarUrl: null,
+          displayName: "Jordan Blake",
+          email: "jordan.blake@example.test",
+          role: "reviewer",
+          userId,
+        };
+      },
+    } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    const app = await buildApp(
+      environment,
+      createDependencies({ workflowStore, workspaceControlsStore }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "GET",
+      url: `/v1/review-cases/${completedExport.case.id}/export-identities`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      identities: [
+        { actorId: "user_01", displayName: "Jordan Blake" },
+        { actorId: "attestation-provider", displayName: "GenLayer attestation service" },
+      ],
+    });
+  });
+
   it("submits a completed review as a GenLayer attestation and persists its receipt", async () => {
     let providerInput: unknown;
     let storedCaseId: string | undefined;

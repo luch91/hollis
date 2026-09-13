@@ -239,6 +239,13 @@
       "when": 1789288800000,
       "tag": "0033_fix_workspace_profile_column_references",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789290000000,
+      "tag": "0034_resolve_legacy_workspace_member_identity",
+      "breakpoints": true
     }
   ]
 }

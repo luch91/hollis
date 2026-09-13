@@ -17,6 +17,7 @@ const organizationTwoId = `org_${randomUUID()}`;
 const identityPlatformSubject = `identity_${randomUUID()}`;
 const memberActorId = randomUUID();
 const assignedMemberId = randomUUID();
+const assignedMemberLegacyId = `user_${randomUUID()}`;
 const outsideMemberId = randomUUID();
 let provisionedTenantId: string | undefined;
 let provisionedUserId: string | undefined;
@@ -32,11 +33,11 @@ beforeAll(async () => {
       (${tenantTwoId}, 'Isolation tenant two', ${organizationTwoId})
   `;
   await owner`
-    insert into users (id, display_name, email)
+    insert into users (id, display_name, email, workos_user_id)
     values
-      (${memberActorId}, 'Review lead', 'review.lead@example.test'),
-      (${assignedMemberId}, 'Jordan Blake', 'jordan.blake@example.test'),
-      (${outsideMemberId}, 'Outside reviewer', 'outside.reviewer@example.test')
+      (${memberActorId}, 'Review lead', 'review.lead@example.test', null),
+      (${assignedMemberId}, 'Jordan Blake', 'jordan.blake@example.test', ${assignedMemberLegacyId}),
+      (${outsideMemberId}, 'Outside reviewer', 'outside.reviewer@example.test', null)
   `;
   await owner`
     insert into tenant_memberships (role, tenant_id, user_id)
@@ -252,6 +253,30 @@ describe("PostgreSQL tenant isolation", () => {
         },
       ]);
       expect(outside).toHaveLength(0);
+    });
+  });
+
+  it("resolves a legacy reviewer subject within the authorized workspace", async () => {
+    await owner.begin(async (transaction) => {
+      await transaction.unsafe("set local role hollis_app");
+      const resolved = await transaction`
+        select *
+        from get_hollis_workspace_member_identity(
+          ${tenantOneId}::uuid,
+          ${memberActorId}::uuid,
+          ${assignedMemberLegacyId}
+        )
+      `;
+
+      expect(resolved).toEqual([
+        {
+          avatarUrl: null,
+          displayName: "Jordan Blake",
+          email: "jordan.blake@example.test",
+          role: "reviewer",
+          userId: assignedMemberId,
+        },
+      ]);
     });
   });
 

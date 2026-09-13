@@ -111,6 +111,19 @@ export const reviewExportSchema = z
   })
   .strict();
 
+export const reviewExportIdentityLabelsSchema = z
+  .object({
+    identities: z.array(
+      z
+        .object({
+          actorId: z.string().min(1),
+          displayName: z.string().trim().min(1),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 export type CreateReviewCase = z.infer<typeof createReviewCaseSchema>;
 export type ReviewCase = z.infer<typeof reviewCaseSchema>;
 export type DecideReviewCase = z.infer<typeof decideReviewCaseSchema>;
@@ -119,3 +132,4 @@ export type ReviewCaseStatus = z.infer<typeof reviewCaseStatusSchema>;
 export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
 export type RiskLevel = z.infer<typeof riskLevelSchema>;
 export type ReviewExport = z.infer<typeof reviewExportSchema>;
+export type ReviewExportIdentityLabels = z.infer<typeof reviewExportIdentityLabelsSchema>;

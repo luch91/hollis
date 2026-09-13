@@ -9,6 +9,7 @@ import {
   decideReviewCaseSchema,
   escalateReviewCaseSchema,
   importFinalizedAttestationRequestSchema,
+  type ReviewExportIdentityLabels,
   reviewCaseStatusSchema,
 } from "@hollis/contracts";
 import { createDatabase } from "@hollis/database";
@@ -150,6 +151,7 @@ const rateLimitPolicies = {
   claimsWebhook: { maxRequests: 10, windowMs: 60 * 1000 },
   evidenceUpload: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
   export: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
+  exportIdentity: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
   invitation: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
   sessionExchange: { maxRequests: 10, windowMs: 15 * 60 * 1000 },
   workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
@@ -1206,6 +1208,57 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       }
 
       return toExportResponse(exported);
+    },
+  );
+
+  app.get(
+    "/v1/review-cases/:caseId/export-identities",
+    {
+      preHandler: [
+        rateLimit("exportIdentity"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read"),
+      ],
+    },
+    async (request) => {
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const { principal, tenant } = requireRequestContext(request);
+      const exported = await workflowStore.exportCase(tenant.id, caseId);
+      if (!exported) {
+        throw new ReviewCaseNotFoundError();
+      }
+
+      const actorIds = new Set(
+        [
+          exported.case.assignedToUserId,
+          exported.case.decidedByUserId,
+          exported.case.escalatedByUserId,
+          ...exported.events.map((event) => event.actorId),
+        ].filter((actorId): actorId is string => Boolean(actorId)),
+      );
+      const systemLabels = new Map([
+        ["attestation-provider", "GenLayer attestation service"],
+        ["retention-system", "Hollis retention service"],
+      ]);
+      const identities = await Promise.all(
+        [...actorIds].map(async (actorId) => {
+          const systemLabel = systemLabels.get(actorId);
+          if (systemLabel) return { actorId, displayName: systemLabel };
+          const identity = await workspaceControlsStore.getMemberIdentity(
+            tenant.id,
+            principal.userId,
+            actorId,
+          );
+          const displayName = identity?.displayName?.trim();
+          return displayName ? { actorId, displayName } : null;
+        }),
+      );
+
+      return {
+        identities: identities.filter(
+          (identity): identity is ReviewExportIdentityLabels["identities"][number] =>
+            identity !== null,
+        ),
+      } satisfies ReviewExportIdentityLabels;
     },
   );
 
