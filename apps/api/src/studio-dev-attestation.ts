@@ -17,14 +17,20 @@ const studioTransactionSchema = z
   .object({
     data: z
       .object({
-        calldata: z.object({ readable: z.string().min(1) }).strict(),
+        calldata: z.object({ readable: z.string().min(1) }).passthrough(),
       })
-      .strict(),
-    lifecycle: z.object({ outcome: z.literal("accepted"), state: z.literal("finalized") }).strict(),
-    status_name: z.literal("FINALIZED"),
+      .passthrough(),
+    lifecycle: z
+      .object({ outcome: z.literal("accepted"), state: z.literal("finalized") })
+      .passthrough(),
+    status_name: z.literal("FINALIZED").optional(),
+    statusName: z.literal("FINALIZED").optional(),
     to_address: addressSchema,
   })
-  .strict();
+  .passthrough()
+  .refine((transaction) => transaction.status_name || transaction.statusName, {
+    message: "The Studio transaction status is not finalized.",
+  });
 
 export class StudioDevAttestationVerificationError extends Error {
   constructor(message: string) {

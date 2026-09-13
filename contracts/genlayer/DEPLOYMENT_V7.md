@@ -73,6 +73,13 @@ constructor values in this document. Its representative pass retains `finalized`
 `requirements_satisfied`. Its representative fail retains `finalized` / `fail` /
 `human_decision_missing`.
 
+The real Truvyx adjudication transaction
+`0x529da37a15b97f5dba37ff9e958739857e3685d2dc7eb21c9a63e1bc5fe8b642` finalized
+against the activated contract and retains `finalized` / `pass` / `requirements_satisfied`. Hollis
+imported it for case `HL-26-PCWE-AEXW`. The importer validates the required transaction fields and
+allows additional Studio provider metadata. Current Studio SDK responses use `statusName`; the
+importer also accepts the earlier `status_name` representation when its value is `FINALIZED`.
+
 The local linter completed its three source checks. Studio Dev subsequently accepted the V7 schema,
 deployed the source, exposed its policy binding, and retained both representative results. The
 matching Windows direct-mode test environment downloads the runner successfully but fails before

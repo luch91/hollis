@@ -49,11 +49,14 @@ function createClient(overrides: Partial<StudioDevReadClient> = {}): StudioDevRe
       return {
         data: {
           calldata: {
+            base64: "provider-calldata",
             readable: `{"":"adjudicate""args":["${caseCommitment}","${publicCaseFileUrl}",]}`,
           },
+          fee_value: 100,
         },
-        lifecycle: { outcome: "accepted", state: "finalized" },
-        status_name: "FINALIZED",
+        lifecycle: { outcome: "accepted", provider_state: "settled", state: "finalized" },
+        result_name: "MAJORITY_AGREE",
+        statusName: "FINALIZED",
         to_address: contractAddress,
       };
     },
