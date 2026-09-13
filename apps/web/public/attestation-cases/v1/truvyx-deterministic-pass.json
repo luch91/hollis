@@ -1,0 +1,30 @@
+{
+  "auditManifestHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "caseCommitment": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "evidence": [
+    {
+      "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "mediaType": "application/json",
+      "verified": true
+    }
+  ],
+  "policy": {
+    "control": {
+      "attestationCriterion": "A qualified human reviewer must record a final decision before the release recommendation is accepted.",
+      "controlId": "independent-human-approval",
+      "controlVersion": "1.0",
+      "evidenceRequirement": "verified_reference_required",
+      "interpretation": "deterministic",
+      "policyDocumentDigest": "sha256:63912e39d3103a743b6853bf48b3fb9627183cf6708e1a8af603532cafe519d8"
+    },
+    "policyId": "truvyx-release-governance",
+    "policyVersion": "release-governance-1.0"
+  },
+  "review": {
+    "decisionRecorded": true,
+    "escalationRecorded": false,
+    "humanDecisionOutcome": "approved",
+    "reviewerActionCommitment": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "schemaVersion": "hollis.adjudication-case.v1"
+}

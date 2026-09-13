@@ -1,9 +1,10 @@
 # GenLayer policy-process attestation
 
-`policy_process_attestation_v6.py` is the candidate pre-activation GenLayer contract for Hollis. It
-stores results by case commitment so a later adjudication cannot overwrite an earlier result. V5 is
-the verified Studio Dev representative-validation contract. V1 through V4 are historical drafts or
-deployment records.
+`policy_process_attestation_v7.py` is the diagnostic-safe candidate GenLayer contract for Hollis.
+It preserves V6 adjudication behavior and adds a read-only policy-binding view so an operator can
+verify the exact immutable constructor state before submitting a case. V6 remains the first
+per-case result deployment. V5 is the completed representative-validation baseline. Earlier
+versions are historical drafts or deployment records.
 
 It fetches a public, privacy-reviewed adjudication case file and uses GenLayer exact-match consensus
 to verify deterministic process conditions:
@@ -20,7 +21,7 @@ privacy-safe source and reviewable contract behavior.
 Validate the contract with the GenLayer linter before deployment:
 
 ```text
-genvm-lint check contracts/genlayer/policy_process_attestation_v6.py
+genvm-lint check contracts/genlayer/policy_process_attestation_v7.py
 ```
 
 The contract follows the current Studio v0.3 source format: `gl.contract.Contract`,
@@ -37,9 +38,11 @@ Dev` on chain ID `61997`, with JSON-RPC at `https://studio-dev.genlayer.com/api`
 
 V2 and V3 were deployed to Studio Dev but their finalized pass writes exposed distinct integration
 defects. Their full records are in `DEPLOYMENT_V2.md` and `DEPLOYMENT_V3.md`. V5 has verified
-representative pass and fail executions in `DEPLOYMENT_V5.md`. Deploy V6 only after Studio Dev
-accepts its schema, then follow `DEPLOYMENT_V6.md`. Studio execution results must not be treated as
-Clarke or Mainnet pricing.
+representative pass and fail executions in `DEPLOYMENT_V5.md`. The first Truvyx-bound V6 deployment
+is recorded in `DEPLOYMENT_V7.md` and must not be activated because its retained representative
+results fail the policy-digest check. Studio execution results must not be treated as Clarke or
+Mainnet pricing.
 
-Studio Dev schema extraction has been verified for V6. Before deployment, rerun that check from the
-exact source revision being deployed and record the result with the deployment evidence.
+Follow `DEPLOYMENT_V7.md` for the current diagnostic deployment procedure. Before deployment,
+rerun Studio schema extraction from the exact source revision and record the result with the
+deployment evidence.
