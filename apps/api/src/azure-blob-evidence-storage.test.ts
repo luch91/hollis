@@ -32,18 +32,16 @@ function service(blockBlobClient: ReturnType<typeof blobClient>) {
 describe("Azure Blob evidence storage", () => {
   it("stores evidence under the tenant path", async () => {
     const blob = blobClient();
-    const storage = createAzureBlobEvidenceStorage(
-      "hollisevidencedemo",
-      "evidence",
-      service(blob),
-    );
+    const storage = createAzureBlobEvidenceStorage("hollisevidencedemo", "evidence", service(blob));
 
-    await expect(storage.put(tenantId, objectName, content, "text/plain", digest)).resolves.toEqual({
-      digest,
-      mediaType: "text/plain",
-      objectName,
-      sizeBytes: content.byteLength,
-    });
+    await expect(storage.put(tenantId, objectName, content, "text/plain", digest)).resolves.toEqual(
+      {
+        digest,
+        mediaType: "text/plain",
+        objectName,
+        sizeBytes: content.byteLength,
+      },
+    );
 
     expect(blob.uploadData).toHaveBeenCalledWith(content, {
       blobHTTPHeaders: { blobContentType: "text/plain" },
@@ -52,11 +50,7 @@ describe("Azure Blob evidence storage", () => {
 
   it("verifies stored bytes and declared metadata", async () => {
     const blob = blobClient();
-    const storage = createAzureBlobEvidenceStorage(
-      "hollisevidencedemo",
-      "evidence",
-      service(blob),
-    );
+    const storage = createAzureBlobEvidenceStorage("hollisevidencedemo", "evidence", service(blob));
 
     await expect(
       storage.verify(tenantId, objectName, {
@@ -74,11 +68,7 @@ describe("Azure Blob evidence storage", () => {
 
   it("rejects objects outside the tenant boundary", async () => {
     const blob = blobClient();
-    const storage = createAzureBlobEvidenceStorage(
-      "hollisevidencedemo",
-      "evidence",
-      service(blob),
-    );
+    const storage = createAzureBlobEvidenceStorage("hollisevidencedemo", "evidence", service(blob));
 
     await expect(
       storage.delete(tenantId, `tenants/tenant-2/evidence/${"a".repeat(64)}`),

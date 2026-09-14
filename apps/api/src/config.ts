@@ -43,8 +43,14 @@ const environmentSchema = z
     API_HOST: z.string().default("0.0.0.0"),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     AWS_REGION: z.string().min(3).optional(),
-    AZURE_STORAGE_ACCOUNT_NAME: z.string().regex(/^[a-z0-9]{3,24}$/).optional(),
-    AZURE_STORAGE_CONTAINER: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/).optional(),
+    AZURE_STORAGE_ACCOUNT_NAME: z
+      .string()
+      .regex(/^[a-z0-9]{3,24}$/)
+      .optional(),
+    AZURE_STORAGE_CONTAINER: z
+      .string()
+      .regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/)
+      .optional(),
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),

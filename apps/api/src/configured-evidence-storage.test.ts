@@ -58,7 +58,11 @@ describe("configured evidence storage", () => {
     await expect(
       createConfiguredEvidenceStorage(
         environment({ GCS_BUCKET: "hollis-test", GCS_PROJECT_ID: "hollis-test-project" }),
-        { createAzureBlobEvidenceStorage, createGoogleCloudEvidenceStorage, createS3EvidenceStorage },
+        {
+          createAzureBlobEvidenceStorage,
+          createGoogleCloudEvidenceStorage,
+          createS3EvidenceStorage,
+        },
       ),
     ).resolves.toBe(storage);
 
@@ -80,7 +84,11 @@ describe("configured evidence storage", () => {
           AZURE_STORAGE_ACCOUNT_NAME: "hollisevidencedemo",
           AZURE_STORAGE_CONTAINER: "evidence",
         }),
-        { createAzureBlobEvidenceStorage, createGoogleCloudEvidenceStorage, createS3EvidenceStorage },
+        {
+          createAzureBlobEvidenceStorage,
+          createGoogleCloudEvidenceStorage,
+          createS3EvidenceStorage,
+        },
       ),
     ).resolves.toBe(storage);
 
@@ -96,9 +104,9 @@ describe("configured evidence storage", () => {
 
     await expect(
       createConfiguredEvidenceStorage(environment(), {
-          createGoogleCloudEvidenceStorage,
-          createS3EvidenceStorage,
-          createAzureBlobEvidenceStorage,
+        createGoogleCloudEvidenceStorage,
+        createS3EvidenceStorage,
+        createAzureBlobEvidenceStorage,
       }),
     ).resolves.toBeNull();
 
