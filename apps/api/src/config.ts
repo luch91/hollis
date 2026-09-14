@@ -43,6 +43,8 @@ const environmentSchema = z
     API_HOST: z.string().default("0.0.0.0"),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     AWS_REGION: z.string().min(3).optional(),
+    AZURE_STORAGE_ACCOUNT_NAME: z.string().regex(/^[a-z0-9]{3,24}$/).optional(),
+    AZURE_STORAGE_CONTAINER: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/).optional(),
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
@@ -77,11 +79,17 @@ const environmentSchema = z
   })
   .and(databaseConfigurationSchema)
   .superRefine((value, context) => {
-    if (value.GCS_BUCKET && value.S3_BUCKET) {
+    const evidenceStoreCount = [
+      value.GCS_BUCKET,
+      value.S3_BUCKET,
+      value.AZURE_STORAGE_ACCOUNT_NAME && value.AZURE_STORAGE_CONTAINER,
+    ].filter(Boolean).length;
+
+    if (evidenceStoreCount > 1) {
       context.addIssue({
         code: "custom",
-        message: "Set GCS_BUCKET or S3_BUCKET, not both.",
-        path: ["S3_BUCKET"],
+        message: "Configure exactly one evidence storage provider.",
+        path: ["AZURE_STORAGE_ACCOUNT_NAME"],
       });
     }
 
@@ -90,6 +98,14 @@ const environmentSchema = z
         code: "custom",
         message: "AWS_REGION is required when S3_BUCKET is configured.",
         path: ["AWS_REGION"],
+      });
+    }
+
+    if (Boolean(value.AZURE_STORAGE_ACCOUNT_NAME) !== Boolean(value.AZURE_STORAGE_CONTAINER)) {
+      context.addIssue({
+        code: "custom",
+        message: "AZURE_STORAGE_ACCOUNT_NAME and AZURE_STORAGE_CONTAINER must be set together.",
+        path: ["AZURE_STORAGE_CONTAINER"],
       });
     }
 
@@ -159,11 +175,11 @@ const environmentSchema = z
       });
     }
 
-    if (!value.GCS_BUCKET && !value.S3_BUCKET) {
+    if (!value.GCS_BUCKET && !value.S3_BUCKET && !value.AZURE_STORAGE_ACCOUNT_NAME) {
       context.addIssue({
         code: "custom",
-        message: "GCS_BUCKET or S3_BUCKET is required in production.",
-        path: ["S3_BUCKET"],
+        message: "An evidence storage provider is required in production.",
+        path: ["AZURE_STORAGE_ACCOUNT_NAME"],
       });
     }
 

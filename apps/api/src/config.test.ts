@@ -54,6 +54,22 @@ describe("readEnvironment", () => {
     ).toMatchObject({ AWS_REGION: "eu-west-1", S3_BUCKET: "hollis-evidence-280517746304" });
   });
 
+  it("accepts a complete Azure Blob Storage production configuration", () => {
+    expect(
+      readEnvironment({
+        ...baseEnvironment,
+        AZURE_STORAGE_ACCOUNT_NAME: "hollisevidencedemo",
+        AZURE_STORAGE_CONTAINER: "evidence",
+        CLAIMS_WEBHOOK_SECRET: "a".repeat(32),
+        NODE_ENV: "production",
+        WEB_ORIGIN: "https://thehollis.xyz",
+      }),
+    ).toMatchObject({
+      AZURE_STORAGE_ACCOUNT_NAME: "hollisevidencedemo",
+      AZURE_STORAGE_CONTAINER: "evidence",
+    });
+  });
+
   it("rejects ambiguous evidence storage configuration", () => {
     expect(() =>
       readEnvironment({
@@ -62,7 +78,7 @@ describe("readEnvironment", () => {
         GCS_BUCKET: "hollis-evidence-429498177112",
         S3_BUCKET: "hollis-evidence-280517746304",
       }),
-    ).toThrow(/not both/);
+    ).toThrow(/exactly one evidence storage provider/);
   });
 
   it("requires a region for S3 evidence storage", () => {
@@ -72,6 +88,12 @@ describe("readEnvironment", () => {
         S3_BUCKET: "hollis-evidence-280517746304",
       }),
     ).toThrow(/AWS_REGION/);
+  });
+
+  it("requires both Azure Blob Storage settings", () => {
+    expect(() =>
+      readEnvironment({ ...baseEnvironment, AZURE_STORAGE_ACCOUNT_NAME: "hollisevidencedemo" }),
+    ).toThrow(/must be set together/);
   });
 
   it("requires both Resend server settings before transactional email is enabled", () => {
