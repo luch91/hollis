@@ -7,7 +7,9 @@ import type {
 } from "@hollis/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
+  beginManagedAttestationSubmission,
   ensureManagedAttestationSubmission,
+  reconcileManagedAttestationSubmission,
   type ManagedAttestationClient,
   type ManagedAttestationSubmissionStore,
   type ReserveManagedAttestationSubmission,
@@ -100,6 +102,10 @@ class MemoryStore implements ManagedAttestationSubmissionStore {
     return this.record;
   }
 
+  async findByCase(_tenantId: string, _caseId: string) {
+    return this.record;
+  }
+
   async markSubmitting(_tenantId: string, _submissionId: string) {
     if (this.record?.status !== "pending") return null;
     return this.update({ status: "submitting" });
@@ -174,6 +180,33 @@ describe("managed GenLayer attestation submission", () => {
     expect(first.submission.evaluationReason).toBe("requirements_satisfied");
     expect(second.submission.id).toBe(first.submission.id);
     expect(submissionClient.submit).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a submission before consensus and reconciles a retained verdict later", async () => {
+    const store = new MemoryStore();
+    const submissionClient = client();
+    const submitted = await beginManagedAttestationSubmission({
+      caseId,
+      client: submissionClient,
+      deployment,
+      request,
+      store,
+      tenantId,
+    });
+    const finalized = await reconcileManagedAttestationSubmission({
+      client: submissionClient,
+      store,
+      submission: submitted,
+      tenantId,
+    });
+
+    expect(submitted.status).toBe("submitted");
+    expect(submissionClient.waitForFinalization).not.toHaveBeenCalled();
+    expect(finalized).toMatchObject({
+      evaluationReason: "requirements_satisfied",
+      status: "finalized",
+      verdict: "pass",
+    });
   });
 
   it("resumes from an already-recorded transaction hash", async () => {

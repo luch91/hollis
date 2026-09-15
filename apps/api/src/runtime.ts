@@ -2,6 +2,7 @@ import { buildApp } from "./app.js";
 import { readEnvironment } from "./config.js";
 import { assertGenLayerRuntimeAccount } from "./genlayer-runtime-account.js";
 import { createStudioDevAttestationVerifier } from "./studio-dev-attestation.js";
+import { createStudioDevManagedAttestationClient } from "./studio-dev-managed-attestation.js";
 import { createStudioDevPolicyContractClient } from "./studio-dev-policy-contract.js";
 
 export async function createRuntimeApp() {
@@ -18,6 +19,9 @@ export async function createRuntimeApp() {
   );
   const policyContractDeploymentClient = environment.GENLAYER_RUNTIME_PRIVATE_KEY
     ? createStudioDevPolicyContractClient(environment.GENLAYER_RUNTIME_PRIVATE_KEY)
+    : undefined;
+  const managedAttestationClient = environment.GENLAYER_RUNTIME_PRIVATE_KEY
+    ? createStudioDevManagedAttestationClient(environment.GENLAYER_RUNTIME_PRIVATE_KEY)
     : undefined;
   const candidateAttestationImporter =
     environment.GENLAYER_STUDIO_CONTRACT_ADDRESS && !managedRuntimeConfigured
@@ -37,6 +41,7 @@ export async function createRuntimeApp() {
 
   const app = await buildApp(environment, {
     finalizedAttestationImporter,
+    managedAttestationClient,
     policyContractDeploymentClient,
   });
 

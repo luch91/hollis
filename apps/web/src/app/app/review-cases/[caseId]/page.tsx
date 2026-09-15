@@ -1,22 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
+import { canCreateReviewCases, canPerformHumanReview } from "../../workspace-capabilities";
+import { claimAction, decideAction, escalateAction, uploadEvidenceAction } from "../actions";
 import {
-  canCreateReviewCases,
-  canManageAttestations,
-  canPerformHumanReview,
-} from "../../workspace-capabilities";
-import {
-  claimAction,
-  createPublicAttestationCaseFileAction,
-  decideAction,
-  escalateAction,
-  importFinalizedAttestationAction,
-  uploadEvidenceAction,
-  refreshAttestationAction,
-} from "../actions";
-import { getReviewCase, listAttestations, listPublicAttestationCaseFiles } from "../data";
+  getManagedAttestationStatus,
+  getReviewCase,
+  listAttestations,
+  listPublicAttestationCaseFiles,
+} from "../data";
 import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
+import { ManagedAttestationRefresh } from "../managed-attestation-refresh";
 import { keyEvidenceRecords } from "../review-presentation";
 
 export default async function ReviewCasePage({
@@ -24,30 +18,38 @@ export default async function ReviewCasePage({
   searchParams,
 }: {
   params: Promise<{ caseId: string }>;
-  searchParams: Promise<{ caseFile?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { caseId } = await params;
-  const { caseFile: generatedCaseFileId } = await searchParams;
+  await searchParams;
   const session = await readHollisSession();
   const activeRole = session?.session.activeWorkspace?.role ?? "";
   const canCreate = canCreateReviewCases(activeRole);
   const canReview = canPerformHumanReview(activeRole);
-  const canAttest = canManageAttestations(activeRole);
   let reviewCase: Awaited<ReturnType<typeof getReviewCase>>;
   try {
     reviewCase = await getReviewCase(caseId);
   } catch {
     notFound();
   }
-  const [attestations, publicCaseFileResult] = await Promise.all([
+  const [attestations, publicCaseFileResult, managedAttestation] = await Promise.all([
     listAttestations(caseId).catch(() => []),
     listPublicAttestationCaseFiles(caseId)
       .then((caseFiles) => ({ caseFiles, available: true }))
       .catch(() => ({ caseFiles: [], available: false })),
+    getManagedAttestationStatus(caseId).catch(() => ({
+      configured: false,
+      deployment: null,
+      submission: null,
+    })),
   ]);
   const publicCaseFiles = publicCaseFileResult.caseFiles;
-  const generatedCaseFile = publicCaseFiles.find(
-    (publicCaseFile) => publicCaseFile.publicId === generatedCaseFileId,
+  const managedPending =
+    managedAttestation.deployment?.status === "submitted" ||
+    managedAttestation.submission?.status === "submitted" ||
+    managedAttestation.submission?.status === "submitting";
+  const managedPublicCaseFile = publicCaseFiles.find(
+    (item) => item.publicCaseFileUrl === managedAttestation.submission?.publicCaseFileUrl,
   );
 
   return (
@@ -107,7 +109,11 @@ export default async function ReviewCasePage({
             <h2>Attestation Horizon</h2>
             <p>Evidence layers align with the human decision and portable receipt.</p>
           </div>
-          <AttestationHorizon attestations={attestations} reviewCase={reviewCase} />
+          <AttestationHorizon
+            attestations={attestations}
+            managedSubmission={managedAttestation.submission}
+            reviewCase={reviewCase}
+          />
         </div>
       </div>
       <section className="attestation-panel" aria-labelledby="attestation-title" id="attestation">
@@ -120,7 +126,8 @@ export default async function ReviewCasePage({
         </div>
         <p className="panel-description">
           Hollis binds the completed human review, managed evidence references, and a declared
-          policy control into a privacy-preserving case commitment for GenLayer adjudication.
+          policy control into a privacy-preserving case commitment for GenLayer adjudication. No
+          reviewer wallet, Studio action, or transaction hash is required.
         </p>
         <dl className="readiness-list">
           <div>
@@ -145,91 +152,39 @@ export default async function ReviewCasePage({
             </dd>
           </div>
         </dl>
-        {generatedCaseFile ? (
+        <ManagedAttestationRefresh active={managedPending} />
+        {!managedAttestation.configured ? (
+          <p className="attestation-notice">
+            Managed GenLayer attestation is not configured for this environment.
+          </p>
+        ) : managedAttestation.submission ? (
           <div className="attestation-success" role="status">
             <div>
-              <p className="eyebrow">Case file generated</p>
-              <strong>Hollis recorded an immutable, public-safe attestation input.</strong>
-              <span>{generatedCaseFile.caseFile.caseCommitment}</span>
+              <p className="eyebrow">Hollis-managed attestation</p>
+              <strong>
+                {managedAttestation.submission.status === "finalized"
+                  ? `GenLayer verdict: ${managedAttestation.submission.verdict?.replaceAll("_", " ") ?? "recorded"}`
+                  : `GenLayer ${managedAttestation.submission.status.replaceAll("_", " ")}`}
+              </strong>
+              <span>{managedAttestation.submission.caseCommitment}</span>
             </div>
-            <Link
-              className="secondary-action"
-              href={`/app/review-cases/${caseId}/attestation-case-files/${generatedCaseFile.publicId}`}
-            >
-              View attestation record
-            </Link>
+            {managedPublicCaseFile ? (
+              <Link
+                className="secondary-action"
+                href={`/app/review-cases/${caseId}/attestation-case-files/${managedPublicCaseFile.publicId}`}
+              >
+                View attestation record
+              </Link>
+            ) : null}
           </div>
-        ) : null}
-        {reviewCase.status === "completed" && publicCaseFileResult.available && canAttest ? (
-          <form action={createPublicAttestationCaseFileAction} className="attestation-form">
-            <input name="caseId" type="hidden" value={caseId} />
-            <h3>Generate controlled case file</h3>
-            <p>
-              Provide the approved policy control. Hollis will generate an immutable, public-safe
-              case file containing only the process facts required by GenLayer. Raw evidence and
-              personal data remain private.
-            </p>
-            <div className="form-grid">
-              <label>
-                Policy ID
-                <input name="policyId" required pattern="[a-z][a-z0-9-]{0,127}" />
-              </label>
-              <label>
-                Policy version
-                <input name="policyVersion" required defaultValue={reviewCase.policyVersion} />
-              </label>
-              <label>
-                Control ID
-                <input name="controlId" required readOnly value={reviewCase.ruleId} />
-              </label>
-              <label>
-                Control version
-                <input name="controlVersion" required />
-              </label>
-              <label className="form-span">
-                Policy document SHA-256 digest
-                <input
-                  name="policyDocumentDigest"
-                  required
-                  placeholder="sha256:..."
-                  pattern="sha256:[a-f0-9]{64}"
-                />
-              </label>
-              <label className="form-span">
-                Attestation criterion
-                <textarea name="attestationCriterion" required maxLength={1000} />
-              </label>
-              <label>
-                Evidence requirement
-                <select defaultValue="verified_reference_required" name="evidenceRequirement">
-                  <option value="none">No evidence reference required</option>
-                  <option value="reference_required">Evidence reference required</option>
-                  <option value="verified_reference_required">
-                    Verified evidence reference required
-                  </option>
-                </select>
-              </label>
-              <label>
-                Interpretation
-                <select defaultValue="deterministic" name="interpretation">
-                  <option value="deterministic">Deterministic process check</option>
-                  <option value="judgment_required">Judgment required</option>
-                </select>
-              </label>
-            </div>
-            <button type="submit">Generate case file</button>
-          </form>
-        ) : reviewCase.status === "completed" && !publicCaseFileResult.available ? (
+        ) : reviewCase.status === "completed" ? (
           <p className="attestation-notice">
-            The controlled public case-file publisher is not configured for this environment.
-          </p>
-        ) : reviewCase.status === "completed" && !canAttest ? (
-          <p className="attestation-notice">
-            Your workspace role can inspect attestation records but cannot generate or import them.
+            Hollis is preparing the policy-bound GenLayer control. This case will submit
+            automatically once the control is active.
           </p>
         ) : (
           <p className="attestation-notice">
-            Complete the case and record the human decision before submitting an attestation.
+            Complete the case and record the human decision to start attestation automatically.
           </p>
         )}
         {publicCaseFiles.length > 0 ? (
@@ -265,24 +220,6 @@ export default async function ReviewCasePage({
                     <dd>{publicCaseFile.caseFile.policy.control.controlId}</dd>
                   </div>
                 </dl>
-                {canAttest ? (
-                  <form action={importFinalizedAttestationAction} className="attestation-form">
-                    <input name="caseId" type="hidden" value={caseId} />
-                    <input name="publicCaseFileId" type="hidden" value={publicCaseFile.publicId} />
-                    <label>
-                      Finalized GenLayer transaction hash
-                      <input
-                        name="transactionHash"
-                        required
-                        pattern="0x[a-fA-F0-9]{64}"
-                        placeholder="0x..."
-                      />
-                    </label>
-                    <button className="secondary-action" type="submit">
-                      Verify and import finalized attestation
-                    </button>
-                  </form>
-                ) : null}
               </article>
             ))}
           </div>
@@ -312,15 +249,6 @@ export default async function ReviewCasePage({
                     </div>
                   ) : null}
                 </dl>
-                {canAttest ? (
-                  <form action={refreshAttestationAction}>
-                    <input name="caseId" type="hidden" value={caseId} />
-                    <input name="attestationId" type="hidden" value={attestation.id} />
-                    <button className="secondary-action" type="submit">
-                      Refresh status
-                    </button>
-                  </form>
-                ) : null}
               </article>
             ))}
           </div>

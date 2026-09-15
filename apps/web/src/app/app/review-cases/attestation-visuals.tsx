@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { AttestationRecord, ReviewCaseDetail } from "./data";
+import type { AttestationRecord, ManagedAttestationStatus, ReviewCaseDetail } from "./data";
 
 type CaseRecordOverviewProps = {
   decisionOutcome: string | null;
@@ -72,11 +72,17 @@ function attestationState(attestations: AttestationRecord[]) {
 export function AttestationHorizon({
   reviewCase,
   attestations,
+  managedSubmission = null,
 }: {
   reviewCase: ReviewCaseDetail;
   attestations: AttestationRecord[];
+  managedSubmission?: ManagedAttestationStatus["submission"];
 }) {
-  const finalState = attestationState(attestations);
+  const finalState = managedSubmission
+    ? managedSubmission.status === "finalized" && managedSubmission.verdict
+      ? { label: managedSubmission.verdict.replaceAll("_", " "), tone: managedSubmission.verdict }
+      : { label: managedSubmission.status.replaceAll("_", " "), tone: "pending" }
+    : attestationState(attestations);
   const reviewState = reviewCase.decisionOutcome ? "Recorded" : "Awaiting";
 
   const stages = [

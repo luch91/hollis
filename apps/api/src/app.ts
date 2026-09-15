@@ -52,6 +52,7 @@ import {
   createPostgresApplicationSessionStore,
   createPostgresAttestationStore,
   createPostgresEvidenceMetadataStore,
+  createPostgresManagedAttestationSubmissionStore,
   createPostgresPolicyLibraryStore,
   createPostgresPolicyContractDeploymentStore,
   createPostgresPublicAttestationCaseFileStore,
@@ -64,8 +65,19 @@ import {
   setEvidenceLegalHold,
 } from "./persistence.js";
 import {
+  reconcileManagedAttestationForCase,
+  startManagedAttestationForCase,
+  type ManagedAttestationProgress,
+} from "./managed-attestation-orchestrator.js";
+import type {
+  ManagedAttestationClient,
+  ManagedAttestationSubmissionStore,
+} from "./managed-attestation-submission.js";
+import {
+  beginPolicyContractDeployment,
   ensurePolicyContractDeployment,
   PolicyContractDeploymentError,
+  reconcilePolicyContractDeployment,
   type PolicyContractDeploymentClient,
   type PolicyContractDeploymentStore,
 } from "./policy-contract-deployment.js";
@@ -132,6 +144,8 @@ type AppDependencies = {
   policyLibraryStore?: PolicyLibraryStore;
   policyContractDeploymentStore?: PolicyContractDeploymentStore;
   policyContractDeploymentClient?: PolicyContractDeploymentClient;
+  managedAttestationSubmissionStore?: ManagedAttestationSubmissionStore;
+  managedAttestationClient?: ManagedAttestationClient;
   policyContractSource?: string;
   tenantResolver?: TenantResolver;
   workflowStore?: ReviewWorkflowStore;
@@ -199,6 +213,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.policyContractDeploymentStore ??
     (databaseResource
       ? createPostgresPolicyContractDeploymentStore(databaseResource.database)
+      : null);
+  const managedAttestationSubmissionStore =
+    dependencies.managedAttestationSubmissionStore ??
+    (databaseResource
+      ? createPostgresManagedAttestationSubmissionStore(databaseResource.database)
       : null);
   const policyContractSource =
     dependencies.policyContractSource ??
@@ -285,6 +304,85 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.identityPlatformTokenVerifier ?? createIdentityPlatformTokenVerifier(environment);
   const evidenceStorage =
     dependencies.evidenceStorage ?? (await createConfiguredEvidenceStorage(environment));
+  const managedAttestationDependencies =
+    environment.PUBLIC_ATTESTATION_ORIGIN &&
+    environment.GENLAYER_RUNTIME_ADDRESS &&
+    dependencies.policyContractDeploymentClient &&
+    dependencies.managedAttestationClient &&
+    policyContractDeploymentStore &&
+    managedAttestationSubmissionStore &&
+    publicAttestationCaseFileStore
+      ? {
+          attestationClient: dependencies.managedAttestationClient,
+          deploymentClient: dependencies.policyContractDeploymentClient,
+          deploymentStore: policyContractDeploymentStore,
+          evidenceMetadataStore,
+          policyLibraryStore,
+          publicCaseFileStore: publicAttestationCaseFileStore,
+          publicOrigin: environment.PUBLIC_ATTESTATION_ORIGIN,
+          runtimeAddress: environment.GENLAYER_RUNTIME_ADDRESS,
+          source: policyContractSource,
+          submissionStore: managedAttestationSubmissionStore,
+          workflowStore,
+        }
+      : null;
+
+  async function recordManagedReceipt(
+    tenantId: string,
+    caseId: string,
+    progress: ManagedAttestationProgress,
+  ) {
+    const submission = progress.submission;
+    if (
+      submission?.status !== "finalized" ||
+      !submission.transactionHash ||
+      !submission.verdict ||
+      !publicAttestationCaseFileStore ||
+      !attestationStore
+    ) {
+      return;
+    }
+    const publicId = new URL(submission.publicCaseFileUrl).pathname.split("/").at(-1);
+    if (!publicId || !z.uuid().safeParse(publicId).success) return;
+    const caseFile = await publicAttestationCaseFileStore.findForCase(
+      tenantId,
+      caseId,
+      publicId,
+      submission.publicCaseFileUrl,
+    );
+    if (!caseFile) return;
+    await attestationStore.create(
+      tenantId,
+      caseId,
+      "hollis-managed-runtime",
+      caseFile.caseFile,
+      submission.publicCaseFileUrl,
+      {
+        contractAddress: submission.contractAddress,
+        provider: "genlayer",
+        providerSubmissionId: submission.transactionHash,
+        status: "finalized",
+        transactionHash: submission.transactionHash,
+        verdict: submission.verdict,
+      },
+    );
+  }
+
+  async function reconcileManagedAttestation(
+    tenantId: string,
+    caseId: string,
+    actorId: string,
+  ): Promise<ManagedAttestationProgress | null> {
+    if (!managedAttestationDependencies) return null;
+    const progress = await reconcileManagedAttestationForCase({
+      actorId,
+      caseId,
+      dependencies: managedAttestationDependencies,
+      tenantId,
+    });
+    await recordManagedReceipt(tenantId, caseId, progress);
+    return progress;
+  }
   const app = Fastify({
     bodyLimit: 262_144,
     logController: new LogController({ disableRequestLogging: true }),
@@ -1128,9 +1226,44 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     async (request, reply) => {
       const input = createPolicyVersionSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
-      return reply
-        .code(201)
-        .send(await createPublishedPolicy(tenant.id, principal.userId, input, policyLibraryStore));
+      const policy = await createPublishedPolicy(
+        tenant.id,
+        principal.userId,
+        input,
+        policyLibraryStore,
+      );
+      if (managedAttestationDependencies) {
+        for (const control of policy.controls) {
+          const record = await policyLibraryStore.findControlRecord(
+            tenant.id,
+            policy.id,
+            control.controlId,
+          );
+          if (!record) continue;
+          try {
+            await beginPolicyContractDeployment({
+              binding: record.binding,
+              client: managedAttestationDependencies.deploymentClient,
+              createdByUserId: principal.userId,
+              policyControlRecordId: record.controlRecordId,
+              runtimeAddress: managedAttestationDependencies.runtimeAddress,
+              source: managedAttestationDependencies.source,
+              sourceVersion: "v7",
+              store: managedAttestationDependencies.deploymentStore,
+              tenantId: tenant.id,
+            });
+          } catch (error) {
+            app.log.error(
+              {
+                controlId: control.controlId,
+                errorName: error instanceof Error ? error.name : "unknown",
+              },
+              "managed GenLayer deployment could not start after policy publication",
+            );
+          }
+        }
+      }
+      return reply.code(201).send(policy);
     },
   );
 
@@ -1197,7 +1330,17 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         controlId,
       );
       if (!control) return reply.code(404).send({ code: "policy_control_not_found" });
-      return policyContractDeploymentStore.findByPolicyControl(tenant.id, control.controlRecordId);
+      const deployment = await policyContractDeploymentStore.findByPolicyControl(
+        tenant.id,
+        control.controlRecordId,
+      );
+      if (!deployment || !managedAttestationDependencies) return deployment;
+      return reconcilePolicyContractDeployment({
+        client: managedAttestationDependencies.deploymentClient,
+        deployment,
+        store: policyContractDeploymentStore,
+        tenantId: tenant.id,
+      });
     },
   );
 
@@ -1226,6 +1369,20 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { tenant } = requireRequestContext(request);
       const queue = await workflowStore.list(tenant.id, query.status);
       return queue.map(toQueueResponse);
+    },
+  );
+
+  app.get(
+    "/v1/review-cases/:caseId/managed-attestation",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request) => {
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const { principal, tenant } = requireRequestContext(request);
+      if (!managedAttestationDependencies) {
+        return { configured: false, deployment: null, submission: null };
+      }
+      const progress = await reconcileManagedAttestation(tenant.id, caseId, principal.userId);
+      return { configured: true, ...progress };
     },
   );
 
@@ -1441,7 +1598,28 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const input = decideReviewCaseSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
       const result = await workflowStore.decide(tenant.id, principal.userId, caseId, input);
-      return toWorkflowResponse(result);
+      let managedAttestation: ManagedAttestationProgress | null = null;
+      if (managedAttestationDependencies) {
+        try {
+          managedAttestation = await startManagedAttestationForCase({
+            actorId: principal.userId,
+            caseId,
+            dependencies: managedAttestationDependencies,
+            tenantId: tenant.id,
+          });
+          await recordManagedReceipt(tenant.id, caseId, managedAttestation);
+        } catch (error) {
+          app.log.error(
+            {
+              caseId,
+              errorName: error instanceof Error ? error.name : "unknown",
+              tenantId: tenant.id,
+            },
+            "managed GenLayer attestation initiation failed after the human decision",
+          );
+        }
+      }
+      return { ...toWorkflowResponse(result), managedAttestation };
     },
   );
 

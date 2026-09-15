@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { readHollisSession } from "@/lib/hollis-session";
 import { OperationalPageHeader } from "../../operational-page-header";
-import { deployPolicyContractAction } from "../../review-cases/actions";
 import { getPolicyContractDeployment, listWorkspacePolicies } from "../../review-cases/data";
 
 export default async function PolicyDetailPage({
@@ -10,15 +8,9 @@ export default async function PolicyDetailPage({
 }: {
   params: Promise<{ policyVersionId: string }>;
 }) {
-  const [{ policyVersionId }, policies, session] = await Promise.all([
-    params,
-    listWorkspacePolicies(),
-    readHollisSession(),
-  ]);
-  if (!session?.session.activeWorkspace) notFound();
+  const [{ policyVersionId }, policies] = await Promise.all([params, listWorkspacePolicies()]);
   const policy = policies.find((candidate) => candidate.id === policyVersionId);
   if (!policy) notFound();
-  const canDeploy = ["owner", "administrator"].includes(session.session.activeWorkspace.role);
 
   return (
     <section className="policy-detail" aria-labelledby="policy-detail-title">
@@ -112,13 +104,9 @@ export default async function PolicyDetailPage({
               <p className="policy-detail-deployment">
                 GenLayer: {deployment?.status ?? "not deployed"}
               </p>
-              {canDeploy && !deployment ? (
-                <form action={deployPolicyContractAction}>
-                  <input name="policyVersionId" type="hidden" value={policy.id} />
-                  <input name="controlId" type="hidden" value={control.controlId} />
-                  <button type="submit">Deploy immutable GenLayer control</button>
-                </form>
-              ) : null}
+              <p className="policy-detail-deployment-note">
+                Hollis manages deployment and activation for this immutable control.
+              </p>
             </article>
           );
         })}

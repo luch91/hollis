@@ -1010,6 +1010,23 @@ export function createPostgresManagedAttestationSubmissionStore(
         return submission ? mapManagedAttestationSubmission(submission) : null;
       });
     },
+    async findByCase(tenantId, caseId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [submission] = await transaction
+          .select()
+          .from(managedAttestationSubmissions)
+          .where(
+            and(
+              eq(managedAttestationSubmissions.tenantId, tenantId),
+              eq(managedAttestationSubmissions.caseId, caseId),
+            ),
+          )
+          .orderBy(desc(managedAttestationSubmissions.createdAt))
+          .limit(1);
+        return submission ? mapManagedAttestationSubmission(submission) : null;
+      });
+    },
     markSubmitting(tenantId, submissionId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);

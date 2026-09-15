@@ -116,6 +116,28 @@ export type PolicyContractDeployment = {
   status: string;
 };
 
+export type ManagedAttestationStatus = {
+  configured: boolean;
+  deployment: PolicyContractDeployment | null;
+  submission: {
+    caseCommitment: string;
+    contractAddress: string;
+    evaluationReason: string | null;
+    failureCode: string | null;
+    finalizedAt: string | null;
+    publicCaseFileUrl: string;
+    status:
+      | "pending"
+      | "submitting"
+      | "submitted"
+      | "finalized"
+      | "failed"
+      | "reconciliation_required";
+    transactionHash: string | null;
+    verdict: "pass" | "fail" | "needs_review" | "undetermined" | null;
+  } | null;
+};
+
 export type WorkspaceReviewerSearchResult = {
   displayName: string | null;
   email: string | null;
@@ -234,6 +256,10 @@ export function createWorkspacePolicy(input: {
 
 export function getReviewCase(caseId: string) {
   return request<ReviewCaseDetail>(`/v1/review-cases/${caseId}`);
+}
+
+export function getManagedAttestationStatus(caseId: string) {
+  return request<ManagedAttestationStatus>(`/v1/review-cases/${caseId}/managed-attestation`);
 }
 
 export function getReviewExport(caseId: string) {

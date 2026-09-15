@@ -22,6 +22,7 @@ export type ReserveManagedAttestationSubmission = {
 
 export interface ManagedAttestationSubmissionStore {
   find(tenantId: string, submissionId: string): Promise<ManagedAttestationSubmission | null>;
+  findByCase(tenantId: string, caseId: string): Promise<ManagedAttestationSubmission | null>;
   markFailed(
     tenantId: string,
     submissionId: string,
@@ -46,6 +47,115 @@ export interface ManagedAttestationSubmissionStore {
     submissionId: string,
   ): Promise<ManagedAttestationSubmission | null>;
   reserve(input: ReserveManagedAttestationSubmission): Promise<ManagedAttestationSubmission>;
+}
+
+/** Broadcasts a completed-case adjudication exactly once without waiting for consensus. */
+export async function beginManagedAttestationSubmission(input: {
+  client: ManagedAttestationClient;
+  deployment: PolicyContractDeployment;
+  request: GenLayerAttestationRequest;
+  caseId: string;
+  store: ManagedAttestationSubmissionStore;
+  tenantId: string;
+}): Promise<ManagedAttestationSubmission> {
+  if (input.deployment.status !== "active" || !input.deployment.contractAddress) {
+    throw new ManagedAttestationSubmissionError(
+      "The selected policy control has no active verified GenLayer contract.",
+      "active_policy_contract_required",
+    );
+  }
+  if (input.deployment.tenantId !== input.tenantId) {
+    throw new ManagedAttestationSubmissionError(
+      "The policy contract belongs to another workspace.",
+      "policy_contract_tenant_mismatch",
+    );
+  }
+  if (input.deployment.bindingDigest !== digestPolicyContractValue(input.request.caseFile.policy)) {
+    throw new ManagedAttestationSubmissionError(
+      "The case policy binding does not match the active GenLayer contract.",
+      "policy_contract_binding_mismatch",
+    );
+  }
+  const submission = managedAttestationSubmissionSchema.parse(
+    await input.store.reserve({
+      caseCommitment: input.request.caseFile.caseCommitment,
+      caseId: input.caseId,
+      contractAddress: input.deployment.contractAddress,
+      deploymentId: input.deployment.id,
+      idempotencyKey: input.request.idempotencyKey,
+      publicCaseFileUrl: input.request.publicCaseFileUrl,
+      runtimeAddress: input.deployment.runtimeAddress,
+      tenantId: input.tenantId,
+    }),
+  );
+  if (
+    submission.caseId !== input.caseId ||
+    submission.caseCommitment !== input.request.caseFile.caseCommitment ||
+    submission.deploymentId !== input.deployment.id ||
+    submission.contractAddress.toLowerCase() !== input.deployment.contractAddress.toLowerCase() ||
+    submission.publicCaseFileUrl !== input.request.publicCaseFileUrl
+  ) {
+    throw new ManagedAttestationSubmissionError(
+      "The attestation idempotency key is already bound to different submission facts.",
+      "attestation_idempotency_conflict",
+    );
+  }
+  if (submission.status === "failed" || submission.status === "reconciliation_required") {
+    throw new ManagedAttestationSubmissionError(
+      "The existing attestation submission requires operator reconciliation.",
+      submission.failureCode ?? "attestation_submission_failed",
+    );
+  }
+  if (submission.status === "submitted" || submission.status === "finalized") return submission;
+  if (submission.status === "submitting") {
+    throw new ManagedAttestationSubmissionError(
+      "The attestation transaction outcome is not recorded and must be reconciled.",
+      "attestation_submission_uncertain",
+    );
+  }
+  const claimed = await input.store.markSubmitting(input.tenantId, submission.id);
+  if (!claimed) return requireSubmission(input.store, input.tenantId, submission.id);
+  try {
+    const transactionHash = await input.client.submit({
+      caseCommitment: submission.caseCommitment,
+      contractAddress: submission.contractAddress,
+      publicCaseFileUrl: submission.publicCaseFileUrl,
+    });
+    return await input.store.markSubmitted(input.tenantId, submission.id, transactionHash);
+  } catch {
+    await input.store.markFailed(
+      input.tenantId,
+      submission.id,
+      "reconciliation_required",
+      "attestation_submission_uncertain",
+    );
+    throw new ManagedAttestationSubmissionError(
+      "The attestation submission outcome is uncertain and automatic retry is disabled.",
+      "attestation_submission_uncertain",
+    );
+  }
+}
+
+/** Reads a retained contract result once. Pending consensus remains submitted. */
+export async function reconcileManagedAttestationSubmission(input: {
+  client: ManagedAttestationClient;
+  store: ManagedAttestationSubmissionStore;
+  submission: ManagedAttestationSubmission;
+  tenantId: string;
+}): Promise<ManagedAttestationSubmission> {
+  const submission = managedAttestationSubmissionSchema.parse(input.submission);
+  if (submission.tenantId !== input.tenantId || submission.status !== "submitted")
+    return submission;
+  const result = await input.client.readResult({
+    caseCommitment: submission.caseCommitment,
+    contractAddress: submission.contractAddress,
+  });
+  if (result.status !== "finalized") return submission;
+  const verdict = attestationVerdictSchema.parse(result.verdict);
+  return input.store.markFinalized(input.tenantId, submission.id, {
+    evaluationReason: result.evaluationReason,
+    verdict,
+  });
 }
 
 export interface ManagedAttestationClient {
@@ -227,14 +337,6 @@ export async function ensureManagedAttestationSubmission(input: {
       );
     }
     const verdict = attestationVerdictSchema.parse(result.verdict);
-    const receipt = attestationReceiptSchema.parse({
-      contractAddress: submission.contractAddress,
-      provider: "genlayer",
-      providerSubmissionId: submission.transactionHash,
-      status: result.status,
-      transactionHash: submission.transactionHash,
-      verdict,
-    });
     submission = await input.store.markFinalized(input.tenantId, submission.id, {
       evaluationReason: result.evaluationReason,
       verdict,

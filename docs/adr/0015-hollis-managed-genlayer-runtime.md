@@ -41,10 +41,12 @@ replacement supersedes the former deployment transactionally. Cases use the acti
 their exact published policy binding. A contract is not deployed per case.
 
 Per-case adjudication uses a separate tenant-isolated submission registry. Hollis reserves the
-case idempotency key before broadcasting, records the transaction hash immediately, waits for
-successful finalization, then reads and stores the three retained V7 result views. A retry resumes
-from the recorded transaction hash. A lost broadcast response enters `reconciliation_required`
-and cannot be automatically resubmitted.
+case idempotency key before broadcasting and records the transaction hash immediately. The
+human-decision request starts this persisted lifecycle but does not wait for consensus. A bounded
+reconciliation reads the retained V7 result views after consensus. The workspace refreshes while a
+deployment or adjudication is pending, and a later workspace request safely resumes reconciliation
+after the reviewer leaves. A lost broadcast response enters `reconciliation_required` and cannot
+be automatically resubmitted.
 
 ## Consequences
 
@@ -52,5 +54,7 @@ and cannot be automatically resubmitted.
 - A policy control can serve many case adjudications without weakening its immutable binding.
 - Contract-source upgrades remain explicit and auditable.
 - A deployment timeout cannot silently trigger an automatic duplicate deployment.
+- The customer-facing workspace does not expose a GenLayer wallet, Studio deployment action, or
+  transaction-hash import field.
 - Key rotation, balance monitoring, transaction reconciliation, worker scheduling, and production
   runtime activation still require operational runbooks.

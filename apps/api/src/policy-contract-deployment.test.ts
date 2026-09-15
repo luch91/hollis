@@ -6,9 +6,11 @@ import type {
 } from "@hollis/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
+  beginPolicyContractDeployment,
   digestPolicyContractValue,
   digestPolicyContractSource,
   ensurePolicyContractDeployment,
+  reconcilePolicyContractDeployment,
   type PolicyContractDeploymentClient,
   type PolicyContractDeploymentStore,
   policyContractConstructorArguments,
@@ -164,6 +166,52 @@ describe("policy contract deployment", () => {
     expect(deploymentClient.deploy).toHaveBeenCalledTimes(1);
     expect(deploymentClient.waitForFinalization).toHaveBeenCalledWith(transactionHash);
     expect(first.bindingDigest).toBe(digestPolicyContractValue(binding));
+  });
+
+  it("records a broadcast without waiting for consensus in the request path", async () => {
+    const store = new MemoryStore();
+    const deploymentClient = client();
+    const result = await beginPolicyContractDeployment({
+      binding,
+      client: deploymentClient,
+      createdByUserId: actorId,
+      policyControlRecordId: controlRecordId,
+      runtimeAddress,
+      source,
+      sourceVersion: "v7",
+      store,
+      tenantId,
+    });
+
+    expect(result.status).toBe("submitted");
+    expect(deploymentClient.deploy).toHaveBeenCalledTimes(1);
+    expect(deploymentClient.waitForFinalization).not.toHaveBeenCalled();
+  });
+
+  it("activates a submitted deployment after a bounded reconciliation result", async () => {
+    const store = new MemoryStore();
+    const deploymentClient = client({
+      probeFinalization: vi.fn(async () => ({ contractAddress, executionSucceeded: true })),
+    });
+    const submitted = await beginPolicyContractDeployment({
+      binding,
+      client: deploymentClient,
+      createdByUserId: actorId,
+      policyControlRecordId: controlRecordId,
+      runtimeAddress,
+      source,
+      sourceVersion: "v7",
+      store,
+      tenantId,
+    });
+    const active = await reconcilePolicyContractDeployment({
+      client: deploymentClient,
+      deployment: submitted,
+      store,
+      tenantId,
+    });
+
+    expect(active.status).toBe("active");
   });
 
   it("resumes a submitted transaction without deploying another contract", async () => {

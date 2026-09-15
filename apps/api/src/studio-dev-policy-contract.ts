@@ -82,6 +82,27 @@ export class StudioDevPolicyContractClient implements PolicyContractDeploymentCl
     };
   }
 
+  async probeFinalization(transactionHash: string) {
+    try {
+      const transaction = finalizedDeploymentSchema.parse(
+        await this.client.waitForFinalization({
+          fullTransaction: true,
+          hash: transactionHashSchema.parse(transactionHash),
+          interval: 5_000,
+          retries: 1,
+        }),
+      );
+      return {
+        contractAddress: transaction.to_address,
+        executionSucceeded:
+          transaction.lifecycle.outcome === "accepted" &&
+          transaction.txExecutionResultName === "FINISHED_WITH_RETURN",
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async readBinding(contractAddress: string): Promise<PolicyContractBinding> {
     const result = await this.client.readContract({
       address: addressSchema.parse(contractAddress) as `0x${string}`,

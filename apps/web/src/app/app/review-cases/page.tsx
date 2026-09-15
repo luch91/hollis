@@ -6,12 +6,15 @@ import { OperationalPageHeader } from "../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../workspace-capabilities";
 import { claimAction, decideAction, escalateAction } from "./actions";
 import { AttestationHorizon } from "./attestation-visuals";
+import { ManagedAttestationRefresh } from "./managed-attestation-refresh";
 import {
   type AttestationRecord,
+  getManagedAttestationStatus,
   getReviewCase,
   getReviewExport,
   listAttestations,
   listReviewCases,
+  type ManagedAttestationStatus,
   type ReviewCaseDetail,
   type ReviewQueueItem,
   ReviewServiceError,
@@ -597,6 +600,7 @@ function SelectedCaseWorkspace({
   canReview,
   reviewCase,
   attestations,
+  managedAttestation,
   exported,
   reviewer,
   query,
@@ -605,11 +609,16 @@ function SelectedCaseWorkspace({
   canReview: boolean;
   reviewCase: ReviewCaseDetail;
   attestations: AttestationRecord[];
+  managedAttestation: ManagedAttestationStatus;
   exported: ReviewExport;
   reviewer: ReviewerProfile;
   query: WorkspaceQuery;
 }) {
   const tab = activeCaseTab(query.tab);
+  const managedPending =
+    managedAttestation.deployment?.status === "submitted" ||
+    managedAttestation.submission?.status === "submitted" ||
+    managedAttestation.submission?.status === "submitting";
   return (
     <>
       <section className="reference-case-workspace">
@@ -689,6 +698,7 @@ function SelectedCaseWorkspace({
         {tab === "history" ? <CaseHistory exported={exported} /> : null}
       </section>
       <aside className="reference-right-rail">
+        <ManagedAttestationRefresh active={managedPending} />
         <div className="right-rail-heading">
           <div>
             <p className="eyebrow">Independent verification</p>
@@ -702,8 +712,16 @@ function SelectedCaseWorkspace({
             <Link href={`/app/review-cases/${reviewCase.id}`}>View details</Link>
           </nav>
         </div>
-        <AttestationHorizon attestations={attestations} reviewCase={reviewCase} />
-        <GenLayerPanel attestations={attestations} reviewCase={reviewCase} />
+        <AttestationHorizon
+          attestations={attestations}
+          managedSubmission={managedAttestation.submission}
+          reviewCase={reviewCase}
+        />
+        <GenLayerPanel
+          attestations={attestations}
+          managedAttestation={managedAttestation}
+          reviewCase={reviewCase}
+        />
         <ExportPreview attestations={attestations} reviewCase={reviewCase} />
       </aside>
     </>
@@ -712,14 +730,20 @@ function SelectedCaseWorkspace({
 
 function GenLayerPanel({
   attestations,
+  managedAttestation,
   reviewCase,
 }: {
   attestations: AttestationRecord[];
+  managedAttestation: ManagedAttestationStatus;
   reviewCase: ReviewCaseDetail;
 }) {
   const latest = attestations.at(0);
   const humanDecisionRecorded = reviewCase.decisionOutcome !== null;
-  const status = latest?.status ?? (humanDecisionRecorded ? "review complete" : "awaiting review");
+  const status =
+    managedAttestation.submission?.status ??
+    managedAttestation.deployment?.status ??
+    latest?.status ??
+    (humanDecisionRecorded ? "review complete" : "awaiting review");
   return (
     <section className="genlayer-panel" aria-labelledby="genlayer-panel-title">
       <div className={`genlayer-status genlayer-status-${status.replaceAll(" ", "-")}`}>
@@ -730,7 +754,18 @@ function GenLayerPanel({
       <p>
         GenLayer independently checks the declared process after Hollis records the human review.
       </p>
-      {latest ? (
+      {managedAttestation.submission ? (
+        <dl className="genlayer-result">
+          <div>
+            <dt>Verdict</dt>
+            <dd>{managedAttestation.submission.verdict ?? "Awaiting finalization"}</dd>
+          </div>
+          <div>
+            <dt>Transaction</dt>
+            <dd>{managedAttestation.submission.transactionHash ?? "Queued by Hollis"}</dd>
+          </div>
+        </dl>
+      ) : latest ? (
         <dl className="genlayer-result">
           <div>
             <dt>Verdict</dt>
@@ -868,12 +903,17 @@ export default async function ReviewCasesPage({
   if (selectedQueueItem && !selectedCaseResult) return <ReviewServiceUnavailable />;
 
   const reviewCase = selectedCaseResult?.value ?? null;
-  const [attestations, exported] = reviewCase
+  const [attestations, exported, managedAttestation] = reviewCase
     ? await Promise.all([
         listAttestations(reviewCase.id).catch(() => []),
         getReviewExport(reviewCase.id).catch(() => null),
+        getManagedAttestationStatus(reviewCase.id).catch(() => ({
+          configured: false,
+          deployment: null,
+          submission: null,
+        })),
       ])
-    : [[], null];
+    : [[], null, { configured: false, deployment: null, submission: null }];
 
   return (
     <>
@@ -902,6 +942,7 @@ export default async function ReviewCasesPage({
             canCreate={canCreate}
             canReview={canReview}
             exported={exported}
+            managedAttestation={managedAttestation}
             query={query}
             reviewCase={reviewCase}
             reviewer={reviewer}
