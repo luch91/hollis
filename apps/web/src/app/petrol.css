@@ -1745,6 +1745,20 @@ textarea::placeholder {
   content: none;
 }
 
+.reference-right-rail .horizon-stage > div {
+  background: var(--petrol-surface-raised);
+  color: var(--petrol-ink);
+  box-shadow: var(--petrol-shadow-soft);
+}
+
+.reference-right-rail .horizon-stage strong {
+  color: var(--petrol-ink);
+}
+
+.reference-right-rail .horizon-stage small {
+  color: var(--petrol-muted);
+}
+
 .reference-right-rail .horizon-receipt {
   display: grid;
   min-height: 66px;
@@ -1767,15 +1781,15 @@ textarea::placeholder {
   min-height: 54px;
   align-content: center;
   padding: 10px 16px;
-  background: #e8e1d1;
-  box-shadow: -7px 6px 0 rgb(210 202 184 / 16%);
+  background: var(--petrol-surface-raised);
+  box-shadow: var(--petrol-shadow-soft);
   gap: 4px;
 }
 
 .reference-right-rail .horizon-receipt p,
 .reference-right-rail .horizon-receipt strong {
   margin: 0;
-  color: #26291f;
+  color: var(--petrol-ink);
 }
 
 .reference-right-rail .horizon-receipt p {
@@ -1784,7 +1798,7 @@ textarea::placeholder {
 }
 
 .reference-right-rail .horizon-receipt strong {
-  color: #5d5d54;
+  color: var(--petrol-muted);
   font-size: 7px;
   font-weight: 500;
   text-transform: capitalize;
@@ -1818,27 +1832,34 @@ textarea::placeholder {
 }
 
 .paper-stack {
-  border-color: #d8d5c9;
-  background: #f8f5e9;
-  color: #22383d;
+  border-color: var(--petrol-line-strong);
+  background: var(--petrol-surface-soft);
+  color: var(--petrol-ink);
   box-shadow:
-    5px 5px 0 #e6e1d4,
-    10px 10px 0 #d8d2c5;
+    5px 5px 0 var(--petrol-accent-soft),
+    10px 10px 0 color-mix(in srgb, var(--petrol-accent-soft) 72%, var(--petrol-bg));
+}
+
+.paper-stack::before,
+.paper-heading,
+.receipt-paper-heading,
+.paper-total {
+  border-color: var(--petrol-line);
 }
 
 .paper-stack dt,
 .paper-stack dd,
 .paper-stack span {
-  color: #526267;
+  color: var(--petrol-muted);
 }
 
 .paper-stack strong {
-  color: #172f35;
+  color: var(--petrol-ink);
 }
 
 .receipt-seal i {
-  border-color: #7d928d;
-  color: #596d68;
+  border-color: var(--petrol-accent);
+  color: var(--petrol-accent);
 }
 
 .export-formats a {
