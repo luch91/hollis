@@ -34,7 +34,13 @@ const finalizedDeploymentSchema = z
 type RuntimeAccount = ReturnType<typeof createAccount>;
 
 export interface StudioDevPolicyContractSdkClient {
-  deployContract(input: { account: RuntimeAccount; args: string[]; code: string }): Promise<string>;
+  deployContract(input: {
+    account: RuntimeAccount;
+    args: string[];
+    code: string;
+    fees: { distribution: unknown; feeValue: bigint };
+  }): Promise<string>;
+  estimateTransactionFees(): Promise<{ distribution: unknown; feeValue: bigint }>;
   readContract(input: {
     address: `0x${string}`;
     args: string[];
@@ -56,11 +62,13 @@ export class StudioDevPolicyContractClient implements PolicyContractDeploymentCl
   ) {}
 
   async deploy(input: { binding: PolicyContractBinding; source: string }): Promise<string> {
+    const fees = await this.client.estimateTransactionFees();
     return transactionHashSchema.parse(
       await this.client.deployContract({
         account: this.account,
         args: policyContractConstructorArguments(input.binding),
         code: input.source,
+        fees,
       }),
     );
   }
@@ -136,7 +144,9 @@ export function createStudioDevPolicyContractClient(
   const client = createClient({ account, chain: studioDevnet });
   return new StudioDevPolicyContractClient(
     {
-      deployContract: (input) => client.deployContract(input),
+      deployContract: (input) =>
+        client.deployContract(input as Parameters<typeof client.deployContract>[0]),
+      estimateTransactionFees: () => client.estimateTransactionFees(),
       readContract: (input) => client.readContract(input),
       waitForFinalization: (input) =>
         client.waitForFinalization({

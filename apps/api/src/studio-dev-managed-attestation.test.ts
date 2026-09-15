@@ -13,6 +13,7 @@ const publicCaseFileUrl = "https://api.hollis.test/v1/public/attestation-case-fi
 
 function sdk() {
   return {
+    estimateTransactionFeesForWrite: vi.fn(async () => ({ distribution: {}, feeValue: 1n })),
     readContract: vi.fn(async ({ functionName }) => {
       if (functionName === "get_status") return "finalized";
       if (functionName === "get_verdict") return "pass";
@@ -40,6 +41,7 @@ describe("Studio Dev managed attestation client", () => {
       account,
       address: contractAddress,
       args: [commitment, publicCaseFileUrl],
+      fees: { distribution: {}, feeValue: 1n },
       functionName: "adjudicate",
     });
   });

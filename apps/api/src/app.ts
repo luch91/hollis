@@ -1318,7 +1318,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.get(
     "/v1/policies/:policyVersionId/controls/:controlId/genlayer-deployment",
-    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "policies:read") },
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "policies:manage"),
+    },
     async (request, reply) => {
       if (!policyContractDeploymentStore)
         return reply.code(503).send({ code: "managed_genlayer_unconfigured" });

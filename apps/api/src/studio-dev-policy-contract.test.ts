@@ -25,6 +25,7 @@ const binding: PolicyContractBinding = {
 function sdk() {
   return {
     deployContract: vi.fn(async () => transactionHash),
+    estimateTransactionFees: vi.fn(async () => ({ distribution: {}, feeValue: 1n })),
     readContract: vi.fn(async () =>
       JSON.stringify({
         attestationCriterion: binding.control.attestationCriterion,
@@ -68,6 +69,7 @@ describe("Studio Dev policy contract client", () => {
         "deterministic",
       ],
       code: "contract source",
+      fees: { distribution: {}, feeValue: 1n },
     });
   });
 

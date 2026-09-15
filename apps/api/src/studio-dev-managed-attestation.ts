@@ -18,6 +18,12 @@ const finalizedTransactionSchema = z
 type RuntimeAccount = ReturnType<typeof createAccount>;
 
 export interface StudioDevManagedAttestationSdkClient {
+  estimateTransactionFeesForWrite(input: {
+    account: RuntimeAccount;
+    address: `0x${string}`;
+    args: string[];
+    functionName: "adjudicate";
+  }): Promise<{ distribution: unknown; feeValue: bigint }>;
   readContract(input: {
     address: `0x${string}`;
     args: string[];
@@ -34,6 +40,7 @@ export interface StudioDevManagedAttestationSdkClient {
     account: RuntimeAccount;
     address: `0x${string}`;
     args: string[];
+    fees: { distribution: unknown; feeValue: bigint };
     functionName: "adjudicate";
   }): Promise<string>;
 }
@@ -56,20 +63,20 @@ export class StudioDevManagedAttestationClient implements ManagedAttestationClie
     contractAddress: string;
     publicCaseFileUrl: string;
   }) {
-    return transactionHashSchema.parse(
-      await this.client.writeContract({
-        account: this.account,
-        address: addressSchema.parse(input.contractAddress) as `0x${string}`,
-        args: [
-          commitmentSchema.parse(input.caseCommitment),
-          z
-            .url()
-            .refine((value) => new URL(value).protocol === "https:")
-            .parse(input.publicCaseFileUrl),
-        ],
-        functionName: "adjudicate",
-      }),
-    );
+    const write = {
+      account: this.account,
+      address: addressSchema.parse(input.contractAddress) as `0x${string}`,
+      args: [
+        commitmentSchema.parse(input.caseCommitment),
+        z
+          .url()
+          .refine((value) => new URL(value).protocol === "https:")
+          .parse(input.publicCaseFileUrl),
+      ],
+      functionName: "adjudicate" as const,
+    };
+    const fees = await this.client.estimateTransactionFeesForWrite(write);
+    return transactionHashSchema.parse(await this.client.writeContract({ ...write, fees }));
   }
 
   async waitForFinalization(transactionHash: string) {
@@ -118,13 +125,18 @@ export function createStudioDevManagedAttestationClient(
   const client = createClient({ account, chain: studioDevnet });
   return new StudioDevManagedAttestationClient(
     {
+      estimateTransactionFeesForWrite: (input) =>
+        client.estimateTransactionFeesForWrite(
+          input as Parameters<typeof client.estimateTransactionFeesForWrite>[0],
+        ),
       readContract: (input) => client.readContract(input),
       waitForFinalization: (input) =>
         client.waitForFinalization({
           ...input,
           hash: input.hash as unknown as Hash,
         }),
-      writeContract: (input) => client.writeContract(input),
+      writeContract: (input) =>
+        client.writeContract(input as Parameters<typeof client.writeContract>[0]),
     },
     account,
   );
