@@ -323,7 +323,7 @@ export default async function AdminPage({
           </section>
         )}
         {canManage ? (
-          <form action={inviteMember} className="admin-card">
+          <form action={inviteMember} className="admin-card invite-member-form">
             <h2>Invite a member</h2>
             <p>
               Hollis creates a single-use invitation link. Send it only to the intended

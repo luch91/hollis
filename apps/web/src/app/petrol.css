@@ -2103,6 +2103,19 @@ textarea::placeholder {
   box-shadow: 0 0 0 4px var(--petrol-accent-soft);
 }
 
+.invite-member-form label {
+  width: min(100%, 360px);
+}
+
+.invite-member-form select {
+  max-width: 220px;
+}
+
+.invite-member-form .primary-action {
+  width: fit-content;
+  min-width: 196px;
+}
+
 .admin-media-boundary {
   display: flex;
   align-items: center;
