@@ -2040,6 +2040,54 @@ textarea::placeholder {
   font-size: 9px;
 }
 
+.organization-logo-control {
+  --amber: var(--petrol-warning);
+  --canvas: var(--petrol-bg);
+  --canvas-deep: var(--petrol-bg);
+  --danger: var(--petrol-coral);
+  --ink: var(--petrol-ink);
+  --lime: var(--petrol-accent);
+  --lime-glow: var(--petrol-accent-soft);
+  --lime-soft: var(--petrol-accent);
+  --line: var(--petrol-line);
+  --line-strong: var(--petrol-line-strong);
+  --muted: var(--petrol-muted);
+  --panel: var(--petrol-surface);
+  --quiet: var(--petrol-faint);
+  border-color: var(--petrol-line);
+  border-radius: var(--petrol-radius);
+  background: var(--petrol-surface);
+  color: var(--petrol-ink);
+  box-shadow: var(--petrol-shadow-soft);
+}
+
+.organization-logo-preview,
+.organization-logo-candidates li,
+.organization-logo-candidates li > img {
+  border-color: var(--petrol-line);
+  background: var(--petrol-surface-soft);
+}
+
+.organization-logo-preview {
+  color: var(--petrol-brand);
+}
+
+.organization-logo-intro h2,
+.organization-logo-candidates strong {
+  color: var(--petrol-ink);
+}
+
+.organization-logo-intro p:not(.eyebrow),
+.organization-logo-message,
+.organization-logo-candidates small,
+.organization-logo-actions .text-button {
+  color: var(--petrol-muted);
+}
+
+.organization-logo-actions .text-button:hover {
+  color: var(--petrol-ink);
+}
+
 .admin-media-boundary {
   display: flex;
   align-items: center;
