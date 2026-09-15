@@ -267,6 +267,20 @@
       "when": 1789300800000,
       "tag": "0037_add_review_case_policy_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789452448734,
+      "tag": "0038_fix_hollis_case_reference_random_bytes",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789452900000,
+      "tag": "0039_restore_evidence_verification_grant",
+      "breakpoints": true
     }
   ]
 }

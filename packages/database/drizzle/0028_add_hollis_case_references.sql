@@ -6,7 +6,7 @@ SET search_path = pg_catalog, public
 AS $$
 DECLARE
   alphabet constant text := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-  random_bytes bytea := public.gen_random_bytes(8);
+  random_bytes bytea := extensions.gen_random_bytes(8);
   suffix text := '';
   position integer;
 BEGIN
