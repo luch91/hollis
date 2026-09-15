@@ -10,7 +10,7 @@
     "start": "node dist/server.js",
     "test": "vitest run src",
     "test:integration": "vitest run test/persistence.integration.test.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.tests.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1129.0",
