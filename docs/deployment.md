@@ -44,13 +44,13 @@ The selected runtime must supply configuration through its approved secret and e
 | Browser origin | Set `WEB_ORIGIN` to the verified HTTPS console origin. |
 | User authentication | Set `IDENTITY_PLATFORM_PROJECT_ID`; the web application also needs the three Identity Platform Web SDK configuration values. |
 | Hollis sessions | Set `HOLLIS_SESSION_TTL_HOURS` from 1 through 24. |
-| Evidence storage | Configure exactly one provider: `GCS_BUCKET` with `GCS_PROJECT_ID`, or `S3_BUCKET` with `AWS_REGION`. |
+| Evidence storage | Configure exactly one provider: Google Cloud Storage, S3, Azure Blob Storage, or Cloudflare R2. R2 requires `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` together. Set `R2_JURISDICTION=eu` for an EU-jurisdiction bucket; otherwise use `default`. |
 | Claims webhook | Set a `CLAIMS_WEBHOOK_SECRET` of at least 32 characters only when the closed claims integration is deliberately enabled. |
 | Public attestation files | Set `PUBLIC_ATTESTATION_ORIGIN` only to the verified HTTPS API origin that serves the limited public case-file route. |
 | Studio Dev importer | Set `GENLAYER_STUDIO_CONTRACT_ADDRESS` only for the documented read-only attestation-import flow. |
 | Managed Studio Dev runtime | Configure `GENLAYER_NETWORK`, `GENLAYER_RPC_URL`, `GENLAYER_CHAIN_ID`, `GENLAYER_RUNTIME_ADDRESS`, and `GENLAYER_RUNTIME_PRIVATE_KEY` together. The private key is a server-only secret and the address must be derived from that key. |
 
-Production configuration fails closed when the claims secret, evidence provider, HTTPS `WEB_ORIGIN`, or API host binding are absent or invalid. It rejects simultaneous Google Cloud Storage and S3 configuration.
+Production configuration fails closed when the claims secret, evidence provider, HTTPS `WEB_ORIGIN`, or API host binding are absent or invalid. It rejects simultaneous evidence providers and incomplete R2 configuration.
 
 ## Network and access controls
 

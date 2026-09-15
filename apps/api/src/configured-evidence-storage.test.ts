@@ -14,6 +14,11 @@ function environment(
       | "AZURE_STORAGE_CONTAINER"
       | "GCS_BUCKET"
       | "GCS_PROJECT_ID"
+      | "R2_ACCESS_KEY_ID"
+      | "R2_ACCOUNT_ID"
+      | "R2_BUCKET"
+      | "R2_JURISDICTION"
+      | "R2_SECRET_ACCESS_KEY"
       | "S3_BUCKET"
     >
   > = {},
@@ -24,6 +29,11 @@ function environment(
     AZURE_STORAGE_CONTAINER: undefined,
     GCS_BUCKET: undefined,
     GCS_PROJECT_ID: "hollis-507001",
+    R2_ACCESS_KEY_ID: undefined,
+    R2_ACCOUNT_ID: undefined,
+    R2_BUCKET: undefined,
+    R2_JURISDICTION: "default" as const,
+    R2_SECRET_ACCESS_KEY: undefined,
     S3_BUCKET: undefined,
     ...overrides,
   };
@@ -34,12 +44,14 @@ describe("configured evidence storage", () => {
     const createS3EvidenceStorage = vi.fn(() => storage);
     const createGoogleCloudEvidenceStorage = vi.fn(async () => storage);
     const createAzureBlobEvidenceStorage = vi.fn(() => storage);
+    const createR2EvidenceStorage = vi.fn(() => storage);
 
     await expect(
       createConfiguredEvidenceStorage(
         environment({ AWS_REGION: "eu-west-1", S3_BUCKET: "hollis-test" }),
         {
           createGoogleCloudEvidenceStorage,
+          createR2EvidenceStorage,
           createS3EvidenceStorage,
           createAzureBlobEvidenceStorage,
         },
@@ -54,6 +66,7 @@ describe("configured evidence storage", () => {
     const createS3EvidenceStorage = vi.fn(() => storage);
     const createGoogleCloudEvidenceStorage = vi.fn(async () => storage);
     const createAzureBlobEvidenceStorage = vi.fn(() => storage);
+    const createR2EvidenceStorage = vi.fn(() => storage);
 
     await expect(
       createConfiguredEvidenceStorage(
@@ -61,6 +74,7 @@ describe("configured evidence storage", () => {
         {
           createAzureBlobEvidenceStorage,
           createGoogleCloudEvidenceStorage,
+          createR2EvidenceStorage,
           createS3EvidenceStorage,
         },
       ),
@@ -73,10 +87,44 @@ describe("configured evidence storage", () => {
     expect(createS3EvidenceStorage).not.toHaveBeenCalled();
   });
 
+  it("selects R2 when the validated R2 configuration is present", async () => {
+    const createAzureBlobEvidenceStorage = vi.fn(() => storage);
+    const createGoogleCloudEvidenceStorage = vi.fn(async () => storage);
+    const createR2EvidenceStorage = vi.fn(() => storage);
+    const createS3EvidenceStorage = vi.fn(() => storage);
+
+    await expect(
+      createConfiguredEvidenceStorage(
+        environment({
+          R2_ACCESS_KEY_ID: "r2-access-key",
+          R2_ACCOUNT_ID: "account-id",
+          R2_BUCKET: "hollis-evidence",
+          R2_JURISDICTION: "eu",
+          R2_SECRET_ACCESS_KEY: "r2-secret-key",
+        }),
+        {
+          createAzureBlobEvidenceStorage,
+          createGoogleCloudEvidenceStorage,
+          createR2EvidenceStorage,
+          createS3EvidenceStorage,
+        },
+      ),
+    ).resolves.toBe(storage);
+
+    expect(createR2EvidenceStorage).toHaveBeenCalledWith(
+      "account-id",
+      "hollis-evidence",
+      "r2-access-key",
+      "r2-secret-key",
+      "eu",
+    );
+  });
+
   it("selects Azure Blob Storage when its validated configuration is present", async () => {
     const createAzureBlobEvidenceStorage = vi.fn(() => storage);
     const createS3EvidenceStorage = vi.fn(() => storage);
     const createGoogleCloudEvidenceStorage = vi.fn(async () => storage);
+    const createR2EvidenceStorage = vi.fn(() => storage);
 
     await expect(
       createConfiguredEvidenceStorage(
@@ -87,6 +135,7 @@ describe("configured evidence storage", () => {
         {
           createAzureBlobEvidenceStorage,
           createGoogleCloudEvidenceStorage,
+          createR2EvidenceStorage,
           createS3EvidenceStorage,
         },
       ),
@@ -101,10 +150,12 @@ describe("configured evidence storage", () => {
     const createS3EvidenceStorage = vi.fn(() => storage);
     const createGoogleCloudEvidenceStorage = vi.fn(async () => storage);
     const createAzureBlobEvidenceStorage = vi.fn(() => storage);
+    const createR2EvidenceStorage = vi.fn(() => storage);
 
     await expect(
       createConfiguredEvidenceStorage(environment(), {
         createGoogleCloudEvidenceStorage,
+        createR2EvidenceStorage,
         createS3EvidenceStorage,
         createAzureBlobEvidenceStorage,
       }),

@@ -54,6 +54,25 @@ describe("readEnvironment", () => {
     ).toMatchObject({ AWS_REGION: "eu-west-1", S3_BUCKET: "hollis-evidence-280517746304" });
   });
 
+  it("accepts only a complete R2 production configuration", () => {
+    expect(
+      readEnvironment({
+        ...baseEnvironment,
+        CLAIMS_WEBHOOK_SECRET: "a".repeat(32),
+        NODE_ENV: "production",
+        R2_ACCESS_KEY_ID: "r2-access-key",
+        R2_ACCOUNT_ID: "account-id",
+        R2_BUCKET: "hollis-evidence",
+        R2_JURISDICTION: "eu",
+        R2_SECRET_ACCESS_KEY: "r2-secret-key",
+        WEB_ORIGIN: "https://thehollis.xyz",
+      }),
+    ).toMatchObject({ R2_BUCKET: "hollis-evidence", R2_JURISDICTION: "eu" });
+    expect(() => readEnvironment({ ...baseEnvironment, R2_BUCKET: "hollis-evidence" })).toThrow(
+      /R2_ACCOUNT_ID/,
+    );
+  });
+
   it("accepts a complete Azure Blob Storage production configuration", () => {
     expect(
       readEnvironment({
@@ -76,6 +95,10 @@ describe("readEnvironment", () => {
         ...baseEnvironment,
         AWS_REGION: "eu-west-1",
         GCS_BUCKET: "hollis-evidence-429498177112",
+        R2_ACCESS_KEY_ID: "r2-access-key",
+        R2_ACCOUNT_ID: "account-id",
+        R2_BUCKET: "hollis-evidence",
+        R2_SECRET_ACCESS_KEY: "r2-secret-key",
         S3_BUCKET: "hollis-evidence-280517746304",
       }),
     ).toThrow(/exactly one evidence storage provider/);

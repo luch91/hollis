@@ -119,9 +119,11 @@ The API normally listens on `http://localhost:4000`. The web application normall
 | `HOLLIS_SESSION_TTL_HOURS` | Hollis session lifetime | Integer from 1 through 24. Default is 8. |
 | `RESEND_API_KEY` | Server-only Resend API key | Leave unset to disable welcome-email delivery. Never expose it to the browser or commit it. |
 | `RESEND_FROM` | Verified Resend sender | Required with `RESEND_API_KEY`. Use `Hollis <hello@mail.thehollis.xyz>` for the approved sending subdomain. |
-| `GCS_BUCKET`, `GCS_PROJECT_ID` | Google Cloud Storage evidence provider | Configure this provider or the S3 provider, never both. |
+| `GCS_BUCKET`, `GCS_PROJECT_ID` | Google Cloud Storage evidence provider | Configure exactly one evidence provider. |
 | `GCS_SIGNER_SERVICE_ACCOUNT` | Optional Google Cloud signer principal | Overrides the default runtime signer used for short-lived evidence URLs. It is an identity, not a credential. |
 | `S3_BUCKET`, `AWS_REGION` | S3 evidence provider | `AWS_REGION` is required when `S3_BUCKET` is set. |
+| `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 evidence provider | Set all four server-side values together. The API uses R2's S3-compatible endpoint and short-lived presigned URLs. |
+| `R2_JURISDICTION` | Cloudflare R2 bucket jurisdiction | Use `eu` for an EU-jurisdiction bucket; otherwise use `default`. |
 | `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
 | `PUBLIC_ATTESTATION_ORIGIN` | Public HTTPS API origin for privacy-safe case files | Leave unset until the API public endpoint is deliberately deployed and verified. |
 | `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Read-only Studio Dev attestation importer | Set only to a contract that has passed the recorded policy-binding and representative-state checks. |

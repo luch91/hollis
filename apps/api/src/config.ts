@@ -54,6 +54,11 @@ const environmentSchema = z
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
+    R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+    R2_ACCOUNT_ID: z.string().min(1).optional(),
+    R2_BUCKET: z.string().min(3).optional(),
+    R2_JURISDICTION: z.enum(["default", "eu"]).optional(),
+    R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     S3_BUCKET: z.string().min(3).optional(),
     GENLAYER_STUDIO_CONTRACT_ADDRESS: z
       .string()
@@ -87,6 +92,7 @@ const environmentSchema = z
   .superRefine((value, context) => {
     const evidenceStoreCount = [
       value.GCS_BUCKET,
+      value.R2_BUCKET,
       value.S3_BUCKET,
       value.AZURE_STORAGE_ACCOUNT_NAME && value.AZURE_STORAGE_CONTAINER,
     ].filter(Boolean).length;
@@ -104,6 +110,23 @@ const environmentSchema = z
         code: "custom",
         message: "AWS_REGION is required when S3_BUCKET is configured.",
         path: ["AWS_REGION"],
+      });
+    }
+
+    const r2Values = [
+      value.R2_ACCOUNT_ID,
+      value.R2_BUCKET,
+      value.R2_ACCESS_KEY_ID,
+      value.R2_SECRET_ACCESS_KEY,
+    ];
+    const hasR2Value = r2Values.some((item) => item !== undefined);
+    const hasCompleteR2Configuration = r2Values.every((item) => item !== undefined);
+    if (hasR2Value && !hasCompleteR2Configuration) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY must be set together.",
+        path: ["R2_BUCKET"],
       });
     }
 
@@ -181,7 +204,12 @@ const environmentSchema = z
       });
     }
 
-    if (!value.GCS_BUCKET && !value.S3_BUCKET && !value.AZURE_STORAGE_ACCOUNT_NAME) {
+    if (
+      !value.GCS_BUCKET &&
+      !value.R2_BUCKET &&
+      !value.S3_BUCKET &&
+      !value.AZURE_STORAGE_ACCOUNT_NAME
+    ) {
       context.addIssue({
         code: "custom",
         message: "An evidence storage provider is required in production.",
