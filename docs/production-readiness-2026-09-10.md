@@ -1,5 +1,7 @@
 # Production Readiness Review
 
+> Historical review. This document preserves the findings from 2026-09-10. It predates the active Vercel, Supabase, private R2, and managed Studio Next evaluation deployment. See [release-readiness-2026-09-16.md](release-readiness-2026-09-16.md) for the current boundary.
+
 Date: 2026-09-10
 
 This is a code and local-verification review. It does not certify legal compliance, operational readiness, or a production deployment.

@@ -37,7 +37,7 @@ Status: a required approval checklist, not deployment authorization. Complete ev
 
 - [ ] Claims-webhook intake remains closed unless its tenant-resolution design, sender identity, secret rotation, replay controls, and acceptance tests are approved.
 - [ ] `PUBLIC_ATTESTATION_ORIGIN` is configured only when it is the verified HTTPS API origin and returns only the approved public-safe schema.
-- [ ] The validated Studio Dev V6 contract address, fee profile, and transaction procedure are recorded for the current release. No Hollis signing key is held by the importer.
+- [ ] The active Studio Next V7 contract source, policy-binding validation, measured fee profile, managed execution-account controls, and reconciliation procedure are recorded for the release. The execution key remains server-only and is never exposed to a customer workspace.
 
 ## Release authorization
 

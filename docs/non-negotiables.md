@@ -21,7 +21,7 @@ These constraints define whether Hollis is safe and viable. A feature that viola
 ## Privacy and security
 
 1. Sensitive claim data stays off public ledgers.
-2. Tenant identity comes only from a verified organization claim and never from request input.
+2. Tenant identity comes only from the verified Hollis session and workspace membership, never from request input.
 3. Tenant isolation is enforced in application authorization and database policy.
 4. Runtime database roles cannot own schemas and must use `NOSUPERUSER` and `NOBYPASSRLS`.
 5. An authenticated account without an active organization cannot access a workspace.

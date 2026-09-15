@@ -1,5 +1,7 @@
 # ADR 0010: Google Cloud evidence storage adapter
 
+> Historical decision. The provider-neutral evidence interface remains active, but the current evaluation deployment uses private Cloudflare R2. This record preserves the original Google Cloud Storage adapter decision and must not be read as the active provider selection.
+
 - Status: accepted
 - Date: 2026-08-29
 

@@ -18,15 +18,20 @@ file.
 
 ## Flow
 
-1. An authorized reviewer completes a review and declares the policy control.
+1. An authorized reviewer completes a review under a published policy control.
 2. Hollis creates an immutable database record with a random public UUID and the validated
    `hollis.adjudication-case.v1` document.
 3. The public URL serves only that document at
    `/v1/public/attestation-case-files/:publicCaseFileId`.
-4. An authorized operator submits the commitment and generated URL to the configured GenLayer
-   contract from Studio.
-5. The reviewer enters the finalized transaction hash. Hollis verifies the transaction against the
-   stored case file and imports the result.
+4. Hollis submits the commitment and generated URL from its dedicated server-side execution
+   account to the active GenLayer Studio Next policy-control contract.
+5. Hollis waits for finality, verifies the contract result against the stored case file, and records
+   the portable receipt. The customer does not use a wallet, operate Studio, or enter a transaction
+   hash.
+
+The historical read-only importer is documented separately in
+[genlayer-studio-import.md](genlayer-studio-import.md). It is not part of the standard customer
+workflow.
 
 ## Public-data boundary
 

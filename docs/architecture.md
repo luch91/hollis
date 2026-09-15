@@ -41,10 +41,10 @@ Hollis is a modular monolith:
 - `packages/contracts` defines shared runtime schemas and domain values.
 - `packages/database` owns the PostgreSQL schema, migrations, and database access.
 - PostgreSQL is the source of truth for transactional state and ordered review history.
-- The evidence adapter selects exactly one configured provider: Google Cloud Storage or S3. PostgreSQL retains tenant-scoped metadata, not raw evidence bytes.
-- The validated GenLayer importer remains optional and isolated from the core human-review transaction. The managed-runtime foundation adds a dedicated server-side execution identity and tenant-scoped policy-contract registry without changing review finality.
+- The evidence adapter selects exactly one configured provider: Google Cloud Storage, Amazon S3, Azure Blob Storage, or Cloudflare R2. PostgreSQL retains tenant-scoped metadata, not raw evidence bytes.
+- GenLayer attestation is isolated from the core human-review transaction. The managed runtime uses a dedicated server-side execution identity and tenant-scoped policy-contract registry without changing review finality.
 
-The production runtime has not been approved or deployed. The repository contains historical Cloud Run material and an AWS evaluation path, neither of which is a current deployment authorization. See [production-readiness-2026-09-10.md](production-readiness-2026-09-10.md).
+The current evaluation deployment uses Vercel for the web application and API, Supabase PostgreSQL in Europe (Ireland), private Cloudflare R2 evidence storage, Google Cloud Identity Platform, and GenLayer Studio Next. It is an evaluation release, not a commercial-production authorization. Historical Cloud Run and AWS material remains only as archived context. See [release-readiness-2026-09-16.md](release-readiness-2026-09-16.md).
 
 ## Identity, workspace, and tenant boundary
 
@@ -90,7 +90,7 @@ The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is 
 
 After a completed human decision, Hollis generates the public-safe case file, submits it from its dedicated server-side execution account to the active policy-control contract, tracks finalization, and records the finalized per-case views. A legacy read-only importer remains isolated for historical records only. Neither path alters a human decision or blocks the core review workflow.
 
-The managed-runtime foundation validates a dedicated server-side execution account and records one reusable contract deployment per exact tenant, policy-control binding, chain, and contract-source digest. Before activation, Hollis reads the immutable V7 policy binding from finalized state and compares it exactly with the registry request. Deployment retries resume from a recorded transaction hash; an uncertain submission is stopped for reconciliation instead of being submitted again. Per-case submissions use a separate durable idempotency record, retain their transaction hash, and read all three case-result views from finalized state. Managed operations are not exposed to customers until their authorization, queueing, balance monitoring, reconciliation, and operational controls are complete. See [ADR 0015](adr/0015-hollis-managed-genlayer-runtime.md).
+The managed runtime validates a dedicated server-side execution account and records one reusable contract deployment per exact tenant, policy-control binding, chain, and contract-source digest. Before activation, Hollis reads the immutable V7 policy binding from finalized state and compares it exactly with the registry request. Deployment retries resume from a recorded transaction hash; an uncertain submission is stopped for reconciliation instead of being submitted again. Per-case submissions use a separate durable idempotency record, retain their transaction hash, and read all three case-result views from finalized state. The customer workflow is automatic after an authorized human decision under an active policy control. The deployment and submission lifecycle remains observable and reconcilable by Hollis operators. See [ADR 0015](adr/0015-hollis-managed-genlayer-runtime.md).
 
 Studio Next verifies declared process behavior only. Its result cannot establish legal correctness, substantive fairness, or the truth of private evidence.
 
@@ -100,4 +100,4 @@ Every browser session, external identity token, API request, database transactio
 
 ## Deferred production work
 
-Production activation requires an approved deployment architecture, a selected evidence provider with provider-neutral retention processing, real-provider acceptance tests, rate limits, monitoring, backup and restore verification, incident response, and an independent security review. These are tracked in [production-readiness-2026-09-10.md](production-readiness-2026-09-10.md).
+Commercial-production activation requires real-provider acceptance tests, shared rate limits, monitoring, backup and restore verification, incident response, an independent security review, and a formal operational-ownership model. These are tracked in [release-readiness-2026-09-16.md](release-readiness-2026-09-16.md).

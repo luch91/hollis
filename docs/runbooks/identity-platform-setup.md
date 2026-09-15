@@ -30,6 +30,6 @@ The API key is a public web configuration value. It is not an authorization cred
 2. Create an email/password account and verify its email address.
 3. Sign in with Google and GitHub using test accounts.
 4. Confirm each new account reaches workspace onboarding, not an existing customer workspace.
-5. Link the designated Hollis owner identity to the legacy user through the approved migration process before disabling the current production authentication path.
+5. Confirm account linking preserves the existing Hollis membership and does not grant access to another workspace.
 
-Do not deploy the public-auth release until all five checks succeed.
+Do not represent the identity flow as commercially production-ready until all five checks succeed and the remaining release controls in [release-readiness-2026-09-16.md](../release-readiness-2026-09-16.md) are complete.

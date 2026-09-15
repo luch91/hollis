@@ -1,5 +1,7 @@
 # Local verification record: 2026-09-10
 
+> Historical local record. It predates the active evaluation deployment and managed Studio Next flow. See [release-readiness-2026-09-16.md](release-readiness-2026-09-16.md) for the current evaluation boundary.
+
 This record captures a local verification run against the Docker Compose PostgreSQL instance. It is not a production acceptance record and does not make compliance, fairness, or availability claims.
 
 ## Follow-up verification: 2026-09-11

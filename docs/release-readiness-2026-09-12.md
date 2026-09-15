@@ -1,5 +1,7 @@
 # Release readiness snapshot: 2026-09-12
 
+> Historical snapshot. This document preserves the state observed on 2026-09-12. For the current evaluation deployment and remaining release controls, see [release-readiness-2026-09-16.md](release-readiness-2026-09-16.md).
+
 This snapshot reconciles the current repository, local interactive QA, and known deployment boundary. It supplements the broader [production readiness review](production-readiness-2026-09-10.md) and does not certify a production deployment.
 
 ## Repository state reviewed

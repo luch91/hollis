@@ -6,6 +6,7 @@ All notable Hollis changes are recorded here. The project is currently pre-relea
 
 ### Added
 
+- Required private policy-source documents with server-calculated SHA-256 verification before policy publication.
 - Petrol workspace interface with responsive dark and light appearances.
 - Tenant-scoped search for cases, policy controls, and reviewers.
 - Public product documentation covering onboarding, policies, evidence, review, attestations, exports, administration, and troubleshooting.
@@ -16,6 +17,8 @@ All notable Hollis changes are recorded here. The project is currently pre-relea
 
 ### Changed
 
+- Aligned repository documentation with the active Vercel, Supabase, private R2, Identity Platform, and managed Studio Next evaluation deployment.
+- Replaced the manual public-case-file submission description with the managed GenLayer lifecycle.
 - Replaced connector-style review graphics with a structured evidence, policy, human-decision, and attestation horizon.
 - Kept primary application navigation in the top workspace header and renamed Dashboard to Overview.
 - Reduced the documentation menu footprint and removed redundant section search fields in favor of tenant-scoped global search.
@@ -38,6 +41,5 @@ All notable Hollis changes are recorded here. The project is currently pre-relea
 ### Known issues
 
 - A successful case-intake operation can be presented as a generic review-service failure after the record and verified evidence have been committed.
-- Public case-file publication and Studio Dev import are disabled until the required public API and contract settings are configured and verified.
 
-See [the 2026-09-12 interactive QA report](docs/qa-report-2026-09-12.md) for the evidence and exact test boundary.
+See [the current evaluation readiness record](docs/release-readiness-2026-09-16.md) for the verified scope and remaining work.
