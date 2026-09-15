@@ -36,6 +36,12 @@ export class ProfileAvatarError extends Error {
   }
 }
 
+export function serializeProfileTimestamp(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const timestamp = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString();
+}
+
 export function createProfileAvatar(
   tenantId: string,
   userId: string,

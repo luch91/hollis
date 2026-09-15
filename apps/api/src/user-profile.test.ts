@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createProfileAvatar,
   ProfileAvatarError,
+  serializeProfileTimestamp,
   updateUserProfileSchema,
 } from "./user-profile.js";
 
@@ -34,5 +35,13 @@ describe("personal profile boundaries", () => {
       updateUserProfileSchema.safeParse({ displayName: "Jordan Blake", timeZone: "Not/AZone" })
         .success,
     ).toBe(false);
+  });
+
+  it("serializes timestamps from either supported database representation", () => {
+    expect(serializeProfileTimestamp("2026-09-15T20:00:00.000Z")).toBe("2026-09-15T20:00:00.000Z");
+    expect(serializeProfileTimestamp(new Date("2026-09-15T20:00:00.000Z"))).toBe(
+      "2026-09-15T20:00:00.000Z",
+    );
+    expect(serializeProfileTimestamp(null)).toBeNull();
   });
 });

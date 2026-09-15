@@ -146,6 +146,7 @@ import {
 import {
   createProfileAvatar,
   ProfileAvatarError,
+  serializeProfileTimestamp,
   updateUserProfileSchema,
 } from "./user-profile.js";
 
@@ -493,7 +494,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       bio: profile.bio,
       displayName: profile.displayName,
       email: profile.email,
-      emailVerifiedAt: profile.emailVerifiedAt?.toISOString() ?? null,
+      emailVerifiedAt: serializeProfileTimestamp(profile.emailVerifiedAt),
       hasUploadedAvatar: Boolean(profile.profileAvatarObjectName),
       jobTitle: profile.jobTitle,
       timeZone: profile.timeZone,
