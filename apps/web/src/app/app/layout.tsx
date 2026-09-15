@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
@@ -12,6 +13,26 @@ import { GlobalSearch } from "./global-search";
 import { ThemeToggle } from "./theme-toggle";
 import { WorkspaceNavigation } from "./workspace-navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+async function readOrganizationLogoUrl(): Promise<string | null> {
+  const token = (await cookies()).get("hollis_session")?.value;
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${apiUrl}/v1/workspace`, {
+      cache: "no-store",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    const profile = (await response.json()) as { logoUrl?: unknown } | null;
+    if (!profile || typeof profile.logoUrl !== "string") return null;
+    return new URL(profile.logoUrl).protocol === "https:" ? profile.logoUrl : null;
+  } catch {
+    return null;
+  }
+}
 
 async function signOutAction() {
   "use server";
@@ -36,6 +57,7 @@ export default async function ApplicationLayout({ children }: { children: ReactN
   if (!current) redirect("/sign-in");
   if (!current.session.activeWorkspace) redirect("/onboarding");
   const workspace = current.session.activeWorkspace;
+  const logoUrl = await readOrganizationLogoUrl();
 
   return (
     <main className="application-frame">
@@ -68,10 +90,17 @@ export default async function ApplicationLayout({ children }: { children: ReactN
       <section className="application-workspace" aria-label={`${workspace.name} Hollis workspace`}>
         <header className="workspace-topbar">
           <div className="workspace-title">
+            {logoUrl ? (
+              <Image
+                alt={`${workspace.name} logo`}
+                className="workspace-organization-logo"
+                height={28}
+                src={logoUrl}
+                unoptimized
+                width={28}
+              />
+            ) : null}
             <WorkspaceSwitcher activeWorkspaceId={workspace.id} workspaceName={workspace.name} />
-            <p>
-              <span>/</span> Compliance Review
-            </p>
           </div>
           <p className="workspace-context">Evidence, policy, human judgment, and attestation</p>
         </header>

@@ -472,7 +472,14 @@ textarea {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 14px;
+  gap: 9px;
+}
+
+.workspace-organization-logo {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
 .workspace-title p,
