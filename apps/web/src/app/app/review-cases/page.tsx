@@ -2,6 +2,7 @@ import type { ReviewExport } from "@hollis/contracts/review-case";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { readHollisSession } from "@/lib/hollis-session";
+import { OperationalPageHeader } from "../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../workspace-capabilities";
 import { claimAction, decideAction, escalateAction } from "./actions";
 import { AttestationHorizon } from "./attestation-visuals";
@@ -1049,6 +1050,11 @@ export default async function ReviewCasesPage({
 
   return (
     <>
+      <OperationalPageHeader
+        eyebrow="Review workspace"
+        summary="Investigate consequential decisions with clear evidence, policy context, and accountable human judgment."
+        title="Review cases with confidence."
+      />
       {query.access === "case-create-restricted" ? (
         <aside className="review-access-notice" role="status">
           <strong>Read-only review access</strong>
