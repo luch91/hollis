@@ -34,6 +34,37 @@ async function readOrganizationLogoUrl(): Promise<string | null> {
   }
 }
 
+async function readProfileHeader(): Promise<{
+  avatarUrl: string | null;
+  displayName: string | null;
+}> {
+  const token = (await cookies()).get("hollis_session")?.value;
+  if (!token) return { avatarUrl: null, displayName: null };
+
+  try {
+    const response = await fetch(`${apiUrl}/v1/profile`, {
+      cache: "no-store",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return { avatarUrl: null, displayName: null };
+    const profile = (await response.json()) as {
+      avatarUrl?: unknown;
+      displayName?: unknown;
+    } | null;
+    return {
+      avatarUrl:
+        profile &&
+        typeof profile.avatarUrl === "string" &&
+        new URL(profile.avatarUrl).protocol === "https:"
+          ? profile.avatarUrl
+          : null,
+      displayName: profile && typeof profile.displayName === "string" ? profile.displayName : null,
+    };
+  } catch {
+    return { avatarUrl: null, displayName: null };
+  }
+}
+
 async function signOutAction() {
   "use server";
   const token = (await cookies()).get("hollis_session")?.value;
@@ -57,7 +88,8 @@ export default async function ApplicationLayout({ children }: { children: ReactN
   if (!current) redirect("/sign-in");
   if (!current.session.activeWorkspace) redirect("/onboarding");
   const workspace = current.session.activeWorkspace;
-  const logoUrl = await readOrganizationLogoUrl();
+  const [logoUrl, profile] = await Promise.all([readOrganizationLogoUrl(), readProfileHeader()]);
+  const avatarInitial = (profile.displayName || workspace.name).slice(0, 1).toUpperCase();
 
   return (
     <main className="application-frame">
@@ -76,9 +108,17 @@ export default async function ApplicationLayout({ children }: { children: ReactN
         <div className="workspace-account">
           <GlobalSearch />
           <ThemeToggle />
-          <span aria-label="Workspace member profile" className="account-avatar" role="img">
-            {workspace.name.slice(0, 1).toUpperCase()}
-          </span>
+          <Link
+            aria-label="Open your profile"
+            className="account-avatar account-avatar-link"
+            href="/app/profile"
+          >
+            {profile.avatarUrl ? (
+              <Image alt="Your profile" fill sizes="32px" src={profile.avatarUrl} unoptimized />
+            ) : (
+              avatarInitial
+            )}
+          </Link>
           <span className="account-role">{workspace.role}</span>
           <form action={signOutAction}>
             <button className="text-button" type="submit">

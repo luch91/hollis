@@ -64,6 +64,7 @@ import {
   createPostgresReviewIntakeStore,
   createPostgresReviewWorkflowStore,
   createPostgresTenantResolver,
+  createPostgresUserProfileStore,
   createPostgresWelcomeEmailDeliveryStore,
   createPostgresWorkspaceControlsStore,
   createPostgresWorkspaceProvisioningStore,
@@ -142,6 +143,11 @@ import {
   type WorkspaceProvisioner,
   WorkspaceProvisioningError,
 } from "./workspace-provisioning.js";
+import {
+  createProfileAvatar,
+  ProfileAvatarError,
+  updateUserProfileSchema,
+} from "./user-profile.js";
 
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
@@ -172,6 +178,7 @@ type AppDependencies = {
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
   workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
+  userProfileStore?: ReturnType<typeof createPostgresUserProfileStore>;
   transactionalEmailService?: TransactionalEmailService | null;
   welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
   rateLimiter?: RateLimiter;
@@ -186,6 +193,7 @@ const rateLimitPolicies = {
   exportIdentity: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
   invitation: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
   logoDiscovery: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  profileAvatar: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
   sessionExchange: { maxRequests: 10, windowMs: 15 * 60 * 1000 },
   workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
 } as const;
@@ -304,6 +312,21 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
             updateProfile: unavailable,
           } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
         })());
+  const userProfileStore =
+    dependencies.userProfileStore ??
+    (databaseResource
+      ? createPostgresUserProfileStore(databaseResource.database)
+      : (() => {
+          const unavailable = async () => {
+            throw new Error("Personal profile dependencies are unavailable.");
+          };
+          return {
+            get: unavailable,
+            removeAvatar: unavailable,
+            setAvatar: unavailable,
+            update: unavailable,
+          } as ReturnType<typeof createPostgresUserProfileStore>;
+        })());
   const accessTokenVerifier =
     dependencies.accessTokenVerifier ?? createHollisAccessTokenVerifier(applicationSessionStore);
   const unscopedAccessTokenVerifier =
@@ -413,6 +436,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
 
   app.decorateRequest("principal", null);
   app.decorateRequest("tenant", null);
+  app.addContentTypeParser(
+    ["image/jpeg", "image/png", "image/webp"],
+    { parseAs: "buffer" },
+    (_request, body, done) => done(null, body),
+  );
 
   app.addHook("onResponse", (request, reply, done) => {
     if (reply.statusCode >= 400) {
@@ -440,6 +468,37 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const activateWorkspaceSchema = z.object({ tenantId: z.uuid() }).strict();
   const memberParamsSchema = z.object({ userId: z.uuid() }).strict();
   const invitationParamsSchema = z.object({ invitationId: z.uuid() }).strict();
+
+  async function readUserProfile(userId: string) {
+    const profile = await userProfileStore.get(userId);
+    if (!profile) throw new InvalidAccessTokenError();
+
+    let avatarUrl = profile.avatarUrl;
+    if (profile.profileAvatarObjectName && profile.profileAvatarTenantId && evidenceStorage) {
+      try {
+        avatarUrl = await evidenceStorage.createDownloadUrl(
+          profile.profileAvatarTenantId,
+          profile.profileAvatarObjectName,
+        );
+      } catch (error) {
+        app.log.warn(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "profile avatar could not be resolved",
+        );
+      }
+    }
+
+    return {
+      avatarUrl,
+      bio: profile.bio,
+      displayName: profile.displayName,
+      email: profile.email,
+      emailVerifiedAt: profile.emailVerifiedAt?.toISOString() ?? null,
+      hasUploadedAvatar: Boolean(profile.profileAvatarObjectName),
+      jobTitle: profile.jobTitle,
+      timeZone: profile.timeZone,
+    };
+  }
 
   async function deliverWelcomeEmail(input: {
     displayName: string | null;
@@ -587,6 +646,15 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         logo_discovery_failed: "Hollis could not safely retrieve a logo from this website.",
         logo_not_found: "No supported logo image was found on this website.",
         logo_website_requires_https: "Use an HTTPS organization website before finding a logo.",
+      } as const;
+      return reply.code(422).send({ code: error.code, message: messages[error.code] });
+    }
+
+    if (error instanceof ProfileAvatarError) {
+      const messages = {
+        avatar_invalid: "The selected image could not be verified.",
+        avatar_too_large: "Profile images must be 192 KB or smaller.",
+        avatar_unsupported: "Use a PNG, JPEG, or WebP profile image.",
       } as const;
       return reply.code(422).send({ code: error.code, message: messages[error.code] });
     }
@@ -861,6 +929,102 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         tenantId: tenant.id,
         userId: principal.userId,
       };
+    },
+  );
+
+  app.get(
+    "/v1/profile",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read") },
+    async (request) => {
+      const { principal } = requireRequestContext(request);
+      return readUserProfile(principal.userId);
+    },
+  );
+  app.put(
+    "/v1/profile",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read") },
+    async (request) => {
+      const { principal } = requireRequestContext(request);
+      await userProfileStore.update(principal.userId, updateUserProfileSchema.parse(request.body));
+      return readUserProfile(principal.userId);
+    },
+  );
+  app.put(
+    "/v1/profile/avatar",
+    {
+      preHandler: [
+        rateLimit("profileAvatar"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read"),
+      ],
+    },
+    async (request, reply) => {
+      if (!evidenceStorage) {
+        return reply.code(503).send({
+          code: "media_storage_unconfigured",
+          message: "Profile media storage is not configured.",
+        });
+      }
+      const { principal, tenant } = requireRequestContext(request);
+      if (!Buffer.isBuffer(request.body)) throw new ProfileAvatarError("avatar_invalid");
+      const contentType = String(request.headers["content-type"] ?? "").split(";", 1)[0] ?? "";
+      const avatar = createProfileAvatar(tenant.id, principal.userId, request.body, contentType);
+      const existingProfile = await userProfileStore.get(principal.userId);
+      if (!existingProfile) throw new InvalidAccessTokenError();
+      const replacesExistingObject =
+        existingProfile.profileAvatarObjectName === avatar.objectName &&
+        existingProfile.profileAvatarTenantId === tenant.id;
+      try {
+        await evidenceStorage.put(
+          tenant.id,
+          avatar.objectName,
+          request.body,
+          avatar.mediaType,
+          avatar.digest,
+        );
+        const prior = await userProfileStore.setAvatar(principal.userId, {
+          ...avatar,
+          tenantId: tenant.id,
+        });
+        if (
+          prior?.previousObjectName &&
+          prior.previousTenantId &&
+          (prior.previousObjectName !== avatar.objectName || prior.previousTenantId !== tenant.id)
+        ) {
+          await evidenceStorage
+            .delete(prior.previousTenantId, prior.previousObjectName)
+            .catch((error) => {
+              request.log.warn(
+                { errorName: error instanceof Error ? error.name : "unknown" },
+                "previous profile avatar could not be removed",
+              );
+            });
+        }
+      } catch (error) {
+        if (!replacesExistingObject) {
+          await evidenceStorage.delete(tenant.id, avatar.objectName).catch(() => undefined);
+        }
+        throw error;
+      }
+      return reply.code(201).send(await readUserProfile(principal.userId));
+    },
+  );
+  app.delete(
+    "/v1/profile/avatar",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read") },
+    async (request, reply) => {
+      const { principal } = requireRequestContext(request);
+      const prior = await userProfileStore.removeAvatar(principal.userId);
+      if (prior?.previousObjectName && prior.previousTenantId && evidenceStorage) {
+        await evidenceStorage
+          .delete(prior.previousTenantId, prior.previousObjectName)
+          .catch((error) => {
+            request.log.warn(
+              { errorName: error instanceof Error ? error.name : "unknown" },
+              "profile avatar could not be removed",
+            );
+          });
+      }
+      return reply.code(204).send();
     },
   );
 

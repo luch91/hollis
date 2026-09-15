@@ -541,6 +541,84 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
   };
 }
 
+export function createPostgresUserProfileStore(database: Database) {
+  return {
+    async get(userId: string) {
+      const [record] = await database.execute<{
+        avatarUrl: string | null;
+        bio: string | null;
+        displayName: string | null;
+        email: string | null;
+        emailVerifiedAt: Date | null;
+        jobTitle: string | null;
+        profileAvatarDigest: string | null;
+        profileAvatarMediaType: string | null;
+        profileAvatarObjectName: string | null;
+        profileAvatarTenantId: string | null;
+        profileAvatarUpdatedAt: Date | null;
+        timeZone: string | null;
+      }>(sql`select * from public.get_hollis_user_profile(${userId}::uuid)`);
+      return record ?? null;
+    },
+    async update(
+      userId: string,
+      input: { bio: string; displayName: string; jobTitle: string; timeZone: string },
+    ) {
+      const [record] = await database.execute<{
+        avatarUrl: string | null;
+        bio: string | null;
+        displayName: string | null;
+        email: string | null;
+        emailVerifiedAt: Date | null;
+        jobTitle: string | null;
+        profileAvatarDigest: string | null;
+        profileAvatarMediaType: string | null;
+        profileAvatarObjectName: string | null;
+        profileAvatarTenantId: string | null;
+        profileAvatarUpdatedAt: Date | null;
+        timeZone: string | null;
+      }>(sql`select * from public.update_hollis_user_profile(
+        ${userId}::uuid,
+        ${input.displayName},
+        ${input.jobTitle},
+        ${input.timeZone},
+        ${input.bio}
+      )`);
+      return record ?? null;
+    },
+    async setAvatar(
+      userId: string,
+      input: {
+        digest: string;
+        mediaType: "image/jpeg" | "image/png" | "image/webp";
+        objectName: string;
+        tenantId: string;
+      },
+    ) {
+      const [record] = await database.execute<{
+        previousObjectName: string | null;
+        previousTenantId: string | null;
+      }>(
+        sql`select * from public.set_hollis_user_profile_avatar(
+          ${userId}::uuid,
+          ${input.tenantId}::uuid,
+          ${input.objectName},
+          ${input.digest},
+          ${input.mediaType}
+        )`,
+      );
+      return record ?? null;
+    },
+    async removeAvatar(userId: string) {
+      const [record] = await database.execute<{
+        previousObjectName: string | null;
+        previousTenantId: string | null;
+      }>(sql`select * from public.remove_hollis_user_profile_avatar(${userId}::uuid)`);
+      return record ?? null;
+    },
+  };
+}
+
 export function createPostgresPolicyLibraryStore(database: Database): PolicyLibraryStore {
   async function findByIdentity(
     tenantId: string,

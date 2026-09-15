@@ -78,12 +78,20 @@ export const tenants = pgTable("tenants", {
 
 export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
+  bio: text("bio"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   displayName: text("display_name"),
   email: text("email"),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   id: uuid("id").primaryKey().defaultRandom(),
+  jobTitle: text("job_title"),
   legacyWorkosUserId: text("workos_user_id").unique(),
+  profileAvatarDigest: text("profile_avatar_digest"),
+  profileAvatarMediaType: text("profile_avatar_media_type"),
+  profileAvatarObjectName: text("profile_avatar_object_name"),
+  profileAvatarTenantId: uuid("profile_avatar_tenant_id"),
+  profileAvatarUpdatedAt: timestamp("profile_avatar_updated_at", { withTimezone: true }),
+  timeZone: text("time_zone"),
 });
 
 export const identityAccounts = pgTable(

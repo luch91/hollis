@@ -276,6 +276,7 @@ textarea {
 }
 
 .account-avatar {
+  position: relative;
   display: grid;
   width: 32px;
   height: 32px;
@@ -286,6 +287,223 @@ textarea {
   color: #0a434c;
   font-size: 12px;
   font-weight: 700;
+}
+
+.account-avatar-link {
+  overflow: hidden;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.account-avatar-link:hover {
+  border-color: var(--petrol-accent);
+  transform: translateY(-1px);
+}
+
+.account-avatar-link img {
+  object-fit: cover;
+}
+
+.personal-profile-page {
+  width: min(100%, 1080px);
+}
+
+.personal-profile-heading {
+  max-width: 690px;
+  margin-bottom: 26px;
+}
+
+.personal-profile-heading h1,
+.personal-profile-card h2 {
+  margin: 0;
+  color: var(--petrol-ink);
+  font-family: "Hollis Serif", Georgia, serif;
+}
+
+.personal-profile-heading h1 {
+  font-size: clamp(38px, 4.2vw, 58px);
+  line-height: 0.97;
+}
+
+.personal-profile-heading > div > p:last-child {
+  max-width: 610px;
+  margin: 13px 0 0;
+  color: var(--petrol-muted);
+  line-height: 1.65;
+}
+
+.personal-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.75fr) minmax(0, 1.35fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.personal-profile-card {
+  border: 1px solid var(--petrol-line);
+  border-radius: var(--petrol-radius);
+  background: var(--petrol-surface);
+  box-shadow: var(--petrol-shadow-soft);
+}
+
+.personal-profile-image-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 25px;
+}
+
+.personal-profile-avatar {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  margin: 16px 0 18px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--petrol-line-strong);
+  border-radius: 50%;
+  background: var(--petrol-accent-soft);
+  color: var(--petrol-brand);
+  font-family: "Hollis Serif", Georgia, serif;
+  font-size: 44px;
+}
+
+.personal-profile-avatar img {
+  object-fit: cover;
+}
+
+.personal-profile-image-card h2 {
+  font-size: 24px;
+}
+
+.personal-profile-image-card > p:not(.eyebrow) {
+  margin: 9px 0 17px;
+  color: var(--petrol-muted);
+  font-size: 13px;
+  line-height: 1.58;
+}
+
+.personal-profile-upload {
+  display: grid;
+  width: 100%;
+  gap: 9px;
+}
+
+.personal-profile-upload label,
+.personal-profile-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--petrol-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.personal-profile-upload input[type="file"] {
+  width: 100%;
+  color: var(--petrol-muted);
+  font: inherit;
+  font-weight: 500;
+}
+
+.personal-profile-image-card > form:last-child {
+  margin-top: 13px;
+}
+
+.personal-profile-form {
+  display: grid;
+  gap: 16px;
+  padding: 25px;
+}
+
+.personal-profile-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.personal-profile-card-heading h2 {
+  font-size: 25px;
+}
+
+.personal-profile-form label > span {
+  color: var(--petrol-faint);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.personal-profile-form input,
+.personal-profile-form textarea {
+  width: 100%;
+  border: 1px solid var(--petrol-line-strong);
+  border-radius: 6px;
+  background: var(--petrol-surface-soft);
+  color: var(--petrol-ink);
+  font: inherit;
+  font-weight: 500;
+}
+
+.personal-profile-form input {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.personal-profile-form textarea {
+  min-height: 108px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.personal-profile-save {
+  justify-self: start;
+}
+
+.personal-profile-identity {
+  margin-top: 18px;
+  padding: 25px;
+}
+
+.personal-profile-identity dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 32px;
+  margin: 20px 0 0;
+}
+
+.personal-profile-identity-row {
+  display: grid;
+  gap: 5px;
+  padding: 14px 0;
+  border-top: 1px solid var(--petrol-line);
+}
+
+.personal-profile-identity dt {
+  color: var(--petrol-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.personal-profile-identity dd {
+  margin: 0;
+  color: var(--petrol-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .personal-profile-grid,
+  .personal-profile-identity dl {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-profile-heading h1 {
+    font-size: 40px;
+  }
 }
 
 .header-icon-button {

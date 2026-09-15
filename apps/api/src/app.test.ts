@@ -18,7 +18,10 @@ import type { EvidenceMetadataStore } from "./evidence.js";
 import type { EvidenceStorage } from "./evidence-storage.js";
 import type { IdentityPlatformTokenVerifier } from "./identity-platform.js";
 import type { OrganizationLogoService } from "./organization-logo.js";
-import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
+import type {
+  createPostgresUserProfileStore,
+  createPostgresWorkspaceControlsStore,
+} from "./persistence.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { TransactionalEmailService } from "./transactional-email.js";
@@ -79,6 +82,7 @@ function createDependencies(
     identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
     unscopedTenantId?: string | null;
     workspaceControlsStore?: ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    userProfileStore?: ReturnType<typeof createPostgresUserProfileStore>;
     applicationSessionStore?: ApplicationSessionStore;
     transactionalEmailService?: TransactionalEmailService | null;
     welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
@@ -281,6 +285,7 @@ function createDependencies(
     welcomeEmailDeliveryStore: options.welcomeEmailDeliveryStore,
     workspaceProvisioner,
     workspaceControlsStore: options.workspaceControlsStore,
+    userProfileStore: options.userProfileStore,
     workflowStore,
   };
 }
@@ -1343,6 +1348,103 @@ describe("API boundaries", () => {
     expect(response.json()).toEqual([
       { tenantId, workspaceName: "Northstar Claims", role: "owner" },
     ]);
+  });
+
+  it("limits personal profile updates and avatar writes to the authenticated member", async () => {
+    const profile: {
+      avatarUrl: string | null;
+      bio: string | null;
+      displayName: string | null;
+      email: string | null;
+      emailVerifiedAt: Date | null;
+      jobTitle: string | null;
+      profileAvatarDigest: string | null;
+      profileAvatarMediaType: string | null;
+      profileAvatarObjectName: string | null;
+      profileAvatarTenantId: string | null;
+      profileAvatarUpdatedAt: Date | null;
+      timeZone: string | null;
+    } = {
+      avatarUrl: "https://identity.example/avatar.png",
+      bio: null,
+      displayName: "Jordan Blake",
+      email: "jordan.blake@example.test",
+      emailVerifiedAt: new Date("2026-08-28T08:00:00.000Z"),
+      jobTitle: null,
+      profileAvatarDigest: null,
+      profileAvatarMediaType: null,
+      profileAvatarObjectName: null,
+      profileAvatarTenantId: null,
+      profileAvatarUpdatedAt: null,
+      timeZone: null,
+    };
+    const get = vi.fn(async (userId: string) => {
+      expect(userId).toBe("user_01");
+      return profile;
+    });
+    const update = vi.fn(async (userId: string, input: unknown) => {
+      expect(userId).toBe("user_01");
+      expect(input).toMatchObject({ displayName: "Jordan Blake", timeZone: "Africa/Lagos" });
+      return profile;
+    });
+    const setAvatar = vi.fn(async (userId: string, input: { objectName: string }) => {
+      expect(userId).toBe("user_01");
+      profile.profileAvatarObjectName = input.objectName;
+      profile.profileAvatarTenantId = tenantId;
+      return { previousObjectName: null, previousTenantId: null };
+    });
+    const userProfileStore = {
+      get,
+      removeAvatar: vi.fn(async () => ({ previousObjectName: null, previousTenantId: null })),
+      setAvatar,
+      update,
+    } as unknown as ReturnType<typeof createPostgresUserProfileStore>;
+    const evidenceStorage = {
+      async createDownloadUrl() {
+        return "https://storage.example/profile-avatar";
+      },
+      async createUploadUrl() {
+        return "";
+      },
+      async delete() {},
+      put: vi.fn(async () => ({
+        digest: `sha256:${"a".repeat(64)}`,
+        mediaType: "image/png",
+        objectName: "unused",
+        sizeBytes: 9,
+      })),
+      async verify() {
+        throw new Error("Not expected.");
+      },
+    } satisfies EvidenceStorage;
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        evidenceStorage,
+        permissions: ["workspace:read"],
+        userProfileStore,
+      }),
+    );
+    apps.push(app);
+
+    const updateResponse = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "PUT",
+      payload: { displayName: "Jordan Blake", timeZone: "Africa/Lagos" },
+      url: "/v1/profile",
+    });
+    expect(updateResponse.statusCode).toBe(200);
+    expect(update).toHaveBeenCalledTimes(1);
+
+    const avatarResponse = await app.inject({
+      headers: { authorization: "Bearer verified-token", "content-type": "image/png" },
+      method: "PUT",
+      payload: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01]),
+      url: "/v1/profile/avatar",
+    });
+    expect(avatarResponse.statusCode).toBe(201);
+    expect(evidenceStorage.put).toHaveBeenCalledTimes(1);
+    expect(setAvatar).toHaveBeenCalledTimes(1);
   });
 
   it("allows a workspace member to read the redacted member directory", async () => {
