@@ -3631,6 +3631,11 @@ dd {
   color: var(--muted);
   font-size: 13px;
 }
+.policy-library-form label > span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .policy-library-form input,
 .policy-library-form textarea,
 .policy-library-form select {
@@ -3640,6 +3645,10 @@ dd {
   background: transparent;
   border: 1px solid var(--line);
   font: inherit;
+}
+.policy-library-form input[type="file"] {
+  min-height: 0;
+  padding: 8px;
 }
 .policy-library-form textarea {
   min-height: 92px;

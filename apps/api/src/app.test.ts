@@ -1675,4 +1675,54 @@ describe("API boundaries", () => {
     });
     expect(response.statusCode).toBe(401);
   });
+
+  it("stores a validated policy source and returns its server-generated digest", async () => {
+    const evidenceStorage = {
+      async createDownloadUrl() {
+        return "https://storage.example/policy-source";
+      },
+      async createUploadUrl() {
+        return "";
+      },
+      async delete() {},
+      put: vi.fn(async (receivedTenantId: string, objectName: string) => {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(objectName).toMatch(new RegExp(`^tenants/${tenantId}/policy-sources/[a-f0-9]{64}$`));
+        return {
+          digest: `sha256:${"b".repeat(64)}`,
+          mediaType: "application/pdf",
+          objectName,
+          sizeBytes: 16,
+        };
+      }),
+      async verify() {
+        throw new Error("Not expected.");
+      },
+    } satisfies EvidenceStorage;
+    const app = await buildApp(
+      environment,
+      createDependencies({ evidenceStorage, permissions: ["policies:manage"] }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer verified-token",
+        "content-type": "application/pdf",
+        "x-hollis-policy-source-name": "release-governance.pdf",
+      },
+      method: "PUT",
+      payload: Buffer.from("%PDF-1.7\npolicy"),
+      url: "/v1/policy-source",
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+      fileName: "release-governance.pdf",
+      mediaType: "application/pdf",
+      sizeBytes: 15,
+    });
+    expect(evidenceStorage.put).toHaveBeenCalledTimes(1);
+  });
 });

@@ -95,6 +95,12 @@ import {
   type PolicyLibraryStore,
 } from "./policy-library.js";
 import {
+  assertStoredPolicySource,
+  createPolicySource,
+  policySourceObjectName,
+  PolicySourceError,
+} from "./policy-source.js";
+import {
   createInMemoryRateLimiter,
   createRateLimitPreHandler,
   type RateLimiter,
@@ -194,6 +200,7 @@ const rateLimitPolicies = {
   exportIdentity: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
   invitation: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
   logoDiscovery: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  policySource: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
   profileAvatar: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
   sessionExchange: { maxRequests: 10, windowMs: 15 * 60 * 1000 },
   workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
@@ -442,6 +449,16 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     { parseAs: "buffer" },
     (_request, body, done) => done(null, body),
   );
+  app.addContentTypeParser(
+    [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/markdown",
+      "text/plain",
+    ],
+    { bodyLimit: 5_242_880, parseAs: "buffer" },
+    (_request, body, done) => done(null, body),
+  );
 
   app.addHook("onResponse", (request, reply, done) => {
     if (reply.statusCode >= 400) {
@@ -658,6 +675,19 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         avatar_unsupported: "Use a PNG, JPEG, or WebP profile image.",
       } as const;
       return reply.code(422).send({ code: error.code, message: messages[error.code] });
+    }
+
+    if (error instanceof PolicySourceError) {
+      const messages = {
+        policy_source_invalid: "The policy document could not be verified.",
+        policy_source_too_large: "Policy documents must be 5 MB or smaller.",
+        policy_source_unavailable: "The uploaded policy document is no longer available.",
+        policy_source_unsupported: "Use a PDF, DOCX, TXT, or Markdown policy document.",
+      } as const;
+      return reply.code(error.code === "policy_source_unavailable" ? 409 : 422).send({
+        code: error.code,
+        message: messages[error.code],
+      });
     }
 
     if (error instanceof AttestationPreconditionError) {
@@ -1516,6 +1546,47 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
+  app.put(
+    "/v1/policy-source",
+    {
+      preHandler: [
+        rateLimit("policySource"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "policies:manage"),
+      ],
+    },
+    async (request, reply) => {
+      if (!evidenceStorage) {
+        return reply.code(503).send({
+          code: "policy_source_storage_unconfigured",
+          message: "Policy document storage is not configured.",
+        });
+      }
+      if (!Buffer.isBuffer(request.body)) throw new PolicySourceError("policy_source_invalid");
+      const rawFileName = request.headers["x-hollis-policy-source-name"];
+      const fileName = Array.isArray(rawFileName) ? rawFileName[0] : rawFileName;
+      const mediaType = String(request.headers["content-type"] ?? "").split(";", 1)[0] ?? "";
+      const source = createPolicySource({
+        content: request.body,
+        fileName: fileName ?? "",
+        mediaType,
+      });
+      const { tenant } = requireRequestContext(request);
+      await evidenceStorage.put(
+        tenant.id,
+        policySourceObjectName(tenant.id, source.digest),
+        request.body,
+        source.mediaType,
+        source.digest,
+      );
+      return reply.code(201).send({
+        digest: source.digest,
+        fileName: source.fileName,
+        mediaType: source.mediaType,
+        sizeBytes: source.sizeBytes,
+      });
+    },
+  );
+
   app.post(
     "/v1/policies",
     {
@@ -1524,6 +1595,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     async (request, reply) => {
       const input = createPolicyVersionSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
+      if (!evidenceStorage) {
+        return reply.code(503).send({
+          code: "policy_source_storage_unconfigured",
+          message: "Policy document storage is not configured.",
+        });
+      }
+      await assertStoredPolicySource(tenant.id, input, evidenceStorage);
       const policy = await createPublishedPolicy(
         tenant.id,
         principal.userId,

@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { ReviewExport } from "@hollis/contracts/review-case";
 import { redirect } from "next/navigation";
 import { readHollisSessionToken } from "@/lib/hollis-session";
@@ -105,6 +106,15 @@ export type WorkspacePolicy = {
   id: string;
   policyId: string;
   publishedAt: string;
+  source: {
+    fileName: string;
+    mediaType:
+      | "application/pdf"
+      | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      | "text/markdown"
+      | "text/plain";
+    sizeBytes: number;
+  } | null;
   title: string;
   version: string;
 };
@@ -245,6 +255,7 @@ export function createWorkspacePolicy(input: {
   controls: WorkspacePolicy["controls"];
   documentDigest: string;
   policyId: string;
+  source: NonNullable<WorkspacePolicy["source"]>;
   title: string;
   version: string;
 }) {
@@ -252,6 +263,35 @@ export function createWorkspacePolicy(input: {
     body: JSON.stringify(input),
     method: "POST",
   });
+}
+
+export async function uploadWorkspacePolicySource(input: {
+  content: Uint8Array;
+  fileName: string;
+  mediaType: string;
+}) {
+  const sessionToken = await readHollisSessionToken();
+  if (!sessionToken) redirect("/sign-in");
+  const response = await fetch(`${apiUrl}/v1/policy-source`, {
+    body: Buffer.from(input.content),
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${sessionToken}`,
+      "content-type": input.mediaType,
+      "x-hollis-policy-source-name": input.fileName,
+    },
+    method: "PUT",
+  });
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => null)) as { code?: string } | null;
+    throw new ReviewServiceError(response.status, failure?.code ?? null);
+  }
+  return response.json() as Promise<{
+    digest: string;
+    fileName: string;
+    mediaType: NonNullable<WorkspacePolicy["source"]>["mediaType"];
+    sizeBytes: number;
+  }>;
 }
 
 export function getReviewCase(caseId: string) {

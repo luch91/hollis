@@ -34,6 +34,14 @@ export default async function PolicyLibraryPage({
           published record below, or publish the revised policy under a new version.
         </p>
       ) : null}
+      {params.publish?.startsWith("policy_source_") ||
+      params.publish === "source-file-invalid" ||
+      params.publish === "source-file-type-required" ? (
+        <p className="policy-library-notice" role="status">
+          Hollis could not verify that policy source document. Upload a non-empty PDF, DOCX,
+          Markdown, or plain-text file no larger than 5 MB.
+        </p>
+      ) : null}
       <div className="policy-library-grid">
         <section className="policy-library-list" aria-labelledby="published-policies-title">
           <div className="section-heading">
@@ -61,6 +69,10 @@ export default async function PolicyLibraryPage({
                       <dd>{policy.documentDigest}</dd>
                     </div>
                     <div>
+                      <dt>Source document</dt>
+                      <dd>{policy.source?.fileName ?? "Historical record"}</dd>
+                    </div>
+                    <div>
                       <dt>Controls</dt>
                       <dd>{policy.controls.length}</dd>
                     </div>
@@ -86,7 +98,11 @@ export default async function PolicyLibraryPage({
           )}
         </section>
         {canManagePolicies ? (
-          <form action={createWorkspacePolicyAction} className="policy-library-form">
+          <form
+            action={createWorkspacePolicyAction}
+            className="policy-library-form"
+            encType="multipart/form-data"
+          >
             <p className="eyebrow">Owner and administrator action</p>
             <h2>Publish a policy version</h2>
             <p>
@@ -106,13 +122,17 @@ export default async function PolicyLibraryPage({
               <input name="version" maxLength={128} required />
             </label>
             <label>
-              Policy document SHA-256 digest
+              Policy source document
               <input
-                name="documentDigest"
-                pattern="sha256:[a-f0-9]{64}"
-                placeholder="sha256:..."
+                accept=".pdf,.docx,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
+                name="policySourceFile"
+                type="file"
                 required
               />
+              <span>
+                PDF, DOCX, Markdown, or plain text, up to 5 MB. Hollis calculates and locks the
+                SHA-256 digest when you publish.
+              </span>
             </label>
             <fieldset>
               <legend>First control</legend>

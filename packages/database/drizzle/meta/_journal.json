@@ -309,6 +309,13 @@
       "when": 1789813200000,
       "tag": "0043_add_personal_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1789831800000,
+      "tag": "0044_add_policy_source_documents",
+      "breakpoints": true
     }
   ]
 }

@@ -392,6 +392,10 @@ export const policyVersions = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     policyId: text("policy_id").notNull(),
     publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    sourceFileName: text("source_file_name"),
+    sourceMediaType: text("source_media_type"),
+    sourceObjectName: text("source_object_name"),
+    sourceSizeBytes: integer("source_size_bytes"),
     status: policyPublicationStatus("status").notNull().default("published"),
     tenantId: uuid("tenant_id")
       .notNull()

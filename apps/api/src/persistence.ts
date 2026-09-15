@@ -7,6 +7,7 @@ import {
   policyContractBindingSchema,
   policyContractDeploymentSchema,
   policyLibraryControlSchema,
+  policySourceSchema,
   policyVersionSchema,
   publicAttestationCaseFileSchema,
   type ReviewExport,
@@ -77,6 +78,9 @@ function samePublishedPolicy(existing: PolicyVersion, input: CreatePolicyVersion
   if (
     existing.documentDigest !== input.documentDigest ||
     existing.policyId !== input.policyId ||
+    existing.source?.fileName !== input.source.fileName ||
+    existing.source?.mediaType !== input.source.mediaType ||
+    existing.source?.sizeBytes !== input.source.sizeBytes ||
     existing.title !== input.title ||
     existing.version !== input.version ||
     existing.controls.length !== input.controls.length
@@ -94,6 +98,19 @@ function samePublishedPolicy(existing: PolicyVersion, input: CreatePolicyVersion
       existingControl.title === control.title
     );
   });
+}
+
+function toPolicySource(input: {
+  sourceFileName: string | null;
+  sourceMediaType: string | null;
+  sourceSizeBytes: number | null;
+}) {
+  const parsed = policySourceSchema.safeParse({
+    fileName: input.sourceFileName,
+    mediaType: input.sourceMediaType,
+    sizeBytes: input.sourceSizeBytes,
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 const caseColumns = {
@@ -635,6 +652,9 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
           id: policyVersions.id,
           policyId: policyVersions.policyId,
           publishedAt: policyVersions.publishedAt,
+          sourceFileName: policyVersions.sourceFileName,
+          sourceMediaType: policyVersions.sourceMediaType,
+          sourceSizeBytes: policyVersions.sourceSizeBytes,
           title: policyVersions.title,
           version: policyVersions.version,
         })
@@ -664,6 +684,7 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
         controls,
         createdAt: policy.createdAt.toISOString(),
         publishedAt: policy.publishedAt.toISOString(),
+        source: toPolicySource(policy),
       });
     });
   }
@@ -722,6 +743,10 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
               createdByUserId: actorId,
               documentDigest: input.documentDigest,
               policyId: input.policyId,
+              sourceFileName: input.source.fileName,
+              sourceMediaType: input.source.mediaType,
+              sourceObjectName: `tenants/${tenantId}/policy-sources/${input.documentDigest.slice("sha256:".length)}`,
+              sourceSizeBytes: input.source.sizeBytes,
               tenantId,
               title: input.title,
               version: input.version,
@@ -733,6 +758,9 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
               id: policyVersions.id,
               policyId: policyVersions.policyId,
               publishedAt: policyVersions.publishedAt,
+              sourceFileName: policyVersions.sourceFileName,
+              sourceMediaType: policyVersions.sourceMediaType,
+              sourceSizeBytes: policyVersions.sourceSizeBytes,
               title: policyVersions.title,
               version: policyVersions.version,
             });
@@ -759,6 +787,7 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
             controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
             createdAt: created.createdAt.toISOString(),
             publishedAt: created.publishedAt.toISOString(),
+            source: input.source,
           } satisfies PolicyVersion;
         });
       } catch (error) {
@@ -779,6 +808,9 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
             id: policyVersions.id,
             policyId: policyVersions.policyId,
             publishedAt: policyVersions.publishedAt,
+            sourceFileName: policyVersions.sourceFileName,
+            sourceMediaType: policyVersions.sourceMediaType,
+            sourceSizeBytes: policyVersions.sourceSizeBytes,
             title: policyVersions.title,
             version: policyVersions.version,
           })
@@ -810,6 +842,7 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
           controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
           createdAt: policy.createdAt.toISOString(),
           publishedAt: policy.publishedAt.toISOString(),
+          source: toPolicySource(policy),
         } satisfies PolicyVersion;
       });
     },
@@ -824,6 +857,9 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
             id: policyVersions.id,
             policyId: policyVersions.policyId,
             publishedAt: policyVersions.publishedAt,
+            sourceFileName: policyVersions.sourceFileName,
+            sourceMediaType: policyVersions.sourceMediaType,
+            sourceSizeBytes: policyVersions.sourceSizeBytes,
             title: policyVersions.title,
             version: policyVersions.version,
           })
@@ -851,6 +887,7 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
             ),
           createdAt: policy.createdAt.toISOString(),
           publishedAt: policy.publishedAt.toISOString(),
+          source: toPolicySource(policy),
         })) satisfies PolicyVersion[];
       });
     },

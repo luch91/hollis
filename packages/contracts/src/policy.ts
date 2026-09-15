@@ -8,6 +8,21 @@ export const policyEvidenceRequirementSchema = z.enum([
 
 export const policyInterpretationSchema = z.enum(["deterministic", "judgment_required"]);
 
+export const policySourceMediaTypeSchema = z.enum([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/markdown",
+  "text/plain",
+]);
+
+export const policySourceSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(255),
+    mediaType: policySourceMediaTypeSchema,
+    sizeBytes: z.number().int().positive().max(5_242_880),
+  })
+  .strict();
+
 export const policyLibraryControlSchema = z
   .object({
     attestationCriterion: z.string().trim().min(1).max(1000),
@@ -28,16 +43,19 @@ export const createPolicyVersionSchema = z
       .trim()
       .regex(/^[a-z][a-z0-9-]{0,127}$/),
     title: z.string().trim().min(1).max(160),
+    source: policySourceSchema,
     version: z.string().trim().min(1).max(128),
   })
   .strict();
 
-export const policyVersionSchema = createPolicyVersionSchema.extend({
-  createdAt: z.iso.datetime(),
-  createdByUserId: z.uuid(),
-  id: z.uuid(),
-  publishedAt: z.iso.datetime(),
-});
+export const policyVersionSchema = createPolicyVersionSchema
+  .extend({
+    createdAt: z.iso.datetime(),
+    createdByUserId: z.uuid(),
+    id: z.uuid(),
+    publishedAt: z.iso.datetime(),
+  })
+  .extend({ source: policySourceSchema.nullable().optional() });
 
 export type CreatePolicyVersion = z.infer<typeof createPolicyVersionSchema>;
 export type PolicyControl = z.infer<typeof policyLibraryControlSchema>;

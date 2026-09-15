@@ -15,6 +15,7 @@ import {
   importFinalizedAttestation,
   recoverWorkspace,
   ReviewServiceError,
+  uploadWorkspacePolicySource,
   verifyEvidence,
 } from "./data";
 
@@ -53,11 +54,42 @@ function selectedPolicyBinding(value: string) {
   return { policyId, policyVersion, ruleId };
 }
 
+function policySourceMediaType(file: File): string | null {
+  const supported = new Set([
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/markdown",
+    "text/plain",
+  ]);
+  if (supported.has(file.type)) return file.type;
+
+  const extension = file.name.trim().toLowerCase().split(".").at(-1);
+  if (extension === "pdf") return "application/pdf";
+  if (extension === "docx") {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (extension === "md") return "text/markdown";
+  if (extension === "txt") return "text/plain";
+  return null;
+}
+
 export async function createWorkspacePolicyAction(formData: FormData) {
   const policyId = requiredValue(formData, "policyId");
   const version = requiredValue(formData, "version");
   const controlId = requiredValue(formData, "controlId");
+  const sourceFile = formData.get("policySourceFile");
+  if (!(sourceFile instanceof File) || sourceFile.size === 0 || sourceFile.size > 5_242_880) {
+    redirect("/app/policy?publish=source-file-invalid");
+  }
+  const mediaType = policySourceMediaType(sourceFile);
+  if (!mediaType) redirect("/app/policy?publish=source-file-type-required");
+  let source: Awaited<ReturnType<typeof uploadWorkspacePolicySource>>;
   try {
+    source = await uploadWorkspacePolicySource({
+      content: new Uint8Array(await sourceFile.arrayBuffer()),
+      fileName: sourceFile.name,
+      mediaType,
+    });
     await createWorkspacePolicy({
       controls: [
         {
@@ -74,8 +106,13 @@ export async function createWorkspacePolicyAction(formData: FormData) {
           title: requiredValue(formData, "controlTitle"),
         },
       ],
-      documentDigest: requiredValue(formData, "documentDigest"),
+      documentDigest: source.digest,
       policyId,
+      source: {
+        fileName: source.fileName,
+        mediaType: source.mediaType,
+        sizeBytes: source.sizeBytes,
+      },
       title: requiredValue(formData, "title"),
       version,
     });
@@ -83,6 +120,9 @@ export async function createWorkspacePolicyAction(formData: FormData) {
     if (error instanceof ReviewServiceError && error.code === "policy_version_conflict") {
       revalidatePath("/app/policy");
       redirect("/app/policy?publish=conflict");
+    }
+    if (error instanceof ReviewServiceError && error.code?.startsWith("policy_source_")) {
+      redirect(`/app/policy?publish=${encodeURIComponent(error.code)}`);
     }
     throw error;
   }

@@ -53,6 +53,18 @@ export default async function PolicyDetailPage({
               <dt>Document digest</dt>
               <dd className="policy-detail-digest">{policy.documentDigest}</dd>
             </div>
+            <div>
+              <dt>Source document</dt>
+              <dd>{policy.source?.fileName ?? "Not attached to this historical record"}</dd>
+            </div>
+            {policy.source ? (
+              <div>
+                <dt>Source format</dt>
+                <dd>
+                  {policy.source.mediaType} · {Math.ceil(policy.source.sizeBytes / 1024)} KB
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </section>
         <aside className="policy-detail-guidance">
