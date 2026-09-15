@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "pnpm --filter @hollis/contracts build && pnpm --filter @hollis/database build && tsc -p tsconfig.build.json && node scripts/prepare-vercel-workspace-packages.mjs",
     "dev": "tsx watch src/server.ts",
     "retention:run": "tsx src/retention-scheduler.ts",
     "start": "node dist/server.js",
