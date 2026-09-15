@@ -2,7 +2,6 @@ import type { ReviewExport } from "@hollis/contracts/review-case";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { readHollisSession } from "@/lib/hollis-session";
-import { OperationalPageHeader } from "../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../workspace-capabilities";
 import { claimAction, decideAction, escalateAction } from "./actions";
 import { AttestationHorizon } from "./attestation-visuals";
@@ -61,6 +60,10 @@ function formatDate(value: string | null, includeTime = false) {
 
 function shortId(value: string) {
   return value.length > 17 ? `${value.slice(0, 14)}...` : value;
+}
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function CaseQueue({
@@ -145,9 +148,9 @@ function CaseQueue({
               <span>
                 <strong>{item.hollisCaseReference}</strong>
                 <small>{item.externalReference}</small>
-                <small>{item.recommendation.replaceAll("_", " ")}</small>
+                <small>{humanize(item.recommendation)}</small>
                 <em className={`queue-state queue-state-${item.status}`}>
-                  {item.status.replaceAll("_", " ")}
+                  {humanize(item.status)}
                 </em>
               </span>
               <span>
@@ -179,11 +182,16 @@ function CaseSummaryPanel({
       <section className="case-summary-card" aria-labelledby="case-summary-title">
         <div className="case-record-heading">
           <div>
-            <span>Case record</span>
-            <h3 id="case-summary-title">Case Summary</h3>
+            <span>Decision context</span>
+            <h3 id="case-summary-title">What needs a human decision?</h3>
           </div>
           <em className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel} risk</em>
         </div>
+        <p className="case-context-copy">
+          {reviewCase.automatedSystemVersion} recommended{" "}
+          <strong>{humanize(reviewCase.recommendation)}</strong> for this case. Review the recorded
+          evidence and policy requirement before confirming, changing, or escalating the outcome.
+        </p>
         <dl className="case-fact-grid">
           <div>
             <dt>Reference</dt>
@@ -191,7 +199,7 @@ function CaseSummaryPanel({
           </div>
           <div>
             <dt>Recommendation</dt>
-            <dd>{reviewCase.recommendation.replaceAll("_", " ")}</dd>
+            <dd>{humanize(reviewCase.recommendation)}</dd>
           </div>
           <div>
             <dt>Automated system</dt>
@@ -391,13 +399,17 @@ function HumanReviewPanel({
   return (
     <section className="human-review-card">
       <div className="human-review-title">
-        <h2>Human Review</h2>
+        <div>
+          <span className="review-step-label">Step 3 of 4</span>
+          <h2>Record human judgment</h2>
+        </div>
         <span className={`review-state review-state-${reviewCase.status}`}>
-          {reviewCase.status.replaceAll("_", " ")}
+          {humanize(reviewCase.status)}
         </span>
       </div>
       <p>
-        Review the evidence references and confirm the outcome against the recorded policy control.
+        Your decision remains the authoritative operational outcome. GenLayer later verifies that
+        the declared review process met the selected policy requirement.
       </p>
       <div className="review-assignee">
         <span aria-label={`${assignee.name} profile`} className="reviewer-avatar" role="img">
@@ -432,46 +444,70 @@ function HumanReviewPanel({
         <div className="inline-review-actions">
           <form action={decideAction}>
             <input name="caseId" type="hidden" value={reviewCase.id} />
-            <div className="compact-fields">
-              <select aria-label="Decision outcome" defaultValue="approved" name="outcome">
-                <option value="approved">Approved</option>
-                <option value="modified">Modified</option>
-                <option value="rejected">Rejected</option>
-              </select>
-              <select
-                aria-label="Final recommendation"
-                defaultValue={reviewCase.recommendation}
-                name="finalRecommendation"
-              >
+            <fieldset className="review-outcome-options">
+              <legend>How should Hollis record the outcome?</legend>
+              <label>
+                <input defaultChecked name="outcome" type="radio" value="approved" />
+                <span>
+                  <strong>Confirm the recommendation</strong>
+                  <small>Record that the automated recommendation is appropriate.</small>
+                </span>
+              </label>
+              <label>
+                <input name="outcome" type="radio" value="modified" />
+                <span>
+                  <strong>Change the recommendation</strong>
+                  <small>Record a different final recommendation after your review.</small>
+                </span>
+              </label>
+              <label>
+                <input name="outcome" type="radio" value="rejected" />
+                <span>
+                  <strong>Reject the recommendation</strong>
+                  <small>Record that the automated recommendation should not be followed.</small>
+                </span>
+              </label>
+            </fieldset>
+            <label className="review-field">
+              <span>Final recommendation</span>
+              <select defaultValue={reviewCase.recommendation} name="finalRecommendation">
                 <option value="approve">Approve</option>
                 <option value="deny">Deny</option>
                 <option value="partial_approve">Partial approve</option>
                 <option value="investigate">Investigate</option>
                 <option value="refer">Refer</option>
               </select>
-            </div>
-            <textarea
-              aria-label="Decision rationale"
-              name="rationale"
-              placeholder="Record the decision rationale"
-              required
-            />
+            </label>
+            <label className="review-field">
+              <span>Why is this the right outcome?</span>
+              <textarea
+                name="rationale"
+                placeholder="Reference the evidence or policy requirement that informed your decision."
+                required
+              />
+            </label>
             <button className="reference-primary" type="submit">
-              Record decision <span>›</span>
+              Record human decision <span>›</span>
             </button>
           </form>
-          <form action={escalateAction}>
-            <input name="caseId" type="hidden" value={reviewCase.id} />
-            <textarea
-              aria-label="Escalation reason"
-              name="reason"
-              placeholder="Reason for escalation"
-              required
-            />
-            <button className="reference-secondary" type="submit">
-              Request changes
-            </button>
-          </form>
+          <details className="review-escalation">
+            <summary>Escalate instead</summary>
+            <p>Use escalation when another qualified reviewer should take the next decision.</p>
+            <form action={escalateAction}>
+              <input name="caseId" type="hidden" value={reviewCase.id} />
+              <label className="review-field">
+                <span>Why does this need escalation?</span>
+                <textarea
+                  name="reason"
+                  placeholder="Explain what requires another review."
+                  required
+                />
+              </label>
+              <button className="reference-secondary" type="submit">
+                Escalate for review
+              </button>
+            </form>
+          </details>
         </div>
       ) : reviewCase.status === "in_review" ? (
         <div className="recorded-decision">
@@ -482,10 +518,105 @@ function HumanReviewPanel({
       ) : (
         <div className="recorded-decision">
           <span>Recorded outcome</span>
-          <strong>{reviewCase.decisionOutcome?.replaceAll("_", " ")}</strong>
+          <strong>
+            {reviewCase.decisionOutcome ? humanize(reviewCase.decisionOutcome) : "Not recorded"}
+          </strong>
           <p>{reviewCase.decisionRationale}</p>
         </div>
       )}
+    </section>
+  );
+}
+
+function ReviewProgress({
+  attestations,
+  reviewCase,
+}: {
+  attestations: AttestationRecord[];
+  reviewCase: ReviewCaseDetail;
+}) {
+  const hasFinalReceipt = attestations.some((attestation) => attestation.status === "finalized");
+  const steps = [
+    { label: "Case details", complete: true },
+    { label: "Evidence", complete: reviewCase.evidence.length > 0 },
+    { label: "Human review", complete: reviewCase.decisionOutcome !== null },
+    { label: "Independent attestation", complete: hasFinalReceipt },
+  ];
+  const activeIndex = steps.findIndex((step) => !step.complete);
+  return (
+    <ol className="guided-review-progress" aria-label="Review progress">
+      {steps.map((step, index) => (
+        <li
+          className={
+            step.complete ? "is-complete" : index === activeIndex ? "is-active" : undefined
+          }
+          key={step.label}
+        >
+          <span>{step.complete ? "✓" : String(index + 1)}</span>
+          <strong>{step.label}</strong>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ReviewEmptyState({ canCreate, filtered }: { canCreate: boolean; filtered: boolean }) {
+  const title = filtered ? "No cases match this view." : "No cases need your attention.";
+  const description = filtered
+    ? "Try clearing a filter, or browse completed cases to inspect prior review records."
+    : "When a consequential AI decision is submitted for review, it will appear here.";
+  return (
+    <section className="review-empty-workspace" aria-labelledby="review-empty-title">
+      <div className="review-empty-main">
+        <span aria-hidden="true" className="review-empty-mark">
+          ✓
+        </span>
+        <h1 id="review-empty-title">{title}</h1>
+        <p>{description}</p>
+        <div className="review-empty-actions">
+          {canCreate ? (
+            <Link className="reference-primary" href="/app/review-cases/new">
+              Create a review case <span>›</span>
+            </Link>
+          ) : null}
+          <Link className="review-empty-link" href="/app/cases">
+            Browse completed cases <span>›</span>
+          </Link>
+        </div>
+        <ol className="review-empty-steps">
+          <li>
+            <span>1</span>
+            <strong>Create a case</strong>
+            <small>Describe the consequential AI decision.</small>
+          </li>
+          <li>
+            <span>2</span>
+            <strong>Add evidence</strong>
+            <small>Attach the material that supports review.</small>
+          </li>
+          <li>
+            <span>3</span>
+            <strong>Record judgment</strong>
+            <small>Confirm, change, or escalate the outcome.</small>
+          </li>
+          <li>
+            <span>4</span>
+            <strong>Verify the process</strong>
+            <small>Hollis records a GenLayer receipt automatically.</small>
+          </li>
+        </ol>
+      </div>
+      <aside className="review-empty-next">
+        <p className="eyebrow">Optional guide</p>
+        <h2>What happens next</h2>
+        <p>
+          Review the decision, assess its evidence, and record human judgment. Hollis then checks
+          the declared process with GenLayer and issues a portable receipt.
+        </p>
+        <Link href="/app/policy">
+          Review policy library <span>›</span>
+        </Link>
+      </aside>
     </section>
   );
 }
@@ -626,12 +757,12 @@ function SelectedCaseWorkspace({
           <div className="case-kicker">
             <span>{reviewCase.hollisCaseReference}</span>
             <em className={`queue-state queue-state-${reviewCase.status}`}>
-              {reviewCase.status.replaceAll("_", " ")}
+              {humanize(reviewCase.status)}
             </em>
           </div>
           <h2>{reviewCase.externalReference}</h2>
-          <p className="case-reference-label">Hollis case {reviewCase.hollisCaseReference}</p>
-          <p>{reviewCase.ruleId.replaceAll("_", " ")}</p>
+          <p className="case-reference-label">Review case {reviewCase.hollisCaseReference}</p>
+          <p>{humanize(reviewCase.ruleId)}</p>
           <dl>
             <div>
               <dt>Initiated</dt>
@@ -651,6 +782,7 @@ function SelectedCaseWorkspace({
             </div>
           </dl>
         </header>
+        <ReviewProgress attestations={attestations} reviewCase={reviewCase} />
         <nav className="case-tabs" aria-label="Case sections">
           <Link
             aria-current={tab === "summary" ? "page" : undefined}
@@ -701,9 +833,9 @@ function SelectedCaseWorkspace({
         <ManagedAttestationRefresh active={managedPending} />
         <div className="right-rail-heading">
           <div>
-            <p className="eyebrow">Independent verification</p>
-            <h2>Attestation Horizon</h2>
-            <p>Evidence layers progress toward a portable GenLayer receipt.</p>
+            <p className="eyebrow">Process verification</p>
+            <h2>What happens next</h2>
+            <p>Hollis records your decision, then GenLayer checks the declared process.</p>
           </div>
           <nav className="right-rail-actions" aria-label="Selected case actions">
             {canCreate ? (
@@ -917,26 +1049,21 @@ export default async function ReviewCasesPage({
 
   return (
     <>
-      <OperationalPageHeader
-        eyebrow="Decision operations"
-        title="Review operations"
-        summary={`${activeCases.length} active ${activeCases.length === 1 ? "case" : "cases"}. Human judgment remains the authority for consequential outcomes.`}
-      />
       {query.access === "case-create-restricted" ? (
         <aside className="review-access-notice" role="status">
           <strong>Read-only review access</strong>
           <span>Your workspace role cannot create review cases.</span>
         </aside>
       ) : null}
-      <section className="reference-dashboard">
-        <CaseQueue
-          canCreate={canCreate}
-          cases={queue}
-          query={query}
-          selectedId={reviewCase?.id}
-          totalCount={riskCases.length}
-        />
-        {reviewCase && exported ? (
+      {reviewCase && exported ? (
+        <section className="reference-dashboard">
+          <CaseQueue
+            canCreate={canCreate}
+            cases={queue}
+            query={query}
+            selectedId={reviewCase.id}
+            totalCount={riskCases.length}
+          />
           <SelectedCaseWorkspace
             attestations={attestations}
             canCreate={canCreate}
@@ -947,20 +1074,13 @@ export default async function ReviewCasesPage({
             reviewCase={reviewCase}
             reviewer={reviewer}
           />
-        ) : (
-          <div className="reference-dashboard-empty">
-            <h1>No review cases</h1>
-            <p>Start a privacy-safe intake record for a decision that requires human review.</p>
-            {canCreate ? (
-              <Link className="reference-primary" href="/app/review-cases/new">
-                New review case <span>›</span>
-              </Link>
-            ) : (
-              <p className="case-tab-empty">Your workspace role has read-only case access.</p>
-            )}
-          </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <ReviewEmptyState
+          canCreate={canCreate}
+          filtered={Boolean(query.risk || (query.status && query.status !== "active"))}
+        />
+      )}
     </>
   );
 }
