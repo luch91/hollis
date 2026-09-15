@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import {
-  policyContractBindingSchema,
-  policyContractDeploymentSchema,
   type PolicyContractBinding,
   type PolicyContractDeployment,
+  policyContractBindingSchema,
+  policyContractDeploymentSchema,
 } from "@hollis/contracts";
 
 const terminalFailureStatuses = new Set(["failed", "binding_mismatch"]);
@@ -12,7 +12,7 @@ export type ReservePolicyContractDeployment = {
   binding: PolicyContractBinding;
   bindingDigest: string;
   createdByUserId: string;
-  network: "studio-dev";
+  network: "studio-dev" | "studio-next";
   networkChainId: 61997;
   policyControlRecordId: string;
   runtimeAddress: string;
@@ -85,7 +85,7 @@ export async function beginPolicyContractDeployment(input: {
       binding,
       bindingDigest,
       createdByUserId: input.createdByUserId,
-      network: "studio-dev",
+      network: "studio-next",
       networkChainId: 61997,
       policyControlRecordId: input.policyControlRecordId,
       runtimeAddress: input.runtimeAddress,
@@ -280,7 +280,7 @@ export async function ensurePolicyContractDeployment(input: {
       binding,
       bindingDigest,
       createdByUserId: input.createdByUserId,
-      network: "studio-dev",
+      network: "studio-next",
       networkChainId: 61997,
       policyControlRecordId: input.policyControlRecordId,
       runtimeAddress: input.runtimeAddress,

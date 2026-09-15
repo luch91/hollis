@@ -1,4 +1,4 @@
-const rpcUrl = "https://studio-dev.genlayer.com/api";
+const rpcUrl = "https://studio-next.genlayer.com/api";
 const expectedChainId = "0xf22d";
 
 const response = await fetch(rpcUrl, {
@@ -8,14 +8,14 @@ const response = await fetch(rpcUrl, {
 });
 
 if (!response.ok) {
-  throw new Error(`Studio Dev chain check failed with HTTP ${response.status}.`);
+  throw new Error(`Studio Next chain check failed with HTTP ${response.status}.`);
 }
 
 const payload = await response.json();
 if (payload?.result !== expectedChainId) {
   throw new Error(
-    `Studio Dev chain check expected ${expectedChainId}, received ${String(payload?.result)}.`,
+    `Studio Next chain check expected ${expectedChainId}, received ${String(payload?.result)}.`,
   );
 }
 
-console.log(`Studio Dev verified: ${rpcUrl} chain ID ${Number.parseInt(expectedChainId, 16)}.`);
+console.log(`Studio Next verified: ${rpcUrl} chain ID ${Number.parseInt(expectedChainId, 16)}.`);

@@ -171,24 +171,24 @@ const environmentSchema = z
       });
     }
     if (hasCompleteGenLayerRuntime) {
-      if (value.GENLAYER_NETWORK !== "studio-dev") {
+      if (value.GENLAYER_NETWORK !== "studio-next") {
         context.addIssue({
           code: "custom",
-          message: "GENLAYER_NETWORK must be studio-dev.",
+          message: "GENLAYER_NETWORK must be studio-next.",
           path: ["GENLAYER_NETWORK"],
         });
       }
       if (value.GENLAYER_CHAIN_ID !== 61997) {
         context.addIssue({
           code: "custom",
-          message: "GENLAYER_CHAIN_ID must be 61997 for Studio Dev.",
+          message: "GENLAYER_CHAIN_ID must be 61997 for Studio Next.",
           path: ["GENLAYER_CHAIN_ID"],
         });
       }
-      if (value.GENLAYER_RPC_URL !== "https://studio-dev.genlayer.com/api") {
+      if (value.GENLAYER_RPC_URL !== "https://studio-next.genlayer.com/api") {
         context.addIssue({
           code: "custom",
-          message: "GENLAYER_RPC_URL must use the canonical Studio Dev endpoint.",
+          message: "GENLAYER_RPC_URL must use the canonical Studio Next endpoint.",
           path: ["GENLAYER_RPC_URL"],
         });
       }

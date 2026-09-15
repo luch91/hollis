@@ -24,7 +24,7 @@ Hollis API
     +--> optional public-safe attestation publisher
              |
              v
-          GenLayer Studio Dev, read-only result import
+          GenLayer Studio Next, managed result recording
     |
     v
 PostgreSQL and configured object storage
@@ -88,11 +88,11 @@ An authorized reviewer can generate a privacy-safe `hollis.adjudication-case.v1`
 
 The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is a configured HTTPS API origin. Hollis generates a random public identifier and persists an immutable record before publication. Callers cannot supply their own public case-file URL.
 
-The completed Studio Dev validation path allows an authorized operator to submit the generated URL and exact commitment outside Hollis. The importer validates a finalized external transaction against the configured V7 contract, stored commitment, generated case-file URL, and finalized per-case views. It records the result without altering a human decision or blocking the core review workflow.
+After a completed human decision, Hollis generates the public-safe case file, submits it from its dedicated server-side execution account to the active policy-control contract, tracks finalization, and records the finalized per-case views. A legacy read-only importer remains isolated for historical records only. Neither path alters a human decision or blocks the core review workflow.
 
 The managed-runtime foundation validates a dedicated server-side execution account and records one reusable contract deployment per exact tenant, policy-control binding, chain, and contract-source digest. Before activation, Hollis reads the immutable V7 policy binding from finalized state and compares it exactly with the registry request. Deployment retries resume from a recorded transaction hash; an uncertain submission is stopped for reconciliation instead of being submitted again. Per-case submissions use a separate durable idempotency record, retain their transaction hash, and read all three case-result views from finalized state. Managed operations are not exposed to customers until their authorization, queueing, balance monitoring, reconciliation, and operational controls are complete. See [ADR 0015](adr/0015-hollis-managed-genlayer-runtime.md).
 
-Studio Dev verifies declared process behavior only. Its result cannot establish legal correctness, substantive fairness, or the truth of private evidence.
+Studio Next verifies declared process behavior only. Its result cannot establish legal correctness, substantive fairness, or the truth of private evidence.
 
 ## Trust boundaries
 

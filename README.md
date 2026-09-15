@@ -17,7 +17,7 @@ The first workflow focuses on high-risk commercial insurance-claim recommendatio
 - Writes ordered, append-only review events and exports a reproducible case record without raw evidence.
 - Assigns every review case an immutable Hollis Case Reference in the form `HL-YY-XXXX-XXXX`; upstream source references remain separate idempotency keys.
 - Publishes a separate, privacy-safe adjudication case file when independent GenLayer process attestation is enabled.
-- Imports a finalized Studio Dev transaction in read-only mode after validating it against the stored case file.
+- Automatically records a finalized Studio Next process-attestation result after validating it against the stored case file.
 
 Hollis supports Google Cloud Identity Platform for Google, GitHub, and verified email-and-password sign-in. Identity Platform proves a user identity. Hollis itself owns workspaces, invitations, memberships, roles, permissions, tenant isolation, and access decisions.
 
@@ -31,7 +31,7 @@ The interface does not maintain a second demonstration state. Navigation, filter
 
 ## Product documentation
 
-The web application publishes documentation at `/docs`. The primary guide at `/docs/how-hollis-works` follows the complete account-to-export workflow: identity verification, workspace setup, policy publication, case creation, evidence handling, human review, GenLayer Studio Dev attestation, and portable exports. Supporting guides cover each workflow independently, plus workspace administration and troubleshooting.
+The web application publishes documentation at `/docs`. The primary guide at `/docs/how-hollis-works` follows the complete account-to-export workflow: identity verification, workspace setup, policy publication, case creation, evidence handling, human review, automated GenLayer Studio Next attestation, and portable exports. Supporting guides cover each workflow independently, plus workspace administration and troubleshooting.
 
 Privacy, security, evaluation terms, and support guidance are available before authentication and from the documentation navigation. The privacy and terms pages describe the current evaluation release only. They are not substitutes for final operator notices, a customer data-processing agreement, or commercial terms.
 
@@ -46,7 +46,7 @@ Hollis has explicit boundaries that must remain intact:
 - Tenant identity is derived from the verified Hollis session. It is never accepted from a request body, query parameter, or caller-controlled header.
 - Raw evidence, policy documents, model output, prompts, secrets, and personal data must not appear in public GenLayer case files or public ledgers.
 - A human decision completes the Hollis review. It does not execute an external business action.
-- GenLayer Studio Dev is Hollis's designated attestation environment for the current release. It attests declared process facts only; it does not establish legal correctness, substantive fairness, or the truth of private evidence.
+- GenLayer Studio Next is Hollis's designated attestation environment for the current release. It attests declared process facts only; it does not establish legal correctness, substantive fairness, or the truth of private evidence.
 
 Read [docs/non-negotiables.md](docs/non-negotiables.md) before changing the product. The private decision log is intentionally Git-ignored and is not part of this repository.
 
@@ -126,9 +126,9 @@ The API normally listens on `http://localhost:4000`. The web application normall
 | `R2_JURISDICTION` | Cloudflare R2 bucket jurisdiction | Use `eu` for an EU-jurisdiction bucket; otherwise use `default`. |
 | `CLAIMS_WEBHOOK_SECRET` | Claims-system webhook verification | At least 32 characters. Required in production. |
 | `PUBLIC_ATTESTATION_ORIGIN` | Public HTTPS API origin for privacy-safe case files | Leave unset until the API public endpoint is deliberately deployed and verified. |
-| `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Read-only Studio Dev attestation importer | Set only to a contract that has passed the recorded policy-binding and representative-state checks. |
-| `GENLAYER_NETWORK` | Managed GenLayer network | Use `studio-dev` only. Configure it with the other managed-runtime values as one complete group. |
-| `GENLAYER_RPC_URL` | Managed GenLayer JSON-RPC endpoint | Use `https://studio-dev.genlayer.com/api` only. |
+| `GENLAYER_STUDIO_CONTRACT_ADDRESS` | Legacy read-only Studio Next attestation importer | Set only to a contract that has passed the recorded policy-binding and representative-state checks. |
+| `GENLAYER_NETWORK` | Managed GenLayer network | Use `studio-next` only. Configure it with the other managed-runtime values as one complete group. |
+| `GENLAYER_RPC_URL` | Managed GenLayer JSON-RPC endpoint | Use `https://studio-next.genlayer.com/api` only. |
 | `GENLAYER_CHAIN_ID` | Managed GenLayer chain ID | Use `61997` only. |
 | `GENLAYER_RUNTIME_ADDRESS` | Dedicated Hollis execution address | Server-only runtime configuration. The API verifies that it matches the configured private key. |
 | `GENLAYER_RUNTIME_PRIVATE_KEY` | Dedicated Hollis execution key | Secret-manager or local ignored environment only. Never expose it to the browser or commit it. |
@@ -161,7 +161,7 @@ Hollis sessions are opaque server-side records. The API returns their expiry at 
 3. An authorized user uploads evidence. The API stores metadata and provides a short-lived object-specific upload URL. Raw bytes stay in the configured object-storage provider.
 4. An authorized reviewer claims the pending case, examines its evidence and policy context, then records a rationale-backed decision or escalates it.
 5. Hollis preserves the ordered review history and can generate a tenant-scoped export containing evidence references and the event record, not raw evidence contents. Downloaded records use the Hollis Case Reference in their filename.
-6. When the independent-attestation gate is enabled, an authorized reviewer can generate an immutable, public-safe case file from bounded process facts. An authorized operator submits that generated URL and commitment to GenLayer Studio Dev. Hollis then validates and imports only the finalized result.
+6. After a reviewer records a completed decision under a published policy control, Hollis generates an immutable, public-safe case file and automatically submits its commitment to the workspace's managed GenLayer Studio Next contract. Hollis records only a successfully finalized result.
 
 The active permission model includes reading, creating, assigning, escalating, deciding, retaining, and attesting. Workspace administration controls invitations, memberships, and roles. Do not broaden a role or bypass the API authorization checks to unblock a workflow.
 
@@ -177,7 +177,7 @@ The retention scheduler selects the same validated storage provider as the API. 
 
 Hollis uses GenLayer for an independent attestation of declared process facts, not a judgment of private evidence or legal compliance.
 
-The public case-file boundary is documented in [public-attestation-case-files.md](docs/public-attestation-case-files.md). The contract sources are in [`contracts/genlayer`](contracts/genlayer). The validated Studio Dev V7 contract exposes its immutable policy binding and records results by case commitment so separate case results remain queryable.
+The public case-file boundary is documented in [public-attestation-case-files.md](docs/public-attestation-case-files.md). The contract sources are in [`contracts/genlayer`](contracts/genlayer). The validated Studio Next V7 contract exposes its immutable policy binding and records results by case commitment so separate case results remain queryable.
 
 The Studio importer is deliberately read-only. It does not submit transactions and it must not hold a wallet signing key. Use [genlayer-studio-import.md](docs/genlayer-studio-import.md) and the recorded contract procedures before enabling it.
 

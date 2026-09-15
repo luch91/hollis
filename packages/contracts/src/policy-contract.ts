@@ -37,7 +37,7 @@ export const policyContractDeploymentSchema = z
     failureCode: z.string().trim().min(1).max(128).nullable(),
     finalizedAt: z.iso.datetime().nullable(),
     id: z.uuid(),
-    network: z.literal("studio-dev"),
+    network: z.enum(["studio-dev", "studio-next"]),
     networkChainId: z.literal(61997),
     policyControlRecordId: z.uuid(),
     runtimeAddress: addressSchema,

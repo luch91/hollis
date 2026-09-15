@@ -15,7 +15,7 @@
     "dev": "dotenv -e .env -- pnpm --parallel --filter @hollis/api --filter @hollis/web dev",
     "format": "biome format .",
     "format:write": "biome format --write .",
-    "genlayer:check-studio": "node scripts/check-genlayer-studio-dev.mjs",
+    "genlayer:check-studio": "node scripts/check-genlayer-studio-next.mjs",
     "lint": "biome lint .",
     "policy": "node scripts/repository-policy.mjs repository",
     "test": "pnpm --recursive test",

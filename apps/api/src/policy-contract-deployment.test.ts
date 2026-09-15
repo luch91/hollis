@@ -7,15 +7,15 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import {
   beginPolicyContractDeployment,
-  digestPolicyContractValue,
   digestPolicyContractSource,
+  digestPolicyContractValue,
   ensurePolicyContractDeployment,
-  reconcilePolicyContractDeployment,
   type PolicyContractDeploymentClient,
+  type PolicyContractDeploymentError,
   type PolicyContractDeploymentStore,
   policyContractConstructorArguments,
-  type PolicyContractDeploymentError,
   type ReservePolicyContractDeployment,
+  reconcilePolicyContractDeployment,
 } from "./policy-contract-deployment.js";
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
@@ -220,7 +220,7 @@ describe("policy contract deployment", () => {
       binding,
       bindingDigest: digestPolicyContractValue(binding),
       createdByUserId: actorId,
-      network: "studio-dev",
+      network: "studio-next",
       networkChainId: 61997,
       policyControlRecordId: controlRecordId,
       runtimeAddress,

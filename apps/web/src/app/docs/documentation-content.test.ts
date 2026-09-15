@@ -28,7 +28,7 @@ describe("public documentation", () => {
     }
     expect(source).toContain("Google Cloud Identity Platform");
     expect(source).toContain("Upload and verify evidence");
-    expect(source).toContain("GenLayer Studio Dev");
+    expect(source).toContain("GenLayer Studio Next");
     expect(source).toContain("JSON");
     expect(source).toContain("DOCX");
     expect(source).toContain("PDF");

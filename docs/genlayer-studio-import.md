@@ -1,8 +1,12 @@
-# Studio Dev attestation import
+# Legacy Studio Next attestation import
 
-Hollis can record a finalized Studio Dev V6 attestation after an authorized operator submits the
-write from GenLayer Studio. The API performs only read operations. It does not store a private key,
-connect to a browser wallet, or submit the write on the operator's behalf.
+This document applies only to historical records created before Hollis's managed GenLayer runtime.
+The current customer workflow automatically submits a completed review to the active policy-control
+contract through Hollis's server-side Studio Next execution account. It does not ask a customer to
+use a wallet, operate Studio, or import a transaction hash.
+
+The legacy importer can record a finalized V6 attestation after an authorized operator submitted
+the write from GenLayer Studio. The API performs only read operations for that historical path.
 
 The importer is not active until the V6 contract has verified synthetic pass and fail writes whose
 per-case results remain independently queryable after the second write. Follow
@@ -17,9 +21,8 @@ Set the deployed V6 contract address in the API runtime environment:
 GENLAYER_STUDIO_CONTRACT_ADDRESS=0x1fcA673F741CDE49A442E156Cfc2abE74dd25EA2
 ```
 
-This address is the verified Studio Dev V6 deployment recorded in
-[`contracts/genlayer/DEPLOYMENT_V6.md`](../contracts/genlayer/DEPLOYMENT_V6.md). Studio Dev is
-Hollis's designated attestation environment for the current release. When set, API startup checks
+This address is the historical V6 deployment recorded in
+[`contracts/genlayer/DEPLOYMENT_V6.md`](../contracts/genlayer/DEPLOYMENT_V6.md). When set, API startup checks
 the contract's finalized per-case views for the documented pass and fail results. Startup fails
 until both results have been recorded and retained.
 
@@ -35,7 +38,7 @@ same policy fields as standard attestation creation plus:
 }
 ```
 
-Before writing an attestation record, Hollis verifies that the Studio Dev transaction is finalized
+Before writing an attestation record, Hollis verifies that the legacy transaction is finalized
 and accepted, targets the configured contract, and calls `adjudicate` with the case commitment and
 public case-file URL that Hollis generated. It then reads `get_status`, `get_verdict`, and
 `get_evaluation_reason` using that commitment. The receipt is recorded only when the stored V6

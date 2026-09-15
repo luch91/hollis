@@ -1,11 +1,11 @@
-import { policyContractBindingSchema, type PolicyContractBinding } from "@hollis/contracts";
+import { type PolicyContractBinding, policyContractBindingSchema } from "@hollis/contracts";
 import { createAccount, createClient } from "genlayer-js";
 import { studioDevnet } from "genlayer-js/chains";
-import { TransactionHashVariant, type Hash } from "genlayer-js/types";
+import { type Hash, TransactionHashVariant } from "genlayer-js/types";
 import { z } from "zod";
 import {
-  policyContractConstructorArguments,
   type PolicyContractDeploymentClient,
+  policyContractConstructorArguments,
 } from "./policy-contract-deployment.js";
 
 const addressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
@@ -139,9 +139,10 @@ export class StudioDevPolicyContractClient implements PolicyContractDeploymentCl
 
 export function createStudioDevPolicyContractClient(
   privateKey: string,
+  rpcUrl: string,
 ): StudioDevPolicyContractClient {
   const account = createAccount(privateKey as `0x${string}`);
-  const client = createClient({ account, chain: studioDevnet });
+  const client = createClient({ account, chain: studioDevnet, endpoint: rpcUrl });
   return new StudioDevPolicyContractClient(
     {
       deployContract: (input) =>

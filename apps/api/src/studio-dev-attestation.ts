@@ -1,12 +1,12 @@
-import { createClient } from "genlayer-js";
-import { studioDevnet } from "genlayer-js/chains";
-import { TransactionHashVariant, type Hash } from "genlayer-js/types";
-import { z } from "zod";
 import {
-  attestationReceiptSchema,
   type AttestationReceipt,
+  attestationReceiptSchema,
   type GenLayerAttestationRequest,
 } from "@hollis/contracts";
+import { createClient } from "genlayer-js";
+import { studioDevnet } from "genlayer-js/chains";
+import { type Hash, TransactionHashVariant } from "genlayer-js/types";
+import { z } from "zod";
 
 const addressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 const transactionHashSchema = z.string().regex(/^0x[a-fA-F0-9]{64}$/);
@@ -194,8 +194,9 @@ export class StudioDevAttestationVerifier {
 
 export function createStudioDevAttestationVerifier(
   contractAddress: string,
+  rpcUrl: string,
 ): StudioDevAttestationVerifier {
-  const client = createClient({ chain: studioDevnet });
+  const client = createClient({ chain: studioDevnet, endpoint: rpcUrl });
   return new StudioDevAttestationVerifier(
     {
       getTransaction: ({ hash }) => client.getTransaction({ hash: hash as unknown as Hash }),

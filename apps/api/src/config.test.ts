@@ -141,17 +141,17 @@ describe("readEnvironment", () => {
     ).toMatchObject({ RESEND_FROM: "Hollis <hello@mail.thehollis.xyz>" });
   });
 
-  it("accepts only a complete canonical Studio Dev runtime configuration", () => {
+  it("accepts only a complete canonical Studio Next runtime configuration", () => {
     const runtime = {
       GENLAYER_CHAIN_ID: "61997",
-      GENLAYER_NETWORK: "studio-dev",
-      GENLAYER_RPC_URL: "https://studio-dev.genlayer.com/api",
+      GENLAYER_NETWORK: "studio-next",
+      GENLAYER_RPC_URL: "https://studio-next.genlayer.com/api",
       GENLAYER_RUNTIME_ADDRESS: `0x${"1".repeat(40)}`,
       GENLAYER_RUNTIME_PRIVATE_KEY: `0x${"2".repeat(64)}`,
     };
     expect(readEnvironment({ ...baseEnvironment, ...runtime })).toMatchObject({
       GENLAYER_CHAIN_ID: 61997,
-      GENLAYER_NETWORK: "studio-dev",
+      GENLAYER_NETWORK: "studio-next",
     });
     expect(() =>
       readEnvironment({

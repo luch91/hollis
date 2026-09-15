@@ -281,6 +281,13 @@
       "when": 1789452900000,
       "tag": "0039_restore_evidence_verification_grant",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789454700000,
+      "tag": "0040_allow_studio_next_policy_contract_deployments",
+      "breakpoints": true
     }
   ]
 }

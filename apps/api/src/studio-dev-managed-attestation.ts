@@ -1,6 +1,6 @@
 import { createAccount, createClient } from "genlayer-js";
 import { studioDevnet } from "genlayer-js/chains";
-import { TransactionHashVariant, type Hash } from "genlayer-js/types";
+import { type Hash, TransactionHashVariant } from "genlayer-js/types";
 import { z } from "zod";
 import type { ManagedAttestationClient } from "./managed-attestation-submission.js";
 
@@ -120,9 +120,10 @@ export class StudioDevManagedAttestationClient implements ManagedAttestationClie
 
 export function createStudioDevManagedAttestationClient(
   privateKey: string,
+  rpcUrl: string,
 ): StudioDevManagedAttestationClient {
   const account = createAccount(privateKey as `0x${string}`);
-  const client = createClient({ account, chain: studioDevnet });
+  const client = createClient({ account, chain: studioDevnet, endpoint: rpcUrl });
   return new StudioDevManagedAttestationClient(
     {
       estimateTransactionFeesForWrite: (input) =>

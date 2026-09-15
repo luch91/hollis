@@ -1,5 +1,5 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export type DocumentationSection = {
@@ -397,22 +397,22 @@ const howHollisWorks: DocumentationPage = {
           <p>
             After human review is complete, Hollis can generate a privacy-safe adjudication case
             file. The file binds the declared policy control, managed evidence references, human
-            decision, and case commitment for GenLayer Studio Dev evaluation.
+            decision, and case commitment for automatic GenLayer Studio Next evaluation.
           </p>
           <ol>
             <li>
               Open the completed case and locate <strong>Process attestation</strong>.
             </li>
             <li>Confirm that human decision, policy binding, and managed evidence are ready.</li>
-            <li>Generate the controlled public case file when the publisher is configured.</li>
             <li>
-              Submit the exact case commitment and file URL to the approved GenLayer contract.
+              Hollis generates the controlled public case file when the publisher is configured.
             </li>
             <li>
-              After finalization, enter the transaction hash and select{" "}
-              <strong>Verify and import</strong>.
+              Hollis submits the exact commitment and file URL to the active policy-control
+              contract.
             </li>
-            <li>Confirm the imported status, verdict, commitment, and transaction in Hollis.</li>
+            <li>Wait for the recorded status to progress from pending to finalized.</li>
+            <li>Confirm the verdict, commitment, and transaction receipt in Hollis.</li>
           </ol>
           <Note title="Attestation scope">
             <p>
@@ -827,13 +827,12 @@ const pages: Record<string, DocumentationPage> = {
       },
       {
         id: "import",
-        title: "Verify and import",
+        title: "Automatic receipt recording",
         content: (
           <>
             <p>
-              After the Studio Dev transaction finalizes, enter the transaction hash against the
-              same generated case file. Hollis verifies the contract, commitment, finalized status,
-              and retained result before recording the receipt.
+              After the Studio Next transaction finalizes, Hollis verifies the contract, commitment,
+              finalized status, and retained result before recording the receipt.
             </p>
           </>
         ),

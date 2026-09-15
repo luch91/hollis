@@ -5,8 +5,8 @@
 
 ## Context
 
-The validated Studio Dev workflow still requires an operator to deploy a policy-bound contract,
-submit each completed case, and import the finalized result. That proves the protocol path, but it
+The earlier Studio Dev acceptance workflow required an operator to deploy a policy-bound contract,
+submit each completed case, and import the finalized result. That proved the protocol path, but it
 is not an acceptable customer workflow. Customer organizations must not hold a Hollis execution
 key or operate Studio manually.
 
@@ -16,12 +16,12 @@ binding or a reviewed contract-source revision requires a different deployment.
 
 ## Decision
 
-Hollis will operate one dedicated Studio Dev execution account from the API runtime. The private
+Hollis operates one dedicated Studio Next execution account from the API runtime. The private
 key is a server-only secret. It must never be committed, sent to the browser, stored in Vercel
 client configuration, or entered by a customer.
 
 Hollis records each deployment in a tenant-isolated policy-contract registry. The idempotency key
-is the tenant, canonical policy-binding digest, Studio Dev chain ID, and exact contract-source
+is the tenant, canonical policy-binding digest, Studio Next chain ID, and exact contract-source
 digest. A registry entry records the runtime address, deployment transaction, resulting contract
 address, verification state, and activation state.
 

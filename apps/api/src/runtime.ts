@@ -15,17 +15,30 @@ export async function createRuntimeApp() {
   }
 
   const managedRuntimeConfigured = Boolean(
-    environment.GENLAYER_RUNTIME_ADDRESS && environment.GENLAYER_RUNTIME_PRIVATE_KEY,
+    environment.GENLAYER_RPC_URL &&
+      environment.GENLAYER_RUNTIME_ADDRESS &&
+      environment.GENLAYER_RUNTIME_PRIVATE_KEY,
   );
-  const policyContractDeploymentClient = environment.GENLAYER_RUNTIME_PRIVATE_KEY
-    ? createStudioDevPolicyContractClient(environment.GENLAYER_RUNTIME_PRIVATE_KEY)
-    : undefined;
-  const managedAttestationClient = environment.GENLAYER_RUNTIME_PRIVATE_KEY
-    ? createStudioDevManagedAttestationClient(environment.GENLAYER_RUNTIME_PRIVATE_KEY)
-    : undefined;
+  const policyContractDeploymentClient =
+    environment.GENLAYER_RUNTIME_PRIVATE_KEY && environment.GENLAYER_RPC_URL
+      ? createStudioDevPolicyContractClient(
+          environment.GENLAYER_RUNTIME_PRIVATE_KEY,
+          environment.GENLAYER_RPC_URL,
+        )
+      : undefined;
+  const managedAttestationClient =
+    environment.GENLAYER_RUNTIME_PRIVATE_KEY && environment.GENLAYER_RPC_URL
+      ? createStudioDevManagedAttestationClient(
+          environment.GENLAYER_RUNTIME_PRIVATE_KEY,
+          environment.GENLAYER_RPC_URL,
+        )
+      : undefined;
   const candidateAttestationImporter =
     environment.GENLAYER_STUDIO_CONTRACT_ADDRESS && !managedRuntimeConfigured
-      ? createStudioDevAttestationVerifier(environment.GENLAYER_STUDIO_CONTRACT_ADDRESS)
+      ? createStudioDevAttestationVerifier(
+          environment.GENLAYER_STUDIO_CONTRACT_ADDRESS,
+          environment.GENLAYER_RPC_URL ?? "https://studio-next.genlayer.com/api",
+        )
       : undefined;
   let finalizedAttestationImporter = candidateAttestationImporter;
   let attestationImporterUnavailable = false;
@@ -47,12 +60,12 @@ export async function createRuntimeApp() {
 
   if (attestationImporterUnavailable) {
     app.log.warn(
-      "Studio Dev attestation readiness could not be established; the core review service remains available.",
+      "Studio Next legacy attestation-import readiness could not be established; the core review service remains available.",
     );
   }
   if (environment.GENLAYER_STUDIO_CONTRACT_ADDRESS && managedRuntimeConfigured) {
     app.log.info(
-      "Legacy Studio Dev contract import is disabled because the managed policy-contract runtime is configured.",
+      "Legacy Studio Next contract import is disabled because the managed policy-contract runtime is configured.",
     );
   }
 
