@@ -288,6 +288,13 @@
       "when": 1789454700000,
       "tag": "0040_allow_studio_next_policy_contract_deployments",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789477200000,
+      "tag": "0041_fix_workspace_audit_digest_schema",
+      "breakpoints": true
     }
   ]
 }
