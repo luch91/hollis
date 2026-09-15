@@ -2088,6 +2088,21 @@ textarea::placeholder {
   color: var(--petrol-ink);
 }
 
+.admin-card-heading .secondary-action,
+.organization-logo-actions .secondary-action {
+  border-color: var(--petrol-accent);
+  border-radius: 5px;
+  background: var(--petrol-accent);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.admin-card-heading .secondary-action:hover,
+.organization-logo-actions .secondary-action:hover {
+  background: color-mix(in srgb, var(--petrol-accent) 82%, #001f25);
+  box-shadow: 0 0 0 4px var(--petrol-accent-soft);
+}
+
 .admin-media-boundary {
   display: flex;
   align-items: center;
