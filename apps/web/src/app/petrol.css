@@ -1079,6 +1079,13 @@ textarea {
   white-space: nowrap;
 }
 
+.horizon-case small {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .horizon-case-overdue {
   background: var(--petrol-coral);
   color: #38231e;
@@ -1098,6 +1105,13 @@ textarea {
   border-color: rgb(255 255 255 / 20%);
   background: rgb(255 255 255 / 9%);
   color: #e8f6f6;
+}
+
+.horizon-case-completed {
+  border-color: rgb(15 75 82 / 22%);
+  background: #bdd7d4;
+  color: #245159;
+  opacity: 0.8;
 }
 
 .overview-horizon > footer {

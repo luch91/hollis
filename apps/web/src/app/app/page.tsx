@@ -5,6 +5,7 @@ import { getReviewExport, listReviewCases, type ReviewQueueItem } from "./review
 import {
   caseUrgency,
   dueBucket,
+  orderHorizonCases,
   type HorizonBucket,
   type HorizonRow,
   riskRow,
@@ -16,7 +17,15 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(value));
 }
 
-function Horizon({ cases, now }: { cases: ReviewQueueItem[]; now: Date }) {
+function Horizon({
+  activeCaseCount,
+  cases,
+  now,
+}: {
+  activeCaseCount: number;
+  cases: ReviewQueueItem[];
+  now: Date;
+}) {
   const rows: Array<{ key: HorizonRow; label: string; detail: string }> = [
     { key: "critical", label: "Critical", detail: "Immediate oversight" },
     { key: "high", label: "High", detail: "Priority review" },
@@ -53,21 +62,24 @@ function Horizon({ cases, now }: { cases: ReviewQueueItem[]; now: Date }) {
               <small>{row.detail}</small>
             </div>
             {columns.map((column) => {
-              const matching = cases.filter(
-                (reviewCase) =>
-                  riskRow(reviewCase.riskLevel) === row.key &&
-                  dueBucket(reviewCase.reviewDueAt, now) === column.key,
+              const matching = orderHorizonCases(
+                cases.filter(
+                  (reviewCase) =>
+                    riskRow(reviewCase.riskLevel) === row.key &&
+                    dueBucket(reviewCase.reviewDueAt, now) === column.key,
+                ),
               );
               return (
                 <div className="horizon-grid-cell" key={column.key}>
                   {matching.slice(0, 2).map((reviewCase) => (
                     <Link
-                      className={`horizon-case horizon-case-${column.key}`}
+                      className={`horizon-case horizon-case-${column.key}${reviewCase.status === "completed" ? " horizon-case-completed" : ""}`}
                       href={`/app/review-cases?caseId=${reviewCase.id}`}
                       key={reviewCase.id}
                     >
                       <strong>{reviewCase.hollisCaseReference}</strong>
                       <span>{reviewCase.externalReference}</span>
+                      {reviewCase.status === "completed" ? <small>Completed</small> : null}
                     </Link>
                   ))}
                   {matching.length > 2 ? <small>+{matching.length - 2} more</small> : null}
@@ -79,7 +91,7 @@ function Horizon({ cases, now }: { cases: ReviewQueueItem[]; now: Date }) {
       </div>
       <footer>
         <span>
-          {cases.length} active {cases.length === 1 ? "case" : "cases"}
+          {cases.length} tracked {cases.length === 1 ? "case" : "cases"}, {activeCaseCount} active
         </span>
         <strong>Evidence before outcome.</strong>
       </footer>
@@ -237,7 +249,11 @@ export default async function ApplicationPage() {
         <h1>Your workspace in perspective</h1>
       </header>
       <div className="overview-primary-grid">
-        <Horizon cases={activeCases} now={now} />
+        <Horizon
+          activeCaseCount={activeCases.length}
+          cases={[...activeCases, ...completedCases]}
+          now={now}
+        />
         <NextAction canCreate={canCreate} reviewCase={nextCase} />
       </div>
       <div className="overview-secondary-grid">

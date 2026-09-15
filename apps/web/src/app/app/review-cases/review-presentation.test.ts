@@ -3,6 +3,7 @@ import {
   caseUrgency,
   dueBucket,
   keyEvidenceRecords,
+  orderHorizonCases,
   presentAssignee,
   riskRow,
 } from "./review-presentation";
@@ -35,6 +36,16 @@ describe("review presentation", () => {
       now,
     );
     expect(overdueLow).toBeLessThan(futureCritical);
+  });
+
+  it("keeps active cases ahead of completed records in the priority map", () => {
+    expect(
+      orderHorizonCases([
+        { id: "closed", status: "completed" },
+        { id: "open", status: "pending" },
+        { id: "review", status: "in_review" },
+      ]).map((reviewCase) => reviewCase.id),
+    ).toEqual(["open", "review", "closed"]);
   });
 
   it("assigns deterministic unique keys to repeated evidence references", () => {

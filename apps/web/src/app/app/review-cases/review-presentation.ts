@@ -61,3 +61,9 @@ export function caseUrgency(
   const riskRank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
   return bucketRank[dueBucket(reviewCase.reviewDueAt, now)] * 10 + riskRank[reviewCase.riskLevel];
 }
+
+export function orderHorizonCases<T extends Pick<ReviewQueueItem, "status">>(cases: T[]): T[] {
+  return [...cases].sort(
+    (left, right) => Number(left.status === "completed") - Number(right.status === "completed"),
+  );
+}
