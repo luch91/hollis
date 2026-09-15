@@ -1,6 +1,5 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
@@ -179,23 +178,6 @@ export default async function AdminPage({
               : "Review the organization profile and member directory."}
           </p>
         </div>
-        <aside className="organization-identity" aria-label={`${profile.name} identity`}>
-          {profile.logoUrl ? (
-            <Image
-              alt={`${profile.name} logo`}
-              height={42}
-              src={profile.logoUrl}
-              unoptimized
-              width={42}
-            />
-          ) : (
-            <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
-          )}
-          <div>
-            <strong>{profile.name}</strong>
-            <small>Managed organization media</small>
-          </div>
-        </aside>
       </header>
       {!canManage ? (
         <aside className="admin-access-notice" aria-label="Workspace access level">

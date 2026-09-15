@@ -54,10 +54,10 @@ export function OrganizationLogoControl({
         </div>
         <div>
           <p className="eyebrow">Organization identity</p>
-          <h2 id="organization-media-title">Company logo</h2>
+          <h2 id="organization-media-title">Brand asset</h2>
           <p>
-            Hollis finds logo options from the saved organization website, then imports the option
-            you approve into private organization storage.
+            Find an organization mark from the website in your profile, then approve a managed copy
+            for Hollis to store privately.
           </p>
         </div>
       </div>
