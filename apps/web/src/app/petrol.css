@@ -1094,6 +1094,25 @@ textarea {
   animation: petrol-page-in 360ms 60ms ease both;
 }
 
+.review-case-page {
+  --amber: var(--petrol-warning);
+  --canvas: var(--petrol-bg);
+  --canvas-deep: var(--petrol-bg);
+  --danger: var(--petrol-coral);
+  --ink: var(--petrol-ink);
+  --lime: var(--petrol-accent);
+  --lime-glow: var(--petrol-accent-soft);
+  --lime-soft: var(--petrol-accent);
+  --line: var(--petrol-line);
+  --line-strong: var(--petrol-line-strong);
+  --muted: var(--petrol-muted);
+  --panel: var(--petrol-surface);
+  --quiet: var(--petrol-faint);
+  min-height: 100%;
+  background: var(--petrol-bg);
+  color: var(--petrol-ink);
+}
+
 .application-error-actions {
   display: flex;
   flex-wrap: wrap;

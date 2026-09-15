@@ -54,7 +54,7 @@ export default async function ReviewCasePage({
   );
 
   return (
-    <>
+    <div className="review-case-page">
       <OperationalPageHeader
         eyebrow="Review workspace"
         summary="Investigate consequential decisions with clear evidence, policy context, and accountable human judgment."
@@ -324,6 +324,6 @@ export default async function ReviewCasePage({
           </div>
         ) : null}
       </section>
-    </>
+    </div>
   );
 }
