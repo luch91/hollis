@@ -81,15 +81,16 @@ describe("case decision document exports", () => {
     },
   };
 
-  it("builds a decision-oriented Markdown record", () => {
+  it("builds a formal decision-oriented Markdown record", () => {
     const result = buildMarkdownReport(source);
-    expect(result).toContain("## Executive summary");
-    expect(result).toContain("## Evidence inventory");
-    expect(result).toContain("## Decision-use considerations");
+    expect(result).toContain("## Executive briefing");
+    expect(result).toContain("## Human review and decision");
+    expect(result).toContain("## Policy and evidence basis");
+    expect(result).toContain("## Independent process attestation");
     expect(result).toContain(exported.manifestHash);
     expect(result).toContain("| Assigned reviewer | Jordan Blake |");
     expect(result).toContain("Jordan Blake (reviewer-17)");
-    expect(result).toContain("| Attestation 1 provider | GenLayer |");
+    expect(result).toContain("| Provider | GenLayer |");
   });
 
   it("builds a DOCX package", async () => {

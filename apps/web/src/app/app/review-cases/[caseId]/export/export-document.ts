@@ -46,14 +46,21 @@ export type CaseReportSource = {
   identityLabels: Record<string, string>;
 };
 
+type ReportTable = {
+  headers: string[];
+  rows: string[][];
+};
+
 type ReportSection = {
   heading: string;
-  paragraphs?: string[];
-  rows?: Array<[string, string]>;
+  paragraphs: string[];
+  table?: ReportTable;
 };
 
 function label(value: string | null | undefined): string {
-  return value ? value.replaceAll("_", " ") : "Not recorded";
+  if (!value) return "Not recorded";
+  const normalized = value.replaceAll("_", " ");
+  return `${normalized.slice(0, 1).toUpperCase()}${normalized.slice(1)}`;
 }
 
 function date(value: string | null | undefined): string {
@@ -82,117 +89,104 @@ function auditActorLabel(source: CaseReportSource, actorId: string): string {
 function buildSections(source: CaseReportSource): ReportSection[] {
   const { attestations, exported } = source;
   const reviewCase = exported.case;
-  const finalDecision = reviewCase.decisionOutcome
-    ? `A human reviewer recorded the outcome as ${label(reviewCase.decisionOutcome)} and the final recommendation as ${label(reviewCase.finalRecommendation)}.`
-    : "No final human decision has been recorded. The automated recommendation must not be treated as authorization for an external action.";
-  const attestationSummary = attestations.length
-    ? `${attestations.length} attestation record${attestations.length === 1 ? " is" : "s are"} associated with this case. The latest record has status ${label(attestations[0]?.status)} and verdict ${label(attestations[0]?.verdict)}.`
-    : "No external attestation receipt is recorded for this case.";
+  const latestAttestation = attestations[0];
+  const decisionNarrative = reviewCase.decisionOutcome
+    ? `${identityLabel(source, reviewCase.decidedByUserId)} recorded a ${label(reviewCase.decisionOutcome).toLowerCase()} outcome on ${date(reviewCase.decidedAt)}. The final recommendation is ${label(reviewCase.finalRecommendation).toLowerCase()}.`
+    : "No human decision has been recorded. The automated recommendation remains informational and must not be used as authorization for a consequential external action.";
+  const rationaleNarrative = reviewCase.decisionRationale
+    ? `The recorded rationale states: “${reviewCase.decisionRationale}”`
+    : "No decision rationale has been recorded.";
+  const attestationNarrative = latestAttestation
+    ? `The latest independent process attestation was recorded through ${providerLabel(latestAttestation.provider)}. Its current status is ${label(latestAttestation.status).toLowerCase()} and its verdict is ${label(latestAttestation.verdict).toLowerCase()}.`
+    : "No independent process attestation receipt is recorded for this case.";
 
   return [
     {
-      heading: "Executive summary",
+      heading: "Executive briefing",
       paragraphs: [
-        `Case ${reviewCase.hollisCaseReference} records a ${label(reviewCase.riskLevel)} risk automated recommendation of ${label(reviewCase.recommendation)}. Its current workflow status is ${label(reviewCase.status)}.`,
-        finalDecision,
-        `The case is bound to policy ${reviewCase.policyVersion}, control ${reviewCase.ruleId}, and automated system version ${reviewCase.automatedSystemVersion}.`,
-        attestationSummary,
+        `This report records the review of ${reviewCase.externalReference}. Case ${reviewCase.hollisCaseReference} was created on ${date(reviewCase.createdAt)} after ${reviewCase.automatedSystemVersion} produced a ${label(reviewCase.riskLevel).toLowerCase()} risk recommendation to ${label(reviewCase.recommendation).toLowerCase()}.`,
+        `The review was governed by policy ${reviewCase.policyVersion} and control ${reviewCase.ruleId}. The current workflow status is ${label(reviewCase.status).toLowerCase()}. This report records the declared control process and should be read alongside the controlled source evidence where a decision requires evidential review.`,
       ],
-    },
-    {
-      heading: "Case facts",
-      rows: [
-        ["Hollis Case Reference", reviewCase.hollisCaseReference],
-        ["Source reference", reviewCase.externalReference],
-        ["Internal record ID", reviewCase.id],
-        ["Created", date(reviewCase.createdAt)],
-        ["Review due", date(reviewCase.reviewDueAt)],
-        ["Status", label(reviewCase.status)],
-        ["Risk level", label(reviewCase.riskLevel)],
-        ["Automated recommendation", label(reviewCase.recommendation)],
-        ["Automated system", reviewCase.automatedSystemVersion],
-      ],
-    },
-    {
-      heading: "Policy and governance context",
-      paragraphs: [
-        `The recorded policy version is ${reviewCase.policyVersion}. The triggered control is ${reviewCase.ruleId}. These identifiers establish which declared rule governed the review; they do not by themselves prove legal or regulatory compliance.`,
-      ],
-      rows: [
-        ["Policy version", reviewCase.policyVersion],
-        ["Triggered control", reviewCase.ruleId],
-      ],
-    },
-    {
-      heading: "Evidence inventory",
-      paragraphs: [
-        `The case contains ${reviewCase.evidence.length} evidence reference${reviewCase.evidence.length === 1 ? "" : "s"}. Hollis exports metadata and integrity digests, not raw evidence content. A decision maker should inspect the controlled source material before relying on a reference.`,
-      ],
-      rows: reviewCase.evidence.flatMap((item, index) => [
-        [`Evidence ${index + 1} identifier`, item.id],
-        [`Evidence ${index + 1} media type`, item.mediaType],
-        [`Evidence ${index + 1} digest`, item.digest],
-      ]),
-    },
-    {
-      heading: "Human review outcome",
-      paragraphs: [finalDecision],
-      rows: [
-        ["Assigned reviewer", identityLabel(source, reviewCase.assignedToUserId)],
-        ["Assigned", date(reviewCase.assignedAt)],
-        ["Decision outcome", label(reviewCase.decisionOutcome)],
-        ["Final recommendation", label(reviewCase.finalRecommendation)],
-        ["Decided", date(reviewCase.decidedAt)],
-        ["Decision rationale", label(reviewCase.decisionRationale)],
-        ["Escalation reason", label(reviewCase.escalationReason)],
-      ],
-    },
-    {
-      heading: "Audit chronology",
-      paragraphs: [
-        `The append-only record contains ${exported.events.length} event${exported.events.length === 1 ? "" : "s"}, ordered by database event sequence. Each event links to the previous event hash where applicable.`,
-      ],
-      rows: exported.events.flatMap((event) => [
-        [
-          `Event ${event.eventSequence}`,
-          `${label(event.eventType)} at ${date(event.createdAt)} by ${auditActorLabel(source, event.actorId)}`,
+      table: {
+        headers: ["Record", "Recorded value"],
+        rows: [
+          ["Hollis case reference", reviewCase.hollisCaseReference],
+          ["Source reference", reviewCase.externalReference],
+          ["Risk level", label(reviewCase.riskLevel)],
+          ["Automated recommendation", label(reviewCase.recommendation)],
+          ["Review due", date(reviewCase.reviewDueAt)],
         ],
-        [`Event ${event.eventSequence} hash`, event.eventHash],
-        [`Event ${event.eventSequence} previous hash`, event.previousHash ?? "Genesis event"],
-      ]),
+      },
     },
     {
-      heading: "Attestation status",
-      paragraphs: [attestationSummary],
-      rows: attestations.flatMap((item, index) => [
-        [`Attestation ${index + 1} provider`, providerLabel(item.provider)],
-        [`Attestation ${index + 1} status`, label(item.status)],
-        [`Attestation ${index + 1} verdict`, label(item.verdict)],
-        [`Attestation ${index + 1} transaction`, label(item.transactionHash)],
-        [`Attestation ${index + 1} commitment`, item.caseCommitment],
-      ]),
-    },
-    {
-      heading: "Decision-use considerations",
+      heading: "Human review and decision",
       paragraphs: [
-        reviewCase.decisionOutcome
-          ? "A human outcome is present. Before any external action, confirm that the reviewer had the required authority, that the referenced evidence was available and current, and that the recorded rationale supports the action being considered."
-          : "Do not execute an adverse or consequential external action from this record because the required human outcome is absent.",
-        attestations.length
-          ? "Use the recorded attestation as evidence of the declared process outcome only. It does not independently establish the truth of private evidence or guarantee legal compliance."
-          : "No external attestation is recorded. Do not describe this case as externally attested or independently adjudicated.",
-        "Any correction should be recorded as a new event. Do not alter or replace the existing audit chronology.",
+        decisionNarrative,
+        rationaleNarrative,
+        reviewCase.escalationReason
+          ? `The case was escalated for the following recorded reason: “${reviewCase.escalationReason}”`
+          : "No escalation reason is recorded for this case.",
       ],
+      table: {
+        headers: ["Review detail", "Recorded value"],
+        rows: [
+          ["Assigned reviewer", identityLabel(source, reviewCase.assignedToUserId)],
+          ["Assignment recorded", date(reviewCase.assignedAt)],
+          ["Decision recorded by", identityLabel(source, reviewCase.decidedByUserId)],
+          ["Decision outcome", label(reviewCase.decisionOutcome)],
+          ["Final recommendation", label(reviewCase.finalRecommendation)],
+        ],
+      },
     },
     {
-      heading: "Record integrity",
-      rows: [
-        ["Schema version", exported.schemaVersion],
-        ["Manifest hash", exported.manifestHash],
-      ],
+      heading: "Policy and evidence basis",
       paragraphs: [
-        "The manifest hash identifies this exported record. Re-exporting after a new audit event will produce a different record and may produce a different manifest hash.",
+        `The declared policy binding is ${reviewCase.policyVersion} / ${reviewCase.ruleId}. These identifiers establish the rule used to frame this review. They do not, on their own, establish legal or regulatory compliance.`,
+        `${reviewCase.evidence.length} managed evidence reference${reviewCase.evidence.length === 1 ? " was" : "s were"} recorded for the case. This report lists controlled references and integrity digests, not the raw evidence. A decision maker should access the controlled source material before relying on an evidence reference.`,
       ],
+      table: {
+        headers: ["Evidence reference", "Type", "Integrity digest"],
+        rows: reviewCase.evidence.map((item) => [item.id, item.mediaType, item.digest]),
+      },
+    },
+    {
+      heading: "Independent process attestation",
+      paragraphs: [
+        attestationNarrative,
+        latestAttestation
+          ? "The attestation concerns the declared process binding. It does not establish the truth of private evidence or guarantee legal compliance."
+          : "A case can be completed without an independent receipt. It must not be described as externally attested until a finalized receipt is recorded.",
+      ],
+      table: latestAttestation
+        ? {
+            headers: ["Attestation detail", "Recorded value"],
+            rows: [
+              ["Provider", providerLabel(latestAttestation.provider)],
+              ["Status", label(latestAttestation.status)],
+              ["Verdict", label(latestAttestation.verdict)],
+              ["Transaction", latestAttestation.transactionHash ?? "Not recorded"],
+              ["Case commitment", latestAttestation.caseCommitment],
+            ],
+          }
+        : undefined,
+    },
+    {
+      heading: "Review chronology and record integrity",
+      paragraphs: [
+        `The append-only case record contains ${exported.events.length} event${exported.events.length === 1 ? "" : "s"}, ordered by event sequence. Each recorded event is linked to the preceding event hash where applicable. Corrections must be recorded as new events rather than changing this chronology.`,
+        `The manifest hash below identifies this export. Re-exporting after any new audit event will generate a new manifest hash. The JSON export remains the complete machine-readable companion record.`,
+      ],
+      table: {
+        headers: ["Chronology", "Recorded value"],
+        rows: [
+          ...exported.events.map((event) => [
+            `${event.eventSequence}. ${label(event.eventType)}`,
+            `${date(event.createdAt)} · ${auditActorLabel(source, event.actorId)}`,
+          ]),
+          ["Export schema", exported.schemaVersion],
+          ["Manifest hash", exported.manifestHash],
+        ],
+      },
     },
   ];
 }
@@ -212,11 +206,14 @@ export function buildMarkdownReport(source: CaseReportSource): string {
 
   for (const section of sections) {
     lines.push(`## ${section.heading}`, "");
-    for (const paragraph of section.paragraphs ?? []) lines.push(paragraph, "");
-    if (section.rows?.length) {
-      lines.push("| Field | Recorded value |", "| --- | --- |");
-      for (const [field, value] of section.rows) {
-        lines.push(`| ${markdownEscape(field)} | ${markdownEscape(value)} |`);
+    for (const paragraph of section.paragraphs) lines.push(paragraph, "");
+    if (section.table) {
+      lines.push(
+        `| ${section.table.headers.map(markdownEscape).join(" | ")} |`,
+        `| ${section.table.headers.map(() => "---").join(" | ")} |`,
+      );
+      for (const row of section.table.rows) {
+        lines.push(`| ${row.map(markdownEscape).join(" | ")} |`);
       }
       lines.push("");
     }
@@ -229,37 +226,99 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
   const children: Array<Paragraph | Table> = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: "Case decision record", bold: true })],
+      children: [
+        new TextRun({
+          allCaps: true,
+          color: "526158",
+          size: 17,
+          text: "Hollis case decision record",
+        }),
+      ],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: source.exported.case.hollisCaseReference, italics: true })],
+      heading: HeadingLevel.TITLE,
+      spacing: { after: 80, before: 120 },
+      children: [
+        new TextRun({
+          color: "073954",
+          font: "Georgia",
+          text: "Formal review and decision report",
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 240 },
+      children: [
+        new TextRun({
+          color: "526158",
+          italics: true,
+          text: `${source.exported.case.hollisCaseReference} · ${source.branding?.organizationName ?? "Hollis workspace"}`,
+        }),
+      ],
     }),
   ];
 
   for (const section of buildSections(source)) {
-    children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, text: section.heading }));
-    for (const paragraph of section.paragraphs ?? []) {
-      children.push(new Paragraph({ text: paragraph, spacing: { after: 180 } }));
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 260 },
+        children: [new TextRun({ color: "073954", font: "Georgia", text: section.heading })],
+      }),
+    );
+    for (const paragraph of section.paragraphs) {
+      children.push(
+        new Paragraph({
+          spacing: { after: 160 },
+          children: [new TextRun({ color: "202720", size: 21, text: paragraph })],
+        }),
+      );
     }
-    if (section.rows?.length) {
+    if (section.table) {
       children.push(
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: section.rows.map(
-            ([field, value]) =>
-              new TableRow({
-                children: [
+          rows: [
+            new TableRow({
+              children: section.table.headers.map(
+                (header) =>
                   new TableCell({
+                    shading: { fill: "073954" },
                     children: [
-                      new Paragraph({ children: [new TextRun({ text: field, bold: true })] }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({ color: "FFFFFF", size: 17, text: header, bold: true }),
+                        ],
+                      }),
                     ],
                   }),
-                  new TableCell({ children: [new Paragraph(value)] }),
-                ],
-              }),
-          ),
+              ),
+            }),
+            ...section.table.rows.map(
+              (row) =>
+                new TableRow({
+                  children: row.map(
+                    (value, index) =>
+                      new TableCell({
+                        children: [
+                          new Paragraph({
+                            children: [
+                              new TextRun({
+                                color: "202720",
+                                size: 18,
+                                text: value,
+                                bold: index === 0 && section.table?.headers.length === 2,
+                              }),
+                            ],
+                          }),
+                        ],
+                      }),
+                  ),
+                }),
+            ),
+          ],
         }),
       );
     }
@@ -464,6 +523,67 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
     }
     y -= options.gap ?? 7;
   };
+  const drawTable = (table: ReportTable) => {
+    const columnGap = 9;
+    const usableWidth = maxWidth - columnGap * (table.headers.length - 1);
+    const fractions =
+      table.headers.length === 2
+        ? [0.34, 0.66]
+        : table.headers.length === 3
+          ? [0.27, 0.2, 0.53]
+          : table.headers.map(() => 1 / table.headers.length);
+    const widths = fractions.map((fraction) => usableWidth * fraction);
+    const positions: number[] = [];
+    let position = margin;
+    for (const width of widths) {
+      positions.push(position);
+      position += width + columnGap;
+    }
+
+    const drawRow = (cells: string[], header = false) => {
+      const font = header ? bold : regular;
+      const size = header ? 7.5 : 8.3;
+      const lineHeight = size * 1.38;
+      const lines = cells.map((cell, index) =>
+        wrap(cell, font, size, widths[index] ?? usableWidth),
+      );
+      const rowHeight = Math.max(...lines.map((entry) => entry.length), 1) * lineHeight + 10;
+      if (y < margin + rowHeight) newPage();
+      if (header) {
+        page.drawRectangle({
+          color: rgb(0.027, 0.224, 0.329),
+          height: rowHeight,
+          width: maxWidth,
+          x: margin,
+          y: y - rowHeight + 4,
+        });
+      }
+      for (const [index, cellLines] of lines.entries()) {
+        for (const [lineIndex, line] of cellLines.entries()) {
+          page.drawText(line, {
+            color: header ? rgb(1, 1, 1) : rgb(0.14, 0.16, 0.13),
+            font,
+            size,
+            x: positions[index] ?? margin,
+            y: y - lineHeight * (lineIndex + 1),
+          });
+        }
+      }
+      if (!header) {
+        page.drawLine({
+          color: rgb(0.82, 0.83, 0.8),
+          end: { x: margin + maxWidth, y: y - rowHeight + 4 },
+          start: { x: margin, y: y - rowHeight + 4 },
+          thickness: 0.45,
+        });
+      }
+      y -= rowHeight;
+    };
+
+    drawRow(table.headers, true);
+    for (const row of table.rows) drawRow(row);
+    y -= 12;
+  };
 
   drawLines("Case decision record", {
     font: bold,
@@ -485,12 +605,9 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
       color: rgb(0.027, 0.224, 0.329),
       gap: 8,
     });
-    for (const paragraph of section.paragraphs ?? [])
+    for (const paragraph of section.paragraphs)
       drawLines(paragraph, { font: regular, size: 9.5, gap: 8 });
-    for (const [field, value] of section.rows ?? []) {
-      drawLines(field, { font: bold, size: 8.5, color: rgb(0.4, 0.42, 0.38), gap: 1 });
-      drawLines(value, { font: regular, size: 9.5, gap: 7 });
-    }
+    if (section.table) drawTable(section.table);
     y -= 7;
   }
 
