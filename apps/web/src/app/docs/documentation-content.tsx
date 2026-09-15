@@ -935,8 +935,9 @@ const pages: Record<string, DocumentationPage> = {
           <>
             <p>
               Owners and administrators can update the workspace name, controlled industry value,
-              operating region, and website. Organization logo placement is reserved, but upload
-              remains disabled until the managed-media security design is implemented.
+              operating region, and website. From a saved HTTPS website, they can ask Hollis to find
+              supported raster-logo candidates, select one, and import a managed tenant-scoped copy.
+              Hollis does not use a third-party image URL as the ongoing logo source.
             </p>
           </>
         ),

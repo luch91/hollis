@@ -15,7 +15,9 @@ import type {
   UnscopedAccessTokenVerifier,
 } from "./auth.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
+import type { EvidenceStorage } from "./evidence-storage.js";
 import type { IdentityPlatformTokenVerifier } from "./identity-platform.js";
+import type { OrganizationLogoService } from "./organization-logo.js";
 import type { createPostgresWorkspaceControlsStore } from "./persistence.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
@@ -80,6 +82,8 @@ function createDependencies(
     applicationSessionStore?: ApplicationSessionStore;
     transactionalEmailService?: TransactionalEmailService | null;
     welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
+    evidenceStorage?: EvidenceStorage;
+    organizationLogoService?: OrganizationLogoService;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -263,10 +267,12 @@ function createDependencies(
     attestationProvider: options.attestationProvider,
     attestationStore: options.attestationStore,
     evidenceMetadataStore,
+    evidenceStorage: options.evidenceStorage,
     finalizedAttestationImporter: options.finalizedAttestationImporter,
     identityPlatformTokenVerifier,
     publicAttestationCaseFileStore,
     policyLibraryStore,
+    organizationLogoService: options.organizationLogoService,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
@@ -1397,6 +1403,129 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ code: "forbidden" });
+  });
+
+  it("discovers, imports, and removes an organization logo within the active workspace", async () => {
+    const candidate = {
+      digest: `sha256:${"c".repeat(64)}`,
+      mediaType: "image/png" as const,
+      previewDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      sizeBytes: 8,
+      sourceLabel: "Organization data",
+      sourceUrl: "https://cdn.northstar.example/logo.png",
+    };
+    const workspaceControlsStore = {
+      async getProfile(receivedTenantId: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        return {
+          id: tenantId,
+          industry: null,
+          logoDigest: null,
+          logoMediaType: null,
+          logoObjectName: "tenants/0198ef37-6216-7000-8000-000000000001/organization-logo/old",
+          logoSourceHost: null,
+          logoUpdatedAt: null,
+          name: "Northstar Claims",
+          operatingRegion: null,
+          website: "https://northstar.example",
+        };
+      },
+      async setLogo(
+        receivedTenantId: string,
+        actorId: string,
+        input: {
+          digest: string;
+          mediaType: "image/jpeg" | "image/png" | "image/webp";
+          objectName: string;
+          sourceHost: string;
+        },
+      ) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(actorId).toBe("user_01");
+        expect(input).toMatchObject({
+          digest: candidate.digest,
+          mediaType: candidate.mediaType,
+          objectName: `tenants/${tenantId}/organization-logo/${"c".repeat(64)}`,
+          sourceHost: "cdn.northstar.example",
+        });
+        return { id: tenantId, ...input };
+      },
+      async removeLogo(receivedTenantId: string, actorId: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(actorId).toBe("user_01");
+        return `tenants/${tenantId}/organization-logo/${"c".repeat(64)}`;
+      },
+    } as unknown as ReturnType<typeof createPostgresWorkspaceControlsStore>;
+    const organizationLogoService = {
+      async discover(website: string) {
+        expect(website).toBe("https://northstar.example");
+        return [candidate];
+      },
+      async importSelected(receivedTenantId: string, website: string, sourceUrl: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(website).toBe("https://northstar.example");
+        expect(sourceUrl).toBe(candidate.sourceUrl);
+        return {
+          digest: candidate.digest,
+          mediaType: candidate.mediaType,
+          objectName: `tenants/${tenantId}/organization-logo/${"c".repeat(64)}`,
+          sizeBytes: candidate.sizeBytes,
+          sourceHost: "cdn.northstar.example",
+        };
+      },
+    } satisfies OrganizationLogoService;
+    const evidenceStorage = {
+      async createDownloadUrl() {
+        return "https://storage.example/signed-logo";
+      },
+      async createUploadUrl() {
+        return "";
+      },
+      async delete(receivedTenantId: string, objectName: string) {
+        expect(receivedTenantId).toBe(tenantId);
+        expect(objectName).toContain(`tenants/${tenantId}/organization-logo/`);
+      },
+      async put() {
+        throw new Error("Not expected.");
+      },
+      async verify() {
+        throw new Error("Not expected.");
+      },
+    } satisfies EvidenceStorage;
+    const app = await buildApp(
+      environment,
+      createDependencies({
+        evidenceStorage,
+        organizationLogoService,
+        permissions: ["workspace:manage"],
+        workspaceControlsStore,
+      }),
+    );
+    apps.push(app);
+
+    const discovery = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      payload: {},
+      url: "/v1/workspace/logo/discover",
+    });
+    expect(discovery.statusCode).toBe(200);
+    expect(discovery.json()).toEqual({ candidates: [candidate] });
+
+    const imported = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      payload: { sourceUrl: candidate.sourceUrl },
+      url: "/v1/workspace/logo",
+    });
+    expect(imported.statusCode).toBe(201);
+
+    const removed = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "DELETE",
+      url: "/v1/workspace/logo",
+    });
+    expect(removed.statusCode).toBe(204);
   });
 
   it("searches reviewers only within the authenticated workspace", async () => {

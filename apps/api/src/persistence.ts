@@ -378,6 +378,11 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
             id: tenants.id,
             name: tenants.name,
             industry: tenants.industry,
+            logoDigest: tenants.logoDigest,
+            logoMediaType: tenants.logoMediaType,
+            logoObjectName: tenants.logoObjectName,
+            logoSourceHost: tenants.logoSourceHost,
+            logoUpdatedAt: tenants.logoUpdatedAt,
             operatingRegion: tenants.operatingRegion,
             website: tenants.website,
           })
@@ -395,6 +400,34 @@ export function createPostgresWorkspaceControlsStore(database: Database) {
         sql`select * from public.update_hollis_workspace_profile(${tenantId}::uuid, ${actorId}::uuid, ${input.name}, ${input.industry}, ${input.operatingRegion}, ${input.website})`,
       );
       return record ?? null;
+    },
+    async setLogo(
+      tenantId: string,
+      actorId: string,
+      input: {
+        digest: string;
+        mediaType: "image/jpeg" | "image/png" | "image/webp";
+        objectName: string;
+        sourceHost: string;
+      },
+    ) {
+      const [record] = await database.execute<{
+        id: string;
+        logoDigest: string;
+        logoMediaType: string;
+        logoObjectName: string;
+        logoSourceHost: string;
+        logoUpdatedAt: Date;
+      }>(
+        sql`select * from public.set_hollis_workspace_logo(${tenantId}::uuid, ${actorId}::uuid, ${input.objectName}, ${input.digest}, ${input.mediaType}, ${input.sourceHost})`,
+      );
+      return record ?? null;
+    },
+    async removeLogo(tenantId: string, actorId: string) {
+      const [record] = await database.execute<{ objectName: string }>(
+        sql`select * from public.remove_hollis_workspace_logo(${tenantId}::uuid, ${actorId}::uuid)`,
+      );
+      return record?.objectName ?? null;
     },
     async listMembers(tenantId: string, actorId: string) {
       return database.execute<{

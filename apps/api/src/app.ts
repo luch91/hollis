@@ -49,6 +49,11 @@ import {
   type VerifiedIdentityPlatformIdentity,
 } from "./identity-platform.js";
 import {
+  createOrganizationLogoService,
+  OrganizationLogoError,
+  type OrganizationLogoService,
+} from "./organization-logo.js";
+import {
   createPostgresApplicationSessionStore,
   createPostgresAttestationStore,
   createPostgresEvidenceMetadataStore,
@@ -170,6 +175,7 @@ type AppDependencies = {
   transactionalEmailService?: TransactionalEmailService | null;
   welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
   rateLimiter?: RateLimiter;
+  organizationLogoService?: OrganizationLogoService;
 };
 
 const rateLimitPolicies = {
@@ -179,6 +185,7 @@ const rateLimitPolicies = {
   export: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
   exportIdentity: { maxRequests: 60, windowMs: 60 * 60 * 1000 },
   invitation: { maxRequests: 30, windowMs: 60 * 60 * 1000 },
+  logoDiscovery: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
   sessionExchange: { maxRequests: 10, windowMs: 15 * 60 * 1000 },
   workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
 } as const;
@@ -290,8 +297,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
             listAuditEvents: unavailable,
             listMembers: unavailable,
             listUserWorkspaces: unavailable,
+            removeLogo: unavailable,
             revokeInvitation: unavailable,
             searchMembers: unavailable,
+            setLogo: unavailable,
             updateProfile: unavailable,
           } as ReturnType<typeof createPostgresWorkspaceControlsStore>;
         })());
@@ -304,6 +313,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     dependencies.identityPlatformTokenVerifier ?? createIdentityPlatformTokenVerifier(environment);
   const evidenceStorage =
     dependencies.evidenceStorage ?? (await createConfiguredEvidenceStorage(environment));
+  const organizationLogoService =
+    dependencies.organizationLogoService ??
+    (evidenceStorage ? createOrganizationLogoService(evidenceStorage) : null);
   const managedAttestationDependencies =
     environment.PUBLIC_ATTESTATION_ORIGIN &&
     environment.GENLAYER_RUNTIME_ADDRESS &&
@@ -566,6 +578,17 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         code: "evidence_verification_failed",
         message: "Evidence object does not match its declared metadata.",
       });
+    }
+
+    if (error instanceof OrganizationLogoError) {
+      const messages = {
+        logo_candidate_unavailable:
+          "That logo option is no longer available. Find logo options again and choose one.",
+        logo_discovery_failed: "Hollis could not safely retrieve a logo from this website.",
+        logo_not_found: "No supported logo image was found on this website.",
+        logo_website_requires_https: "Use an HTTPS organization website before finding a logo.",
+      } as const;
+      return reply.code(422).send({ code: error.code, message: messages[error.code] });
     }
 
     if (error instanceof AttestationPreconditionError) {
@@ -846,7 +869,20 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:read") },
     async (request) => {
       const { tenant } = requireRequestContext(request);
-      return workspaceControlsStore.getProfile(tenant.id);
+      const profile = await workspaceControlsStore.getProfile(tenant.id);
+      if (!profile) return null;
+      let logoUrl: string | null = null;
+      if (profile.logoObjectName && evidenceStorage) {
+        try {
+          logoUrl = await evidenceStorage.createDownloadUrl(tenant.id, profile.logoObjectName);
+        } catch (error) {
+          request.log.warn(
+            { errorName: error instanceof Error ? error.name : "unknown" },
+            "workspace logo could not be resolved",
+          );
+        }
+      }
+      return { ...profile, logoUrl };
     },
   );
   app.put(
@@ -861,6 +897,103 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         principal.userId,
         workspaceProfileSchema.parse(request.body),
       );
+    },
+  );
+  app.post(
+    "/v1/workspace/logo/discover",
+    {
+      preHandler: [
+        rateLimit("logoDiscovery"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+      ],
+    },
+    async (request, reply) => {
+      z.object({})
+        .strict()
+        .parse(request.body ?? {});
+      if (!organizationLogoService)
+        return reply.code(503).send({
+          code: "media_storage_unconfigured",
+          message: "Organization media storage is not configured.",
+        });
+      const { tenant } = requireRequestContext(request);
+      const profile = await workspaceControlsStore.getProfile(tenant.id);
+      if (!profile?.website)
+        return reply.code(409).send({
+          code: "workspace_website_required",
+          message: "Save an HTTPS organization website before finding a logo.",
+        });
+      return { candidates: await organizationLogoService.discover(profile.website) };
+    },
+  );
+  app.post(
+    "/v1/workspace/logo",
+    {
+      preHandler: [
+        rateLimit("logoDiscovery"),
+        createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+      ],
+    },
+    async (request, reply) => {
+      if (!organizationLogoService || !evidenceStorage)
+        return reply.code(503).send({
+          code: "media_storage_unconfigured",
+          message: "Organization media storage is not configured.",
+        });
+      const input = z
+        .object({ sourceUrl: z.string().url().max(2048) })
+        .strict()
+        .parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      const profile = await workspaceControlsStore.getProfile(tenant.id);
+      if (!profile?.website)
+        return reply.code(409).send({
+          code: "workspace_website_required",
+          message: "Save an HTTPS organization website before finding a logo.",
+        });
+      const imported = await organizationLogoService.importSelected(
+        tenant.id,
+        profile.website,
+        input.sourceUrl,
+      );
+      try {
+        const updated = await workspaceControlsStore.setLogo(tenant.id, principal.userId, imported);
+        if (!updated) throw new Error("Organization logo metadata was not stored.");
+        if (profile.logoObjectName && profile.logoObjectName !== imported.objectName) {
+          await evidenceStorage
+            .delete(tenant.id, profile.logoObjectName)
+            .catch((error: unknown) => {
+              request.log.warn(
+                { errorName: error instanceof Error ? error.name : "unknown" },
+                "previous workspace logo could not be removed",
+              );
+            });
+        }
+        return reply.code(201).send(updated);
+      } catch (error) {
+        await evidenceStorage.delete(tenant.id, imported.objectName).catch(() => undefined);
+        throw error;
+      }
+    },
+  );
+  app.delete(
+    "/v1/workspace/logo",
+    {
+      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
+    },
+    async (request, reply) => {
+      const { principal, tenant } = requireRequestContext(request);
+      const objectName = await workspaceControlsStore.removeLogo(tenant.id, principal.userId);
+      if (!objectName) return reply.code(204).send();
+      if (evidenceStorage) {
+        await evidenceStorage.delete(tenant.id, objectName).catch((error: unknown) => {
+          request.log.warn(
+            { errorName: error instanceof Error ? error.name : "unknown" },
+            "workspace logo object could not be removed",
+          );
+        });
+      }
+      return reply.code(204).send();
     },
   );
   app.get(

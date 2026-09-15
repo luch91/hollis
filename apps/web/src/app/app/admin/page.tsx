@@ -1,9 +1,11 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
 import { InvitationLink } from "./invitation-link";
+import { OrganizationLogoControl } from "./organization-logo-control";
 import { createWorkspaceRequestHeaders } from "./request-headers";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -44,6 +46,7 @@ function optionLabel(options: ReadonlyArray<readonly [string, string]>, value: s
 
 type WorkspaceProfile = {
   industry: string | null;
+  logoUrl: string | null;
   name: string;
   operatingRegion: string | null;
   website: string | null;
@@ -150,7 +153,7 @@ async function updateMember(formData: FormData) {
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ edit?: string; invite?: string; profile?: string }>;
+  searchParams: Promise<{ edit?: string; invite?: string; logo?: string; profile?: string }>;
 }) {
   const session = await readHollisSession();
   if (!session?.session.activeWorkspace) redirect("/onboarding");
@@ -177,7 +180,17 @@ export default async function AdminPage({
           </p>
         </div>
         <aside className="organization-identity" aria-label={`${profile.name} identity`}>
-          <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
+          {profile.logoUrl ? (
+            <Image
+              alt={`${profile.name} logo`}
+              height={42}
+              src={profile.logoUrl}
+              unoptimized
+              width={42}
+            />
+          ) : (
+            <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
+          )}
           <div>
             <strong>{profile.name}</strong>
             <small>Managed organization media</small>
@@ -198,18 +211,24 @@ export default async function AdminPage({
           Organization profile saved.
         </aside>
       ) : null}
-      <section className="admin-media-boundary" aria-labelledby="organization-media-title">
-        <div>
-          <p className="eyebrow">Organization identity</p>
-          <h2 id="organization-media-title">Logo placement reserved</h2>
-          <p className="admin-media-description">
-            Hollis will enable logo uploads only through managed media validation and tenant-scoped
-            storage. Until then, the organization initial is used without accepting external image
-            links.
-          </p>
-        </div>
-        <span aria-hidden="true">{profile.name.slice(0, 1).toUpperCase()}</span>
-      </section>
+      {canManage && params.logo === "updated" ? (
+        <aside className="admin-success-notice" aria-live="polite">
+          Organization logo imported and saved.
+        </aside>
+      ) : null}
+      {canManage && params.logo === "removed" ? (
+        <aside className="admin-success-notice" aria-live="polite">
+          Organization logo removed.
+        </aside>
+      ) : null}
+      {canManage && (params.logo === "import-failed" || params.logo === "remove-failed") ? (
+        <aside className="admin-error-notice" role="alert">
+          Organization logo could not be updated. Try again from the saved HTTPS website.
+        </aside>
+      ) : null}
+      {canManage ? (
+        <OrganizationLogoControl logoUrl={profile.logoUrl} organizationName={profile.name} />
+      ) : null}
       <div className="admin-grid">
         {canManage && params.edit === "profile" ? (
           <form action={updateProfile} className="admin-card">
