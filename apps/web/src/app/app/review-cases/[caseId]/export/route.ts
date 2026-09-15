@@ -6,12 +6,26 @@ import {
 import { NextResponse } from "next/server";
 import { readHollisSessionToken } from "@/lib/hollis-session";
 import type { AttestationRecord } from "../../data";
-import { buildDocxReport, buildMarkdownReport, buildPdfReport } from "./export-document";
+import {
+  type CaseReportSource,
+  buildDocxReport,
+  buildMarkdownReport,
+  buildPdfReport,
+} from "./export-document";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 const formats = ["json", "md", "docx", "pdf"] as const;
 type ExportFormat = (typeof formats)[number];
+
+const supportedOrganizationLogoMediaTypes = ["image/jpeg", "image/png"] as const;
+const maxOrganizationLogoBytes = 1_000_000;
+
+type WorkspaceProfileResponse = {
+  logoMediaType?: unknown;
+  logoUrl?: unknown;
+  name?: unknown;
+};
 
 function isExportFormat(value: string | null): value is ExportFormat {
   return formats.includes(value as ExportFormat);
@@ -21,6 +35,44 @@ function asArrayBuffer(value: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(value.byteLength);
   copy.set(value);
   return copy.buffer;
+}
+
+function isSupportedOrganizationLogoMediaType(
+  value: string,
+): value is (typeof supportedOrganizationLogoMediaTypes)[number] {
+  return supportedOrganizationLogoMediaTypes.includes(
+    value as (typeof supportedOrganizationLogoMediaTypes)[number],
+  );
+}
+
+async function resolveExportBranding(
+  response: Response | null,
+): Promise<CaseReportSource["branding"] | undefined> {
+  if (!response?.ok) return undefined;
+  const profile = (await response.json().catch(() => null)) as WorkspaceProfileResponse | null;
+  if (!profile || typeof profile.name !== "string" || !profile.name.trim()) return undefined;
+
+  const organizationName = profile.name.trim();
+  if (typeof profile.logoUrl !== "string" || typeof profile.logoMediaType !== "string") {
+    return { organizationName };
+  }
+  if (!isSupportedOrganizationLogoMediaType(profile.logoMediaType)) return { organizationName };
+
+  try {
+    const source = new URL(profile.logoUrl);
+    if (source.protocol !== "https:") return { organizationName };
+    const logoResponse = await fetch(source, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    const contentType = logoResponse.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase();
+    if (!logoResponse.ok || contentType !== profile.logoMediaType) return { organizationName };
+    const data = new Uint8Array(await logoResponse.arrayBuffer());
+    if (!data.byteLength || data.byteLength > maxOrganizationLogoBytes) return { organizationName };
+    return { logo: { data, mediaType: profile.logoMediaType }, organizationName };
+  } catch {
+    return { organizationName };
+  }
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ caseId: string }> }) {
@@ -33,13 +85,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ case
   const requestedFormat = new URL(request.url).searchParams.get("format");
   const format: ExportFormat = isExportFormat(requestedFormat) ? requestedFormat : "json";
   const headers = { authorization: `Bearer ${sessionToken}` };
-  const [response, attestationResponse, identityResponse] = await Promise.all([
+  const needsDocumentBranding = format === "docx" || format === "pdf";
+  const [response, attestationResponse, identityResponse, workspaceResponse] = await Promise.all([
     fetch(`${apiUrl}/v1/review-cases/${caseId}/export`, { cache: "no-store", headers }),
     fetch(`${apiUrl}/v1/review-cases/${caseId}/attestations`, { cache: "no-store", headers }),
     fetch(`${apiUrl}/v1/review-cases/${caseId}/export-identities`, {
       cache: "no-store",
       headers,
     }),
+    needsDocumentBranding
+      ? fetch(`${apiUrl}/v1/workspace`, { cache: "no-store", headers })
+      : Promise.resolve(null),
   ]);
 
   if (!response.ok) {
@@ -68,7 +124,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ case
       ? parsedIdentities.data.identities.map(({ actorId, displayName }) => [actorId, displayName])
       : [],
   );
-  const source = { attestations, exported, identityLabels };
+  const branding = await resolveExportBranding(workspaceResponse);
+  const source = { attestations, branding, exported, identityLabels };
   let body: BodyInit;
   let contentType: string;
 

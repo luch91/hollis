@@ -18,11 +18,18 @@ import {
   VerticalPositionRelativeFrom,
   WidthType,
 } from "docx";
-import { PDFDocument, type PDFFont, type PDFPage, rgb, StandardFonts } from "pdf-lib";
-import { HOLLIS_MARK_PATH } from "../../../../hollis-brand-assets";
+import {
+  degrees,
+  PDFDocument,
+  type PDFImage,
+  type PDFFont,
+  type PDFPage,
+  rgb,
+  StandardFonts,
+} from "pdf-lib";
 import type { AttestationRecord } from "../../data";
 
-const HOLLIS_WATERMARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><title>Hollis watermark</title><path fill="#073954" fill-opacity="0.07" d="${HOLLIS_MARK_PATH}"/></svg>`;
+const HOLLIS_WORDMARK_WATERMARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 500"><title>Hollis watermark</title><text x="475" y="315" fill="#073954" fill-opacity="0.055" font-family="Georgia, 'Times New Roman', serif" font-size="210" font-style="italic" font-weight="700" text-anchor="middle" transform="rotate(-32 475 250)">Hollis</text></svg>`;
 
 const transparentPixel = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -31,6 +38,10 @@ const transparentPixel = Buffer.from(
 
 export type CaseReportSource = {
   attestations: AttestationRecord[];
+  branding?: {
+    logo?: { data: Uint8Array; mediaType: "image/jpeg" | "image/png" };
+    organizationName: string;
+  };
   exported: ReviewExport;
   identityLabels: Record<string, string>;
 };
@@ -265,13 +276,58 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
             children: [
               new Paragraph({
                 children: [
+                  new TextRun({
+                    color: "073954",
+                    font: "Georgia",
+                    size: 24,
+                    text: "Hollis",
+                  }),
+                  new TextRun({
+                    color: "5A6259",
+                    size: 15,
+                    text: "  Process attestation record",
+                  }),
+                ],
+              }),
+              ...(source.branding?.logo
+                ? [
+                    new Paragraph({
+                      children: [
+                        new ImageRun({
+                          altText: {
+                            description: `${source.branding.organizationName} logo`,
+                            name: "Organization logo",
+                            title: `${source.branding.organizationName} logo`,
+                          },
+                          data: Buffer.from(source.branding.logo.data),
+                          floating: {
+                            allowOverlap: true,
+                            horizontalPosition: {
+                              align: HorizontalPositionAlign.RIGHT,
+                              relative: HorizontalPositionRelativeFrom.PAGE,
+                            },
+                            verticalPosition: {
+                              align: VerticalPositionAlign.TOP,
+                              relative: VerticalPositionRelativeFrom.PAGE,
+                            },
+                            wrap: { type: TextWrappingType.NONE },
+                          },
+                          transformation: { height: 38, width: 76 },
+                          type: source.branding.logo.mediaType === "image/png" ? "png" : "jpg",
+                        }),
+                      ],
+                    }),
+                  ]
+                : []),
+              new Paragraph({
+                children: [
                   new ImageRun({
                     altText: {
-                      description: "Subtle Hollis Bound Record watermark",
+                      description: "Subtle diagonal Hollis wordmark watermark",
                       name: "Hollis watermark",
                       title: "Hollis watermark",
                     },
-                    data: Buffer.from(HOLLIS_WATERMARK_SVG),
+                    data: Buffer.from(HOLLIS_WORDMARK_WATERMARK_SVG),
                     fallback: { data: transparentPixel, type: "png" },
                     floating: {
                       allowOverlap: true,
@@ -286,7 +342,7 @@ export async function buildDocxReport(source: CaseReportSource): Promise<Buffer>
                       },
                       wrap: { type: TextWrappingType.NONE },
                     },
-                    transformation: { height: 210, width: 210 },
+                    transformation: { height: 250, width: 475 },
                     type: "svg",
                   }),
                 ],
@@ -329,6 +385,7 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const watermark = await pdf.embedFont(StandardFonts.TimesRomanItalic);
   const pageSize: [number, number] = [595.28, 841.89];
   const margin = 54;
   const maxWidth = pageSize[0] - margin * 2;
@@ -336,23 +393,58 @@ export async function buildPdfReport(source: CaseReportSource): Promise<Uint8Arr
   let y = pageSize[1] - margin;
 
   const drawWatermark = (target: PDFPage) => {
-    const scale = 3.75;
-    const markSize = 48 * scale;
-    target.drawSvgPath(HOLLIS_MARK_PATH, {
+    target.drawText("Hollis", {
       color: rgb(0.027, 0.224, 0.329),
       opacity: 0.055,
-      scale,
-      x: (pageSize[0] - markSize) / 2 - 8 * scale,
-      y: (pageSize[1] + markSize) / 2 + 8 * scale,
+      font: watermark,
+      rotate: degrees(35),
+      size: 164,
+      x: 72,
+      y: 250,
+    });
+  };
+
+  const organizationLogo: PDFImage | null = source.branding?.logo
+    ? source.branding.logo.mediaType === "image/png"
+      ? await pdf.embedPng(source.branding.logo.data)
+      : await pdf.embedJpg(source.branding.logo.data)
+    : null;
+
+  const drawExportHeader = (target: PDFPage) => {
+    target.drawText("Hollis", {
+      color: rgb(0.027, 0.224, 0.329),
+      font: bold,
+      size: 13,
+      x: margin,
+      y: pageSize[1] - 30,
+    });
+    target.drawText("Process attestation record", {
+      color: rgb(0.35, 0.38, 0.34),
+      font: regular,
+      size: 7.5,
+      x: margin,
+      y: pageSize[1] - 41,
+    });
+    if (!organizationLogo) return;
+    const fitted = organizationLogo.scaleToFit(76, 38);
+    target.drawImage(organizationLogo, {
+      height: fitted.height,
+      width: fitted.width,
+      x: pageSize[0] - margin - fitted.width,
+      y: pageSize[1] - 48,
     });
   };
 
   drawWatermark(page);
+  drawExportHeader(page);
+  y -= 26;
 
   const newPage = () => {
     page = pdf.addPage(pageSize);
     drawWatermark(page);
+    drawExportHeader(page);
     y = pageSize[1] - margin;
+    y -= 26;
   };
   const drawLines = (
     text: string,

@@ -5,6 +5,12 @@ import { buildDocxReport, buildMarkdownReport, buildPdfReport } from "./export-d
 
 const digest = `sha256:${"a".repeat(64)}`;
 const hash = `sha256:${"b".repeat(64)}`;
+const transparentPng = Uint8Array.from(
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  ),
+);
 
 const exported: ReviewExport = {
   case: {
@@ -65,6 +71,10 @@ const attestations: AttestationRecord[] = [
 describe("case decision document exports", () => {
   const source = {
     attestations,
+    branding: {
+      logo: { data: transparentPng, mediaType: "image/png" as const },
+      organizationName: "Northstar Assurance",
+    },
     exported,
     identityLabels: {
       "reviewer-17": "Jordan Blake",
