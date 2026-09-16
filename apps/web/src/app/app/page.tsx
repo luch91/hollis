@@ -72,7 +72,7 @@ function Horizon({
               );
               return (
                 <div className="horizon-grid-cell" key={column.key}>
-                  {matching.slice(0, 2).map((reviewCase) => (
+                  {matching.map((reviewCase) => (
                     <Link
                       className={`horizon-case horizon-case-${column.key}${reviewCase.status === "completed" ? " horizon-case-completed" : ""}`}
                       href={`/app/review-cases?caseId=${reviewCase.id}`}
@@ -83,7 +83,6 @@ function Horizon({
                       {reviewCase.status === "completed" ? <small>Completed</small> : null}
                     </Link>
                   ))}
-                  {matching.length > 2 ? <small>+{matching.length - 2} more</small> : null}
                 </div>
               );
             })}

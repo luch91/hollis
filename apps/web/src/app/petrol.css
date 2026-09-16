@@ -672,24 +672,26 @@ textarea {
 
 .guided-tour {
   position: fixed;
-  right: 2rem;
-  top: 5.5rem;
+  right: 1rem;
+  bottom: 1rem;
   z-index: 30;
-  width: min(22rem, calc(100vw - 2rem));
-  padding: 1.25rem;
+  width: min(16rem, calc(100vw - 2rem));
+  padding: 0.8rem;
   border: 1px solid rgba(183, 229, 58, 0.55);
-  border-radius: 0.75rem;
+  border-radius: 0.55rem;
   background: #f3efe6;
   color: #102124;
   box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.32);
 }
 
 .guided-tour h2 {
-  margin: 0.35rem 0 0.5rem;
+  margin: 0.25rem 0 0.35rem;
+  font-size: 1rem;
 }
 .guided-tour p:not(.eyebrow) {
   margin: 0;
-  line-height: 1.5;
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 .guided-tour-progress {
   color: #52666a;
@@ -712,12 +714,13 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  margin-top: 1.25rem;
+  margin-top: 0.75rem;
 }
 .guided-tour-actions button {
   border: 1px solid #9daaa8;
   border-radius: 0.35rem;
-  padding: 0.55rem 0.8rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.75rem;
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -727,12 +730,19 @@ textarea {
   background: #b7e53a;
   font-weight: 700;
 }
-.guided-tour-connector {
-  position: absolute;
-  left: -2.5rem;
-  top: 2rem;
-  width: 2.5rem;
-  border-top: 1px solid #b7e53a;
+.guided-tour-open {
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.guided-tour-focus {
+  position: relative;
+  z-index: 31;
+  outline: 2px solid #b7e53a;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 5px rgb(183 229 58 / 12%);
 }
 
 .overview-demo-seed {
@@ -756,7 +766,7 @@ textarea {
 @media (max-width: 720px) {
   .guided-tour {
     right: 1rem;
-    top: 4.75rem;
+    bottom: 1rem;
   }
 }
 
@@ -1127,6 +1137,10 @@ textarea {
   padding: 7px;
   border-bottom: 1px solid rgb(255 255 255 / 17%);
   border-left: 1px solid rgb(255 255 255 / 17%);
+}
+
+.horizon-grid-cell:has(.horizon-case) {
+  justify-content: flex-start;
 }
 
 .horizon-grid-cell > small {

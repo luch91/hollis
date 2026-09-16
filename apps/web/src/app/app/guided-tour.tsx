@@ -1,49 +1,80 @@
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const steps = [
   {
-    target: "Review",
-    title: "Review a demo case",
-    body: "Open a case to inspect evidence, policy alignment, and the recorded human decision.",
+    path: "/app",
+    selector: ".overview-horizon-action",
+    title: "Open the review workspace",
+    body: "Start with the priority map, then open the review workspace.",
   },
   {
-    target: "Evidence",
-    title: "Check the evidence trail",
-    body: "Review the managed evidence references and confirm their integrity before deciding.",
+    path: "/app/review-cases",
+    selector: ".reference-case-list > a",
+    title: "Choose a case",
+    body: "Each case is its own record. Open one to follow its evidence and review trail.",
   },
   {
-    target: "Policies",
-    title: "Read the policy control",
-    body: "Every case is bound to a published policy version and one named control.",
+    path: "/app/review-cases",
+    selector: '.case-tabs a[href*="tab=evidence"]',
+    title: "Inspect the evidence",
+    body: "Open Evidence to confirm the managed references before recording judgment.",
   },
   {
-    target: "Admin",
-    title: "Confirm workspace ownership",
-    body: "Owners manage the organization profile, members, roles, and invitations here.",
+    path: "/app/review-cases",
+    selector: '.case-tabs a[href*="tab=summary"]',
+    title: "Return to the decision",
+    body: "Return to the summary when you are ready to record the human outcome.",
   },
   {
-    target: "Overview",
-    title: "Return to the review horizon",
-    body: "The Priority Map keeps open and completed demo cases visible by risk and deadline.",
+    path: "/app/review-cases",
+    selector: ".human-review-card button.reference-primary",
+    title: "Record human judgment",
+    body: "Claim the case, then choose the outcome and add a rationale. The decision stays human-authorized.",
   },
   {
-    target: "Documentation",
-    title: "Keep learning in context",
-    body: "Use the documentation menu for the complete Hollis workflow and attestation guide.",
+    path: "/app/review-cases",
+    selector: ".genlayer-panel",
+    title: "Check independent attestation",
+    body: "After human review, Hollis submits the declared process for GenLayer verification when configured.",
+  },
+  {
+    path: "/app/review-cases",
+    selector: ".export-formats a",
+    title: "Export the record",
+    body: "Finish by downloading the portable audit record in the format your reviewers need.",
   },
 ] as const;
 
 export function GuidedTour() {
   const [step, setStep] = useState<number | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     if (window.localStorage.getItem("hollis-demo-tour-complete") !== "1") setStep(0);
   }, []);
 
-  if (step === null) return null;
-  const current = steps[step] ?? steps[0];
+  const current = step === null ? null : (steps[step] ?? steps[0]);
+
+  useEffect(() => {
+    if (!current || !pathname.startsWith(current.path)) return;
+    const target = document.querySelector(current.selector);
+    target?.classList.add("guided-tour-focus");
+    const advance = (event: MouseEvent) => {
+      if (target?.contains(event.target as Node))
+        setStep((value) => (value === null || value === steps.length - 1 ? null : value + 1));
+    };
+    document.addEventListener("click", advance, true);
+    return () => {
+      target?.classList.remove("guided-tour-focus");
+      document.removeEventListener("click", advance, true);
+    };
+  }, [current, pathname]);
+
+  if (step === null || !current) return null;
   const finish = () => {
     window.localStorage.setItem("hollis-demo-tour-complete", "1");
     setStep(null);
@@ -60,6 +91,15 @@ export function GuidedTour() {
       <p className="eyebrow">Hollis demo workspace</p>
       <h2>{current.title}</h2>
       <p>{current.body}</p>
+      {!pathname.startsWith(current.path) ? (
+        <button
+          className="guided-tour-primary guided-tour-open"
+          onClick={() => router.push(current.path)}
+          type="button"
+        >
+          Open {current.title.replace(/^Open the /, "")}
+        </button>
+      ) : null}
       <div className="guided-tour-actions">
         {step > 0 ? (
           <button onClick={() => setStep(step - 1)} type="button">
@@ -78,10 +118,6 @@ export function GuidedTour() {
           </button>
         )}
       </div>
-      <span
-        aria-hidden="true"
-        className={`guided-tour-connector guided-tour-target-${current.target.toLowerCase()}`}
-      />
     </div>
   );
 }
