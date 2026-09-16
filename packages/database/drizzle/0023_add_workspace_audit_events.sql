@@ -1,4 +1,7 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE SCHEMA IF NOT EXISTS extensions;
+--> statement-breakpoint
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 --> statement-breakpoint
 
 CREATE TABLE "workspace_audit_events" (
