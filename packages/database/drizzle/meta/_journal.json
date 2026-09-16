@@ -351,6 +351,13 @@
       "when": 1789862400000,
       "tag": "0049_stage_demo_fixture_cases",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789866000000,
+      "tag": "0050_idempotent_demo_fixture_seed",
+      "breakpoints": true
     }
   ]
 }
