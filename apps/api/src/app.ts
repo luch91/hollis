@@ -638,6 +638,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           validationIssues: error.issues.map((issue) => ({
             code: issue.code,
             path: issue.path.join("."),
+            ...(issue.code === "unrecognized_keys" ? { keys: issue.keys } : {}),
           })),
         },
         "request rejected by input validation",
