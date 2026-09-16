@@ -174,7 +174,14 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, 5);
   return (
-    <section className="overview-activity petrol-panel">
+    <section
+      className="overview-activity petrol-panel"
+      data-demo-content={
+        events.length > 0 && events.every((event) => event.caseReference.startsWith("DEMO-"))
+          ? "true"
+          : undefined
+      }
+    >
       <header>
         <h2>Latest movement</h2>
         <Link href="/app/audit">
@@ -184,6 +191,7 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
       {events.length ? (
         events.map((event) => (
           <Link
+            data-demo-content={event.caseReference.startsWith("DEMO-") ? "true" : undefined}
             href={`/app/review-cases?caseId=${event.caseId}&tab=history`}
             key={`${event.caseId}:${event.eventSequence}`}
           >
@@ -207,7 +215,10 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
     .filter((reviewCase) => reviewCase.status === "escalated" || reviewCase.status === "pending")
     .slice(0, 4);
   return (
-    <section className="overview-follow-up petrol-panel">
+    <section
+      className="overview-follow-up petrol-panel"
+      data-demo-content={followUp.length > 0 && followUp.every(isDemoCase) ? "true" : undefined}
+    >
       <header>
         <h2>Cases requiring follow-up</h2>
         <Link href="/app/review-cases?status=escalated">
@@ -216,7 +227,11 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
       </header>
       {followUp.length ? (
         followUp.map((reviewCase) => (
-          <Link href={`/app/review-cases?caseId=${reviewCase.id}`} key={reviewCase.id}>
+          <Link
+            data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
+            href={`/app/review-cases?caseId=${reviewCase.id}`}
+            key={reviewCase.id}
+          >
             <div>
               <strong>{reviewCase.hollisCaseReference}</strong>
               <small>{reviewCase.externalReference}</small>
