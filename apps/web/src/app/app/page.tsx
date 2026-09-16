@@ -182,12 +182,12 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
         ...event,
         caseId: exported.case.id,
         caseReference: exported.case.hollisCaseReference,
+        isDemo: exported.case.externalReference.startsWith("DEMO-"),
       })),
     )
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, 5);
-  const allDemoEvents =
-    events.length > 0 && events.every((event) => event.caseReference.startsWith("DEMO-"));
+  const allDemoEvents = events.length > 0 && events.every((event) => event.isDemo);
   return (
     <section className="overview-activity petrol-panel">
       <header>
@@ -199,7 +199,7 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
       {events.length ? (
         events.map((event) => (
           <Link
-            data-demo-content={event.caseReference.startsWith("DEMO-") ? "true" : undefined}
+            data-demo-content={event.isDemo ? "true" : undefined}
             href={`/app/review-cases?caseId=${event.caseId}&tab=history`}
             key={`${event.caseId}:${event.eventSequence}`}
           >
