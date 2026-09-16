@@ -17,5 +17,6 @@ export function DemoVisibility() {
 
 export function markDemoComplete() {
   window.localStorage.setItem("hollis-demo-tour-complete", "1");
+  document.documentElement.classList.add("demo-content-hidden");
   window.dispatchEvent(new Event(DEMO_HIDDEN_EVENT));
 }
