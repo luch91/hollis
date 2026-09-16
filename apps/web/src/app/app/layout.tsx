@@ -13,6 +13,7 @@ import { GlobalSearch } from "./global-search";
 import { ThemeToggle } from "./theme-toggle";
 import { WorkspaceNavigation } from "./workspace-navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
+import { GuidedTour } from "./guided-tour";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -146,6 +147,7 @@ export default async function ApplicationLayout({ children }: { children: ReactN
         </header>
         <div className="workspace-canvas">{children}</div>
       </section>
+      <GuidedTour />
     </main>
   );
 }

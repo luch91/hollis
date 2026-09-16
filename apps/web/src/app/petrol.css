@@ -670,6 +670,78 @@ textarea {
   background: var(--petrol-bg);
 }
 
+.guided-tour {
+  position: fixed;
+  right: 2rem;
+  top: 5.5rem;
+  z-index: 30;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border: 1px solid rgba(183, 229, 58, 0.55);
+  border-radius: 0.75rem;
+  background: #f3efe6;
+  color: #102124;
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.32);
+}
+
+.guided-tour h2 {
+  margin: 0.35rem 0 0.5rem;
+}
+.guided-tour p:not(.eyebrow) {
+  margin: 0;
+  line-height: 1.5;
+}
+.guided-tour-progress {
+  color: #52666a;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.guided-tour-close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.guided-tour-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.guided-tour-actions button {
+  border: 1px solid #9daaa8;
+  border-radius: 0.35rem;
+  padding: 0.55rem 0.8rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.guided-tour-actions .primary-action {
+  border-color: #a6d328;
+  background: #b7e53a;
+  font-weight: 700;
+}
+.guided-tour-connector {
+  position: absolute;
+  left: -2.5rem;
+  top: 2rem;
+  width: 2.5rem;
+  border-top: 1px solid #b7e53a;
+}
+
+@media (max-width: 720px) {
+  .guided-tour {
+    right: 1rem;
+    top: 4.75rem;
+  }
+}
+
 .workspace-topbar {
   position: sticky;
   z-index: 30;
