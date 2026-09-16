@@ -276,6 +276,9 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     (databaseResource
       ? async (tenantId: string, actorId: string) => {
           await requireDatabase().execute(
+            sql`select public.cleanup_expired_hollis_demo_workspace(${tenantId}::uuid)`,
+          );
+          await requireDatabase().execute(
             sql`select public.seed_hollis_demo_workspace(${tenantId}::uuid, ${actorId}::uuid)`,
           );
         }

@@ -372,6 +372,9 @@ export function createPostgresWorkspaceProvisioningStore(
     },
     async seedDemo({ actorId, tenantId }) {
       await database.execute(
+        sql`select public.cleanup_expired_hollis_demo_workspace(${tenantId}::uuid)`,
+      );
+      await database.execute(
         sql`select public.seed_hollis_demo_workspace(${tenantId}::uuid, ${actorId}::uuid)`,
       );
     },
