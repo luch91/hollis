@@ -684,6 +684,10 @@ textarea {
   box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.32);
 }
 
+html.demo-content-hidden [data-demo-content="true"] {
+  display: none;
+}
+
 .guided-tour h2 {
   margin: 0.25rem 0 0.35rem;
   font-size: 1rem;

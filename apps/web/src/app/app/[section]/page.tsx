@@ -1,13 +1,13 @@
-import Link from "next/link";
 import type { ReviewExport } from "@hollis/contracts/review-case";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OperationalPageHeader } from "../operational-page-header";
 import {
+  type AttestationRecord,
   getReviewCase,
   getReviewExport,
   listAttestations,
   listReviewCases,
-  type AttestationRecord,
   type ReviewCaseDetail,
   type ReviewQueueItem,
 } from "../review-cases/data";
@@ -50,6 +50,7 @@ function CaseList({ cases }: { cases: ReviewQueueItem[] }) {
     <div className="workspace-list">
       {cases.map((reviewCase) => (
         <Link
+          data-demo-content={reviewCase.externalReference.startsWith("DEMO-") ? "true" : undefined}
           href={`/app/review-cases?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}`}
           key={reviewCase.id}
         >
@@ -85,6 +86,7 @@ function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
     <div className="workspace-list workspace-list-evidence">
       {items.map((evidence) => (
         <Link
+          data-demo-content={evidence.hollisCaseReference.startsWith("DEMO-") ? "true" : undefined}
           href={`/app/review-cases?status=${evidence.status === "completed" ? "completed" : "active"}&caseId=${evidence.caseId}&tab=evidence`}
           key={`${evidence.caseId}:${evidence.id}`}
         >
@@ -127,7 +129,11 @@ function ReceiptList({
         {records.length > 0 ? (
           <div className="workspace-list">
             {records.map(({ caseId, hollisCaseReference, record }) => (
-              <Link href={`/app/review-cases/${caseId}`} key={record.id}>
+              <Link
+                data-demo-content={hollisCaseReference.startsWith("DEMO-") ? "true" : undefined}
+                href={`/app/review-cases/${caseId}`}
+                key={record.id}
+              >
                 <span>
                   <strong>{hollisCaseReference}</strong>
                   <small>{record.caseCommitment}</small>
@@ -158,7 +164,13 @@ function ReceiptList({
         {awaitingAttestation.length > 0 ? (
           <div className="workspace-list">
             {awaitingAttestation.map((reviewCase) => (
-              <Link href={`/app/review-cases/${reviewCase.id}#attestation`} key={reviewCase.id}>
+              <Link
+                data-demo-content={
+                  reviewCase.externalReference.startsWith("DEMO-") ? "true" : undefined
+                }
+                href={`/app/review-cases/${reviewCase.id}#attestation`}
+                key={reviewCase.id}
+              >
                 <span>
                   <strong>{reviewCase.hollisCaseReference}</strong>
                   <small>

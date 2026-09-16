@@ -6,7 +6,6 @@ import { OperationalPageHeader } from "../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../workspace-capabilities";
 import { claimAction, decideAction, escalateAction } from "./actions";
 import { AttestationHorizon } from "./attestation-visuals";
-import { ManagedAttestationRefresh } from "./managed-attestation-refresh";
 import {
   type AttestationRecord,
   getManagedAttestationStatus,
@@ -19,6 +18,7 @@ import {
   type ReviewQueueItem,
   ReviewServiceError,
 } from "./data";
+import { ManagedAttestationRefresh } from "./managed-attestation-refresh";
 import { keyEvidenceRecords, presentAssignee } from "./review-presentation";
 
 type ReviewerProfile = {
@@ -65,6 +65,10 @@ function shortId(value: string) {
 
 function humanize(value: string) {
   return value.replaceAll("_", " ");
+}
+
+function isDemoCase(reviewCase: Pick<ReviewQueueItem, "externalReference">) {
+  return reviewCase.externalReference.startsWith("DEMO-");
 }
 
 function CaseQueue({
@@ -142,6 +146,7 @@ function CaseQueue({
           cases.map((item, index) => (
             <Link
               className={item.id === selectedId ? "is-selected" : undefined}
+              data-demo-content={isDemoCase(item) ? "true" : undefined}
               href={workspaceHref(query, { caseId: item.id })}
               key={item.id}
               style={{ "--case-index": index } as CSSProperties}
@@ -753,7 +758,10 @@ function SelectedCaseWorkspace({
     managedAttestation.submission?.status === "submitting";
   return (
     <>
-      <section className="reference-case-workspace">
+      <section
+        className="reference-case-workspace"
+        data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
+      >
         <header className="reference-case-header">
           <div className="case-kicker">
             <span>{reviewCase.hollisCaseReference}</span>

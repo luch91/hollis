@@ -3,17 +3,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { HollisBrand } from "../hollis-brand";
 import { readHollisSession } from "@/lib/hollis-session";
 import {
   revokeHollisSession,
   SessionRevocationUnavailableError,
 } from "@/lib/hollis-session-revocation";
+import { HollisBrand } from "../hollis-brand";
+import { DemoVisibility } from "./demo-visibility";
 import { GlobalSearch } from "./global-search";
+import { GuidedTour } from "./guided-tour";
 import { ThemeToggle } from "./theme-toggle";
 import { WorkspaceNavigation } from "./workspace-navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
-import { GuidedTour } from "./guided-tour";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -148,6 +149,7 @@ export default async function ApplicationLayout({ children }: { children: ReactN
         <div className="workspace-canvas">{children}</div>
       </section>
       <GuidedTour />
+      <DemoVisibility />
     </main>
   );
 }

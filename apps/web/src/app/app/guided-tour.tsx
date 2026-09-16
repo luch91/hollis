@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { markDemoComplete } from "./demo-visibility";
 
 const steps = [
   {
@@ -76,7 +77,7 @@ export function GuidedTour() {
 
   if (step === null || !current) return null;
   const finish = () => {
-    window.localStorage.setItem("hollis-demo-tour-complete", "1");
+    markDemoComplete();
     setStep(null);
   };
 

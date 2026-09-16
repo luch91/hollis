@@ -1,21 +1,25 @@
 import type { ReviewExport } from "@hollis/contracts/review-case";
 import Link from "next/link";
 import { readHollisSession } from "@/lib/hollis-session";
+import { seedDemoWorkspaceAction } from "./review-cases/actions";
 import { getReviewExport, listReviewCases, type ReviewQueueItem } from "./review-cases/data";
 import {
   caseUrgency,
   dueBucket,
-  orderHorizonCases,
   type HorizonBucket,
   type HorizonRow,
+  orderHorizonCases,
   riskRow,
 } from "./review-cases/review-presentation";
 import { canCreateReviewCases } from "./workspace-capabilities";
-import { seedDemoWorkspaceAction } from "./review-cases/actions";
 
 function formatDate(value: string | null) {
   if (!value) return "No deadline";
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function isDemoCase(reviewCase: ReviewQueueItem) {
+  return reviewCase.externalReference.startsWith("DEMO-");
 }
 
 function Horizon({
@@ -75,6 +79,7 @@ function Horizon({
                   {matching.map((reviewCase) => (
                     <Link
                       className={`horizon-case horizon-case-${column.key}${reviewCase.status === "completed" ? " horizon-case-completed" : ""}`}
+                      data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
                       href={`/app/review-cases?caseId=${reviewCase.id}`}
                       key={reviewCase.id}
                     >
@@ -123,7 +128,10 @@ function NextAction({
     );
   }
   return (
-    <aside className="overview-next-action">
+    <aside
+      className="overview-next-action"
+      data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
+    >
       <div className="overview-next-heading">
         <p className="eyebrow">Next decision</p>
         <span className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel}</span>
@@ -260,7 +268,11 @@ export default async function ApplicationPage() {
         <NextAction canCreate={canCreate} reviewCase={nextCase} />
       </div>
       {canManage && activeCases.length === 0 && completedCases.length === 0 ? (
-        <form action={seedDemoWorkspaceAction} className="overview-demo-seed">
+        <form
+          action={seedDemoWorkspaceAction}
+          className="overview-demo-seed"
+          data-demo-content="true"
+        >
           <p className="eyebrow">Demo workspace</p>
           <h2>Explore Hollis with synthetic cases.</h2>
           <p>

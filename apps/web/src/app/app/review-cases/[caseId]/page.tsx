@@ -4,13 +4,13 @@ import { readHollisSession } from "@/lib/hollis-session";
 import { OperationalPageHeader } from "../../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../../workspace-capabilities";
 import { claimAction, decideAction, escalateAction, uploadEvidenceAction } from "../actions";
+import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
 import {
   getManagedAttestationStatus,
   getReviewCase,
   listAttestations,
   listPublicAttestationCaseFiles,
 } from "../data";
-import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
 import { ManagedAttestationRefresh } from "../managed-attestation-refresh";
 import { keyEvidenceRecords } from "../review-presentation";
 
@@ -52,9 +52,10 @@ export default async function ReviewCasePage({
   const managedPublicCaseFile = publicCaseFiles.find(
     (item) => item.publicCaseFileUrl === managedAttestation.submission?.publicCaseFileUrl,
   );
+  const isDemoCase = reviewCase.externalReference.startsWith("DEMO-");
 
   return (
-    <div className="review-case-page">
+    <div className="review-case-page" data-demo-content={isDemoCase ? "true" : undefined}>
       <OperationalPageHeader
         eyebrow="Review workspace"
         summary="Investigate consequential decisions with clear evidence, policy context, and accountable human judgment."

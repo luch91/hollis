@@ -78,7 +78,7 @@ Copy-Item .env.example .env
 
 The API normally runs on `http://localhost:4000`; the web app normally runs on `http://localhost:3000`.
 
-`.env` is ignored. Never commit credentials, private keys, connection strings, session tokens, or storage credentials. Use [.env.example](.env.example) for the complete names-only configuration template.
+`.env` is ignored. Never commit credentials, private keys, connection strings, session tokens, or storage credentials. Use [.env.example](.env.example) for the configuration names, safe local defaults, and provider placeholders.
 
 ## Core workflow
 
@@ -101,6 +101,7 @@ Customers do not operate Studio, fund a wallet, or enter a transaction hash duri
 - [Incident response](docs/runbooks/incident-response.md)
 - [Contribution rules](CONTRIBUTING.md)
 - [Non-negotiables](docs/non-negotiables.md)
+- [Demo fixtures](docs/demo-fixtures.md)
 
 Dated QA reports and earlier readiness snapshots are retained as historical evidence. They are not current deployment instructions.
 
