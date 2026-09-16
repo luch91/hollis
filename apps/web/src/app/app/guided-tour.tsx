@@ -43,7 +43,7 @@ export function GuidedTour() {
   }, []);
 
   if (step === null) return null;
-  const current = steps[step]!;
+  const current = steps[step] ?? steps[0];
   const finish = () => {
     window.localStorage.setItem("hollis-demo-tour-complete", "1");
     setStep(null);
@@ -69,11 +69,11 @@ export function GuidedTour() {
           <span />
         )}
         {step === steps.length - 1 ? (
-          <button className="primary-action" onClick={finish} type="button">
+          <button className="guided-tour-primary" onClick={finish} type="button">
             Finish
           </button>
         ) : (
-          <button className="primary-action" onClick={() => setStep(step + 1)} type="button">
+          <button className="guided-tour-primary" onClick={() => setStep(step + 1)} type="button">
             Next
           </button>
         )}

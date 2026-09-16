@@ -11,6 +11,7 @@ import {
   riskRow,
 } from "./review-cases/review-presentation";
 import { canCreateReviewCases } from "./workspace-capabilities";
+import { seedDemoWorkspaceAction } from "./review-cases/actions";
 
 function formatDate(value: string | null) {
   if (!value) return "No deadline";
@@ -232,6 +233,9 @@ export default async function ApplicationPage() {
     listReviewCases("completed"),
   ]);
   const canCreate = canCreateReviewCases(session?.session.activeWorkspace?.role ?? "");
+  const canManage = ["owner", "administrator"].includes(
+    session?.session.activeWorkspace?.role ?? "",
+  );
   const now = new Date();
   const nextCase =
     [...activeCases]
@@ -256,6 +260,19 @@ export default async function ApplicationPage() {
         />
         <NextAction canCreate={canCreate} reviewCase={nextCase} />
       </div>
+      {canManage && activeCases.length === 0 && completedCases.length === 0 ? (
+        <form action={seedDemoWorkspaceAction} className="overview-demo-seed">
+          <p className="eyebrow">Demo workspace</p>
+          <h2>Explore Hollis with synthetic cases.</h2>
+          <p>
+            Load three clearly labelled DEMO cases for a guided review workflow. They expire after
+            14 days.
+          </p>
+          <button className="primary-action" type="submit">
+            Load DEMO cases
+          </button>
+        </form>
+      ) : null}
       <div className="overview-secondary-grid">
         <Activity exports={caseExports} />
         <FollowUp cases={activeCases} />

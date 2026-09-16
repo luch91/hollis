@@ -722,7 +722,7 @@ textarea {
   color: inherit;
   cursor: pointer;
 }
-.guided-tour-actions .primary-action {
+.guided-tour-actions .guided-tour-primary {
   border-color: #a6d328;
   background: #b7e53a;
   font-weight: 700;
@@ -733,6 +733,24 @@ textarea {
   top: 2rem;
   width: 2.5rem;
   border-top: 1px solid #b7e53a;
+}
+
+.overview-demo-seed {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.overview-demo-seed h2,
+.overview-demo-seed p {
+  margin: 0;
+}
+.overview-demo-seed .primary-action {
+  justify-self: start;
+  margin-top: 0.5rem;
 }
 
 @media (max-width: 720px) {

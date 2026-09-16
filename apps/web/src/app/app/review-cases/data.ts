@@ -203,6 +203,10 @@ export function recoverWorkspace() {
   });
 }
 
+export function seedDemoWorkspace() {
+  return request<void>("/v1/workspace/demo", { method: "POST" });
+}
+
 export function listReviewCases(status?: ReviewQueueItem["status"]) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
   return request<ReviewQueueItem[]>(`/v1/review-cases${query}`);

@@ -440,6 +440,24 @@ export const policyControls = pgTable(
   ],
 );
 
+export const demoWorkspaceFixtures = pgTable(
+  "demo_workspace_fixtures",
+  {
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    policyVersionId: uuid("policy_version_id")
+      .notNull()
+      .references(() => policyVersions.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("demo_workspace_fixtures_expiry_idx").on(table.expiresAt)],
+);
+
 export const policyContractDeployments = pgTable(
   "policy_contract_deployments",
   {
