@@ -633,6 +633,15 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     }
 
     if (error instanceof z.ZodError) {
+      app.log.warn(
+        {
+          validationIssues: error.issues.map((issue) => ({
+            code: issue.code,
+            path: issue.path.join("."),
+          })),
+        },
+        "request rejected by input validation",
+      );
       return reply
         .code(400)
         .send({ code: "invalid_request", message: "Request validation failed." });

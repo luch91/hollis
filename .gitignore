@@ -32,6 +32,7 @@ Thumbs.db
 playwright-report/
 test-results/
 local-evidence/
+artifacts/
 
 # Python contract tooling
 __pycache__/
