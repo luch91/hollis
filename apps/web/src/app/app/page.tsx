@@ -128,36 +128,49 @@ function NextAction({
     );
   }
   return (
-    <aside
-      className="overview-next-action"
-      data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
-    >
-      <div className="overview-next-heading">
-        <p className="eyebrow">Next decision</p>
-        <span className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel}</span>
+    <aside className="overview-next-action">
+      <div data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}>
+        <div className="overview-next-heading">
+          <p className="eyebrow">Next decision</p>
+          <span className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel}</span>
+        </div>
+        <h2>{reviewCase.externalReference}</h2>
+        <p>
+          {reviewCase.recommendation.replaceAll("_", " ")} recommendation requiring an accountable
+          human outcome.
+        </p>
+        <dl>
+          <div>
+            <dt>Case</dt>
+            <dd>{reviewCase.hollisCaseReference}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{reviewCase.status.replaceAll("_", " ")}</dd>
+          </div>
+          <div>
+            <dt>Due</dt>
+            <dd>{formatDate(reviewCase.reviewDueAt)}</dd>
+          </div>
+        </dl>
+        <Link href={`/app/review-cases?caseId=${reviewCase.id}`}>
+          Open case <span>›</span>
+        </Link>
       </div>
-      <h2>{reviewCase.externalReference}</h2>
-      <p>
-        {reviewCase.recommendation.replaceAll("_", " ")} recommendation requiring an accountable
-        human outcome.
-      </p>
-      <dl>
-        <div>
-          <dt>Case</dt>
-          <dd>{reviewCase.hollisCaseReference}</dd>
+      {isDemoCase(reviewCase) ? (
+        <div className="overview-next-action-empty demo-empty-next-action">
+          <p className="eyebrow">Queue clear</p>
+          <h2>No active decision requires review.</h2>
+          <p>New cases will appear here after they are bound to a published policy control.</p>
+          {canCreate ? (
+            <Link href="/app/review-cases/new">
+              New review case <span>›</span>
+            </Link>
+          ) : (
+            <small>Read-only workspace access</small>
+          )}
         </div>
-        <div>
-          <dt>Status</dt>
-          <dd>{reviewCase.status.replaceAll("_", " ")}</dd>
-        </div>
-        <div>
-          <dt>Due</dt>
-          <dd>{formatDate(reviewCase.reviewDueAt)}</dd>
-        </div>
-      </dl>
-      <Link href={`/app/review-cases?caseId=${reviewCase.id}`}>
-        Open case <span>›</span>
-      </Link>
+      ) : null}
     </aside>
   );
 }
@@ -173,15 +186,10 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
     )
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, 5);
+  const allDemoEvents =
+    events.length > 0 && events.every((event) => event.caseReference.startsWith("DEMO-"));
   return (
-    <section
-      className="overview-activity petrol-panel"
-      data-demo-content={
-        events.length > 0 && events.every((event) => event.caseReference.startsWith("DEMO-"))
-          ? "true"
-          : undefined
-      }
-    >
+    <section className="overview-activity petrol-panel">
       <header>
         <h2>Latest movement</h2>
         <Link href="/app/audit">
@@ -206,6 +214,11 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
       ) : (
         <p className="petrol-empty">No review activity has been recorded.</p>
       )}
+      {allDemoEvents ? (
+        <p className="petrol-empty demo-empty-overview-state">
+          No review activity has been recorded.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -214,11 +227,9 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
   const followUp = cases
     .filter((reviewCase) => reviewCase.status === "escalated" || reviewCase.status === "pending")
     .slice(0, 4);
+  const allDemoFollowUp = followUp.length > 0 && followUp.every(isDemoCase);
   return (
-    <section
-      className="overview-follow-up petrol-panel"
-      data-demo-content={followUp.length > 0 && followUp.every(isDemoCase) ? "true" : undefined}
-    >
+    <section className="overview-follow-up petrol-panel">
       <header>
         <h2>Cases requiring follow-up</h2>
         <Link href="/app/review-cases?status=escalated">
@@ -244,6 +255,11 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
       ) : (
         <p className="petrol-empty">No pending or escalated case requires follow-up.</p>
       )}
+      {allDemoFollowUp ? (
+        <p className="petrol-empty demo-empty-overview-state">
+          No pending or escalated case requires follow-up.
+        </p>
+      ) : null}
     </section>
   );
 }

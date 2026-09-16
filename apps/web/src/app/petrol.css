@@ -688,6 +688,22 @@ html.demo-content-hidden [data-demo-content="true"] {
   display: none;
 }
 
+.demo-empty-next-action {
+  display: none;
+}
+
+.demo-empty-overview-state {
+  display: none;
+}
+
+html.demo-content-hidden .demo-empty-next-action {
+  display: block;
+}
+
+html.demo-content-hidden .demo-empty-overview-state {
+  display: block;
+}
+
 .guided-tour h2 {
   margin: 0.25rem 0 0.35rem;
   font-size: 1rem;
