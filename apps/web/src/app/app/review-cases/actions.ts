@@ -83,16 +83,30 @@ function policySourceMediaType(file: File): string | null {
   return null;
 }
 
-export async function createWorkspacePolicyAction(formData: FormData) {
+export type PolicyPublicationState =
+  | { status: "idle" }
+  | {
+      policyId: string;
+      policyVersionId: string;
+      status: "published";
+      title: string;
+      version: string;
+    }
+  | { code: string | null; status: "conflict" | "error" | "permission" | "source" | "unavailable" };
+
+export async function createWorkspacePolicyAction(
+  _previousState: PolicyPublicationState,
+  formData: FormData,
+): Promise<PolicyPublicationState> {
   const policyId = requiredValue(formData, "policyId");
   const version = requiredValue(formData, "version");
   const controlId = requiredValue(formData, "controlId");
   const sourceFile = formData.get("policySourceFile");
   if (!(sourceFile instanceof File) || sourceFile.size === 0 || sourceFile.size > 5_242_880) {
-    redirect("/app/policy?publish=source-file-invalid");
+    return { code: "source-file-invalid", status: "source" };
   }
   const mediaType = policySourceMediaType(sourceFile);
-  if (!mediaType) redirect("/app/policy?publish=source-file-type-required");
+  if (!mediaType) return { code: "source-file-type-required", status: "source" };
   let source: Awaited<ReturnType<typeof uploadWorkspacePolicySource>>;
   try {
     source = await uploadWorkspacePolicySource({
@@ -100,7 +114,7 @@ export async function createWorkspacePolicyAction(formData: FormData) {
       fileName: sourceFile.name,
       mediaType,
     });
-    await createWorkspacePolicy({
+    const policy = await createWorkspacePolicy({
       controls: [
         {
           attestationCriterion: requiredValue(formData, "attestationCriterion"),
@@ -126,19 +140,32 @@ export async function createWorkspacePolicyAction(formData: FormData) {
       title: requiredValue(formData, "title"),
       version,
     });
+    revalidatePath("/app/policy");
+    revalidatePath("/app/review-cases/new");
+    return {
+      policyId: policy.policyId,
+      policyVersionId: policy.id,
+      status: "published",
+      title: policy.title,
+      version: policy.version,
+    };
   } catch (error) {
     if (error instanceof ReviewServiceError && error.code === "policy_version_conflict") {
-      revalidatePath("/app/policy");
-      redirect("/app/policy?publish=conflict");
+      return { code: error.code, status: "conflict" };
     }
-    if (error instanceof ReviewServiceError && error.code?.startsWith("policy_source_")) {
-      redirect(`/app/policy?publish=${encodeURIComponent(error.code)}`);
+    if (error instanceof ReviewServiceError) {
+      if (error.status === 401) return { code: error.code, status: "permission" };
+      if (error.status === 403) return { code: error.code, status: "permission" };
+      if (error.status === 503 || error.code === "policy_source_storage_unconfigured") {
+        return { code: error.code, status: "unavailable" };
+      }
+      if (error.code?.startsWith("policy_source_")) {
+        return { code: error.code, status: "source" };
+      }
+      return { code: error.code, status: "error" };
     }
-    throw error;
+    return { code: null, status: "error" };
   }
-  revalidatePath("/app/policy");
-  revalidatePath("/app/review-cases/new");
-  redirect("/app/policy");
 }
 
 export async function deployPolicyContractAction(formData: FormData) {

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { readHollisSession } from "@/lib/hollis-session";
 import { OperationalPageHeader } from "../operational-page-header";
-import { createWorkspacePolicyAction } from "../review-cases/actions";
 import { listWorkspacePolicies } from "../review-cases/data";
+import { PolicyPublisher } from "./policy-publisher";
 
 export default async function PolicyLibraryPage({
   searchParams,
@@ -98,82 +98,7 @@ export default async function PolicyLibraryPage({
           )}
         </section>
         {canManagePolicies ? (
-          <form
-            action={createWorkspacePolicyAction}
-            className="policy-library-form"
-            encType="multipart/form-data"
-          >
-            <p className="eyebrow">Owner and administrator action</p>
-            <h2>Publish a policy version</h2>
-            <p>
-              Publishing creates an immutable policy version and its first control. Add a new policy
-              version when the rule changes.
-            </p>
-            <label>
-              Policy title
-              <input name="title" maxLength={160} required />
-            </label>
-            <label>
-              Policy ID
-              <input name="policyId" pattern="[a-z][a-z0-9-]{0,127}" required />
-            </label>
-            <label>
-              Version
-              <input name="version" maxLength={128} required />
-            </label>
-            <label>
-              Policy source document
-              <input
-                accept=".pdf,.docx,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
-                name="policySourceFile"
-                type="file"
-                required
-              />
-              <span>
-                PDF, DOCX, Markdown, or plain text, up to 5 MB. Hollis calculates and locks the
-                SHA-256 digest when you publish.
-              </span>
-            </label>
-            <fieldset>
-              <legend>First control</legend>
-              <label>
-                Control title
-                <input name="controlTitle" maxLength={160} required />
-              </label>
-              <label>
-                Control ID
-                <input name="controlId" maxLength={128} required />
-              </label>
-              <label>
-                Control version
-                <input name="controlVersion" maxLength={128} required />
-              </label>
-              <label>
-                Attestation criterion
-                <textarea name="attestationCriterion" maxLength={1000} required />
-              </label>
-              <label>
-                Evidence requirement
-                <select name="evidenceRequirement" defaultValue="verified_reference_required">
-                  <option value="verified_reference_required">
-                    Verified evidence reference required
-                  </option>
-                  <option value="reference_required">Evidence reference required</option>
-                  <option value="none">No evidence reference required</option>
-                </select>
-              </label>
-              <label>
-                Interpretation
-                <select name="interpretation" defaultValue="deterministic">
-                  <option value="deterministic">Deterministic process check</option>
-                  <option value="judgment_required">Judgment required</option>
-                </select>
-              </label>
-            </fieldset>
-            <button className="reference-primary" type="submit">
-              Publish policy version <span>›</span>
-            </button>
-          </form>
+          <PolicyPublisher />
         ) : (
           <aside className="policy-library-form">
             <p className="eyebrow">Read-only access</p>

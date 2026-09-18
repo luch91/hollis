@@ -2764,6 +2764,44 @@ main.auth-shell::after {
   color: var(--petrol-ink);
 }
 
+.policy-publication-result {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--petrol-line-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.policy-publication-result p {
+  margin: 0;
+}
+
+.policy-publication-result strong {
+  color: var(--petrol-ink);
+  font-family: "Hollis Serif", Georgia, serif;
+  font-size: 18px;
+}
+
+.policy-publication-result a {
+  color: var(--petrol-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.policy-publication-success {
+  border-color: color-mix(in srgb, var(--petrol-positive) 52%, var(--petrol-line));
+  background: var(--petrol-positive-soft);
+  color: var(--petrol-muted);
+}
+
+.policy-publication-error {
+  border-color: color-mix(in srgb, var(--petrol-coral) 46%, var(--petrol-line));
+  background: var(--petrol-coral-soft);
+  color: var(--petrol-ink);
+}
+
 .back-link,
 .new-review-case-heading > a,
 .policy-library-heading > a,
