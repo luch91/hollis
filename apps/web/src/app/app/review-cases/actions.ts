@@ -17,17 +17,7 @@ import {
   ReviewServiceError,
   uploadWorkspacePolicySource,
   verifyEvidence,
-  seedDemoWorkspace,
 } from "./data";
-
-export async function seedDemoWorkspaceAction() {
-  await seedDemoWorkspace();
-  revalidatePath("/app");
-  revalidatePath("/app/review-cases");
-  revalidatePath("/app/evidence");
-  revalidatePath("/app/policy");
-  redirect("/app");
-}
 
 function requiredValue(formData: FormData, name: string): string {
   const value = String(formData.get(name) ?? "").trim();

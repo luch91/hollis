@@ -358,6 +358,13 @@
       "when": 1789866000000,
       "tag": "0050_idempotent_demo_fixture_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1789869600000,
+      "tag": "0051_remove_demo_workspace_fixtures",
+      "breakpoints": true
     }
   ]
 }

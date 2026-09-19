@@ -67,10 +67,6 @@ function humanize(value: string) {
   return value.replaceAll("_", " ");
 }
 
-function isDemoCase(reviewCase: Pick<ReviewQueueItem, "externalReference">) {
-  return reviewCase.externalReference.startsWith("DEMO-");
-}
-
 function CaseQueue({
   canCreate,
   cases,
@@ -146,7 +142,6 @@ function CaseQueue({
           cases.map((item, index) => (
             <Link
               className={item.id === selectedId ? "is-selected" : undefined}
-              data-demo-content={isDemoCase(item) ? "true" : undefined}
               href={workspaceHref(query, { caseId: item.id })}
               key={item.id}
               style={{ "--case-index": index } as CSSProperties}
@@ -758,10 +753,7 @@ function SelectedCaseWorkspace({
     managedAttestation.submission?.status === "submitting";
   return (
     <>
-      <section
-        className="reference-case-workspace"
-        data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
-      >
+      <section className="reference-case-workspace">
         <header className="reference-case-header">
           <div className="case-kicker">
             <span>{reviewCase.hollisCaseReference}</span>

@@ -46,7 +46,6 @@ function databaseDiagnostic(error: unknown): string {
 
 export interface WorkspaceProvisioningStore {
   provision(input: { creatorUserId: string; name: string }): Promise<WorkspaceProvisioningRecord>;
-  seedDemo?(input: { actorId: string; tenantId: string }): Promise<void>;
 }
 
 export interface WorkspaceProvisioner {
@@ -59,10 +58,7 @@ export function createHollisWorkspaceProvisioner(
   return {
     async create(input) {
       try {
-        const workspace = await store.provision({ creatorUserId: input.userId, name: input.name });
-        if (store.seedDemo)
-          await store.seedDemo({ actorId: input.userId, tenantId: workspace.tenantId });
-        return workspace;
+        return await store.provision({ creatorUserId: input.userId, name: input.name });
       } catch (error) {
         throw new WorkspaceProvisioningError(
           "tenant_provisioning_failed",

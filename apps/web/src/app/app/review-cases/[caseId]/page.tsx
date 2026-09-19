@@ -52,10 +52,8 @@ export default async function ReviewCasePage({
   const managedPublicCaseFile = publicCaseFiles.find(
     (item) => item.publicCaseFileUrl === managedAttestation.submission?.publicCaseFileUrl,
   );
-  const isDemoCase = reviewCase.externalReference.startsWith("DEMO-");
-
   return (
-    <div className="review-case-page" data-demo-content={isDemoCase ? "true" : undefined}>
+    <div className="review-case-page">
       <OperationalPageHeader
         eyebrow="Review workspace"
         summary="Investigate consequential decisions with clear evidence, policy context, and accountable human judgment."

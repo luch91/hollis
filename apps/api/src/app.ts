@@ -15,7 +15,6 @@ import {
 } from "@hollis/contracts";
 import { createDatabase } from "@hollis/database";
 import Fastify, { LogController } from "fastify";
-import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type {
   AttestationProvider,
@@ -182,7 +181,6 @@ type AppDependencies = {
     actorId: string,
   ) => Promise<boolean>;
   workspaceProvisioner?: WorkspaceProvisioner;
-  demoWorkspaceSeeder?: (tenantId: string, actorId: string) => Promise<void>;
   unscopedAccessTokenVerifier?: UnscopedAccessTokenVerifier;
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
@@ -271,18 +269,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const workspaceProvisioner =
     dependencies.workspaceProvisioner ??
     createHollisWorkspaceProvisioner(createPostgresWorkspaceProvisioningStore(requireDatabase()));
-  const demoWorkspaceSeeder =
-    dependencies.demoWorkspaceSeeder ??
-    (databaseResource
-      ? async (tenantId: string, actorId: string) => {
-          await requireDatabase().execute(
-            sql`select public.cleanup_expired_hollis_demo_workspace(${tenantId}::uuid)`,
-          );
-          await requireDatabase().execute(
-            sql`select public.seed_hollis_demo_workspace(${tenantId}::uuid, ${actorId}::uuid)`,
-          );
-        }
-      : null);
   const applicationSessionStore =
     dependencies.applicationSessionStore ??
     createPostgresApplicationSessionStore(requireDatabase());
@@ -896,24 +882,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     );
     return workspaceControlsStore.listUserWorkspaces(principal.userId);
   });
-
-  app.post(
-    "/v1/workspace/demo",
-    {
-      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
-    },
-    async (request, reply) => {
-      if (!demoWorkspaceSeeder) {
-        return reply.code(503).send({
-          code: "demo_fixture_unconfigured",
-          message: "Demo workspace fixtures are not configured.",
-        });
-      }
-      const { principal, tenant } = requireRequestContext(request);
-      await demoWorkspaceSeeder(tenant.id, principal.userId);
-      return reply.code(204).send();
-    },
-  );
 
   app.post(
     "/v1/workspace-invitations/accept",

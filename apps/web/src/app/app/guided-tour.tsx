@@ -2,7 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { markDemoComplete } from "./demo-visibility";
+
+const tourCompleteKey = "hollis-guided-tour-complete";
 
 const steps = [
   {
@@ -55,7 +56,7 @@ export function GuidedTour() {
   const router = useRouter();
 
   useEffect(() => {
-    if (window.localStorage.getItem("hollis-demo-tour-complete") !== "1") setStep(0);
+    if (window.localStorage.getItem(tourCompleteKey) !== "1") setStep(0);
   }, []);
 
   const current = step === null ? null : (steps[step] ?? steps[0]);
@@ -77,19 +78,19 @@ export function GuidedTour() {
 
   if (step === null || !current) return null;
   const finish = () => {
-    markDemoComplete();
+    window.localStorage.setItem(tourCompleteKey, "1");
     setStep(null);
   };
 
   return (
-    <div aria-label="Hollis demo tour" className="guided-tour" role="dialog">
+    <div aria-label="Hollis guided tour" className="guided-tour" role="dialog">
       <div className="guided-tour-progress">
         {step + 1} of {steps.length}
       </div>
       <button aria-label="Close tour" className="guided-tour-close" onClick={finish} type="button">
         ×
       </button>
-      <p className="eyebrow">Hollis demo workspace</p>
+      <p className="eyebrow">Hollis guided tour</p>
       <h2>{current.title}</h2>
       <p>{current.body}</p>
       {!pathname.startsWith(current.path) ? (
