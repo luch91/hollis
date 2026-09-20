@@ -10,7 +10,7 @@ import {
 import { reviewExportSchema } from "@hollis/contracts";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   createPostgresReviewIntakeStore,
   createPostgresEvidenceMetadataStore,
@@ -266,6 +266,42 @@ describe("PostgreSQL review intake", () => {
     expect(storedUpload).toEqual({ failureCode: "verification_failed", state: "failed" });
     const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
     expect(events.some((event) => event.eventType === "evidence_upload_failed")).toBe(true);
+  });
+
+  it("bounds cleanup of expired quarantine objects and records the cleanup", async () => {
+    const draft = await createReviewIntake(
+      { ...input, externalReference: `expired_upload_${randomUUID()}` },
+      { actorId: "user_01", tenantId },
+      store,
+    );
+    const expiredId = randomUUID();
+    const objectName = `tenants/${tenantId}/evidence/quarantine/${expiredId}`;
+    await owner.database.insert(evidenceUploads).values({
+      caseId: draft.id,
+      digest: `sha256:${"f".repeat(64)}`,
+      expiresAt: new Date(Date.now() - 1_000),
+      id: expiredId,
+      mediaType: "application/pdf",
+      quarantineObjectName: objectName,
+      sizeBytes: 128,
+      tenantId,
+    });
+    const deleteObject = vi.fn().mockResolvedValue(undefined);
+    await createEvidenceUpload(
+      tenantId,
+      draft.id,
+      { digest: `sha256:${"1".repeat(64)}`, mediaType: "application/pdf", sizeBytes: 128 },
+      { ...testStorage, delete: deleteObject },
+      evidenceMetadataStore,
+    );
+    expect(deleteObject).toHaveBeenCalledWith(tenantId, objectName);
+    const [storedUpload] = await owner.database
+      .select({ state: evidenceUploads.state })
+      .from(evidenceUploads)
+      .where(eq(evidenceUploads.id, expiredId));
+    expect(storedUpload).toEqual({ state: "cleaned" });
+    const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
+    expect(events.some((event) => event.eventType === "evidence_quarantine_cleaned")).toBe(true);
   });
 
   it("enforces claim, escalation, handoff, and human decision transitions", async () => {

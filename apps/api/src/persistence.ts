@@ -1890,6 +1890,49 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
         return true;
       });
     },
+    async listExpired(tenantId, limit) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        return transaction
+          .select({ caseId: evidenceUploads.caseId, evidenceId: evidenceUploads.id, objectName: evidenceUploads.quarantineObjectName })
+          .from(evidenceUploads)
+          .where(
+            and(
+              eq(evidenceUploads.tenantId, tenantId),
+              inArray(evidenceUploads.state, ["quarantined", "failed"]),
+              sql`${evidenceUploads.expiresAt} <= now()`,
+            ),
+          )
+          .orderBy(asc(evidenceUploads.expiresAt))
+          .limit(limit);
+      });
+    },
+    async markQuarantineCleaned(tenantId, caseId, evidenceId) {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [cleaned] = await transaction
+          .update(evidenceUploads)
+          .set({ state: "cleaned", updatedAt: new Date() })
+          .where(
+            and(
+              eq(evidenceUploads.tenantId, tenantId),
+              eq(evidenceUploads.caseId, caseId),
+              eq(evidenceUploads.id, evidenceId),
+              inArray(evidenceUploads.state, ["quarantined", "failed"]),
+            ),
+          )
+          .returning({ digest: evidenceUploads.digest, id: evidenceUploads.id });
+        if (!cleaned) return;
+        await appendEvent(transaction, {
+          actorId: "system:evidence-cleanup",
+          caseId,
+          eventType: "evidence_quarantine_cleaned",
+          occurredAt: new Date(),
+          payload: { digest: cleaned.digest, evidenceId: cleaned.id },
+          tenantId,
+        });
+      });
+    },
   };
 }
 

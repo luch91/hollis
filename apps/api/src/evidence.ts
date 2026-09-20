@@ -71,6 +71,32 @@ export interface EvidenceMetadataStore {
     evidenceId: string,
     actorId: string,
   ): Promise<boolean>;
+  listExpired?(
+    tenantId: string,
+    limit: number,
+  ): Promise<Array<{ caseId: string; evidenceId: string; objectName: string }>>;
+  markQuarantineCleaned?(
+    tenantId: string,
+    caseId: string,
+    evidenceId: string,
+  ): Promise<void>;
+}
+
+async function cleanupExpiredEvidenceUploads(
+  tenantId: string,
+  storage: EvidenceStorage,
+  metadata: EvidenceMetadataStore,
+) {
+  const expired = await metadata.listExpired?.(tenantId, 25);
+  if (!expired?.length) return;
+  for (const upload of expired) {
+    try {
+      await storage.delete(tenantId, upload.objectName);
+      await metadata.markQuarantineCleaned?.(tenantId, upload.caseId, upload.evidenceId);
+    } catch {
+      // Leave the row available for a later bounded cleanup attempt.
+    }
+  }
 }
 
 export async function createEvidenceUpload(
@@ -80,6 +106,7 @@ export async function createEvidenceUpload(
   storage: EvidenceStorage,
   metadata: EvidenceMetadataStore,
 ): Promise<EvidenceUploadResult> {
+  await cleanupExpiredEvidenceUploads(tenantId, storage, metadata);
   const id = randomUUID();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
   const objectName = `tenants/${tenantId}/evidence/quarantine/${id}`;
