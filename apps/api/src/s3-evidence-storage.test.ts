@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -46,7 +47,7 @@ describe("S3 evidence storage", () => {
         return { ContentLength: content.byteLength, ContentType: "text/plain" };
       }
       if (command instanceof GetObjectCommand) {
-        return { Body: { transformToByteArray: async () => content } };
+        return { Body: Readable.from([content]) };
       }
       throw new Error("Unexpected S3 command.");
     });
@@ -64,6 +65,8 @@ describe("S3 evidence storage", () => {
       digest,
       mediaType: "text/plain",
       objectName,
+      providerEtag: null,
+      providerVersion: null,
       sizeBytes: content.byteLength,
     });
   });

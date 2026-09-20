@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import type { BlobServiceClient } from "@azure/storage-blob";
 import { describe, expect, it, vi } from "vitest";
 import { createAzureBlobEvidenceStorage } from "./azure-blob-evidence-storage.js";
@@ -11,7 +12,7 @@ const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
 function blobClient() {
   return {
     deleteIfExists: vi.fn().mockResolvedValue(undefined),
-    downloadToBuffer: vi.fn().mockResolvedValue(content),
+    download: vi.fn().mockResolvedValue({ readableStreamBody: Readable.from([content]) }),
     exists: vi.fn().mockResolvedValue(false),
     getProperties: vi.fn().mockResolvedValue({
       contentLength: content.byteLength,
@@ -62,6 +63,8 @@ describe("Azure Blob evidence storage", () => {
       digest,
       mediaType: "text/plain",
       objectName,
+      providerEtag: null,
+      providerVersion: null,
       sizeBytes: content.byteLength,
     });
   });
