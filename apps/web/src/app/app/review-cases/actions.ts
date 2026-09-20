@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   claimReviewCase,
   createEvidenceUpload,
+  removeEvidence,
   createPublicAttestationCaseFile,
   createReviewCase,
   createWorkspacePolicy,
@@ -242,6 +243,15 @@ export async function uploadEvidenceAction(formData: FormData) {
   }
   await verifyEvidence(caseId, upload.evidenceId);
   revalidateWorkspace(caseId);
+}
+
+export async function removeEvidenceAction(formData: FormData) {
+  const caseId = String(formData.get("caseId") ?? "");
+  const evidenceId = String(formData.get("evidenceId") ?? "");
+  if (!caseId || !evidenceId) throw new Error("Evidence removal requires a case and evidence reference.");
+  await removeEvidence(caseId, evidenceId);
+  revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 export async function claimAction(formData: FormData) {

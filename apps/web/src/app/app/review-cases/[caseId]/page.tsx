@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
 import { OperationalPageHeader } from "../../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../../workspace-capabilities";
-import { claimAction, decideAction, escalateAction, uploadEvidenceAction } from "../actions";
+import {
+  claimAction,
+  decideAction,
+  escalateAction,
+  removeEvidenceAction,
+  uploadEvidenceAction,
+} from "../actions";
 import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
 import {
   getManagedAttestationStatus,
@@ -121,9 +127,18 @@ export default async function ReviewCasePage({
             <div className="evidence-panel">
               <h2>Evidence references</h2>
               {keyEvidenceRecords(reviewCase.evidence).map(({ key, record: evidence }) => (
-                <p key={key}>
-                  {evidence.id} · {evidence.mediaType} · {evidence.digest}
-                </p>
+                <div key={key}>
+                  <p>
+                    {evidence.id} · {evidence.mediaType} · {evidence.digest}
+                  </p>
+                  {canCreate && (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
+                    <form action={removeEvidenceAction}>
+                      <input name="caseId" type="hidden" value={caseId} />
+                      <input name="evidenceId" type="hidden" value={evidence.id} />
+                      <button type="submit">Remove evidence</button>
+                    </form>
+                  ) : null}
+                </div>
               ))}
             </div>
           </div>

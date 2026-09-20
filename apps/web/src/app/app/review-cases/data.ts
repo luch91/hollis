@@ -354,6 +354,12 @@ export function verifyEvidence(caseId: string, evidenceId: string) {
   });
 }
 
+export function removeEvidence(caseId: string, evidenceId: string) {
+  return request<void>(`/v1/review-cases/${caseId}/evidence/${evidenceId}`, {
+    method: "DELETE",
+  });
+}
+
 export function listAttestations(caseId: string) {
   return request<AttestationRecord[]>(`/v1/review-cases/${caseId}/attestations`);
 }
