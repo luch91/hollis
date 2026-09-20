@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const reviewStatus = pgEnum("review_status", [
+  "draft",
   "pending",
   "in_review",
   "completed",
@@ -25,6 +26,11 @@ export const eventType = pgEnum("review_event_type", [
   "case_created",
   "review_started",
   "evidence_added",
+  "evidence_removed",
+  "evidence_superseded",
+  "evidence_verified",
+  "evidence_upload_failed",
+  "evidence_quarantine_cleaned",
   "decision_recorded",
   "case_escalated",
   "attestation_recorded",
@@ -240,6 +246,8 @@ export const reviewCases = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     decidedByUserId: text("decided_by_user_id"),
     evidence: jsonb("evidence").notNull(),
+    evidenceFrozenAt: timestamp("evidence_frozen_at", { withTimezone: true }),
+    evidenceLegacy: boolean("evidence_legacy").notNull().default(false),
     externalReference: text("external_reference").notNull(),
     escalationReason: text("escalation_reason"),
     escalatedAt: timestamp("escalated_at", { withTimezone: true }),
@@ -281,25 +289,74 @@ export const reviewCases = pgTable(
 export const evidenceObjects = pgTable(
   "evidence_objects",
   {
-    caseId: uuid("case_id")
-      .notNull()
-      .references(() => reviewCases.id),
+    // Retained only for compatibility with pre-ledger rows. New ownership is
+    // represented exclusively by evidenceAttachments below.
+    caseId: uuid("case_id").references(() => reviewCases.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     digest: text("digest").notNull(),
     id: uuid("id").primaryKey().defaultRandom(),
     legalHold: text("legal_hold").notNull().default("none"),
     mediaType: text("media_type").notNull(),
     objectName: text("object_name").notNull(),
+    providerEtag: text("provider_etag"),
+    providerVersion: text("provider_version"),
     retentionUntil: timestamp("retention_until", { withTimezone: true }),
     sizeBytes: integer("size_bytes").notNull(),
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),
     verified: boolean("verified").notNull().default(false),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("evidence_objects_tenant_digest_unique").on(table.tenantId, table.digest),
     index("evidence_objects_case_idx").on(table.caseId),
+  ],
+);
+
+export const evidenceUploads = pgTable(
+  "evidence_uploads",
+  {
+    caseId: uuid("case_id").notNull().references(() => reviewCases.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    digest: text("digest").notNull(),
+    evidenceObjectId: uuid("evidence_object_id").references(() => evidenceObjects.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    failureCode: text("failure_code"),
+    id: uuid("id").primaryKey().defaultRandom(),
+    mediaType: text("media_type").notNull(),
+    quarantineObjectName: text("quarantine_object_name").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    state: text("state").notNull().default("quarantined"),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("evidence_uploads_quarantine_object_unique").on(table.quarantineObjectName),
+    index("evidence_uploads_tenant_case_created_idx").on(table.tenantId, table.caseId, table.createdAt),
+    index("evidence_uploads_expiry_idx").on(table.expiresAt),
+  ],
+);
+
+export const evidenceAttachments = pgTable(
+  "evidence_attachments",
+  {
+    attachedAt: timestamp("attached_at", { withTimezone: true }).notNull().defaultNow(),
+    attachedByUserId: text("attached_by_user_id").notNull(),
+    caseId: uuid("case_id").notNull().references(() => reviewCases.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    evidenceObjectId: uuid("evidence_object_id").notNull().references(() => evidenceObjects.id),
+    id: uuid("id").primaryKey().defaultRandom(),
+    ordinal: integer("ordinal").notNull(),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    removedByUserId: text("removed_by_user_id"),
+    state: text("state").notNull().default("active"),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  },
+  (table) => [
+    uniqueIndex("evidence_attachments_case_object_unique").on(table.caseId, table.evidenceObjectId),
+    uniqueIndex("evidence_attachments_case_ordinal_unique").on(table.caseId, table.ordinal),
+    index("evidence_attachments_tenant_case_idx").on(table.tenantId, table.caseId, table.ordinal),
   ],
 );
 

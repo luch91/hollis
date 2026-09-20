@@ -322,7 +322,7 @@ function CaseEvidencePanel({
           <span>Managed evidence</span>
           <h3 id="evidence-panel-title">Evidence references</h3>
         </div>
-        {canCreate && reviewCase.status !== "completed" ? (
+        {canCreate && (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
           <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
         ) : null}
       </div>

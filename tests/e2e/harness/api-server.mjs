@@ -39,6 +39,20 @@ const evidenceStorage = {
     objects.set(objectName, { content, mediaType, expectedDigest });
     return { digest: expectedDigest, mediaType, objectName, sizeBytes: content.byteLength };
   },
+  async promote(_tenantId, quarantineObjectName, immutableObjectName) {
+    const object = objects.get(quarantineObjectName);
+    if (!object) throw new Error("E2E quarantine object was not found.");
+    if (!objects.has(immutableObjectName)) objects.set(immutableObjectName, object);
+    const immutable = objects.get(immutableObjectName);
+    return {
+      digest: immutable.expectedDigest,
+      mediaType: immutable.mediaType,
+      objectName: immutableObjectName,
+      providerEtag: `e2e-${immutable.expectedDigest.slice(-12)}`,
+      providerVersion: "1",
+      sizeBytes: immutable.content.byteLength,
+    };
+  },
   async verify(_tenantId, objectName, expected) {
     const object = objects.get(objectName);
     if (!object) throw new Error("E2E object was not found.");

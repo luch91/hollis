@@ -54,6 +54,10 @@ const environmentSchema = z
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
+    EVIDENCE_STORAGE_ENCRYPTION: z.enum(["provider_managed", "customer_managed"]).optional(),
+    EVIDENCE_STORAGE_JURISDICTION: z.enum(["us", "eu", "global"]).optional(),
+    EVIDENCE_STORAGE_PRIVATE: z.enum(["true"]).optional(),
+    EVIDENCE_STORAGE_VERSIONING: z.enum(["true"]).optional(),
     R2_ACCESS_KEY_ID: z.string().min(1).optional(),
     R2_ACCOUNT_ID: z.string().min(1).optional(),
     R2_BUCKET: z.string().min(3).optional(),
@@ -202,6 +206,23 @@ const environmentSchema = z
         message: "CLAIMS_WEBHOOK_SECRET is required in production.",
         path: ["CLAIMS_WEBHOOK_SECRET"],
       });
+    }
+
+    if (evidenceStoreCount === 1) {
+      for (const capability of [
+        "EVIDENCE_STORAGE_PRIVATE",
+        "EVIDENCE_STORAGE_ENCRYPTION",
+        "EVIDENCE_STORAGE_VERSIONING",
+        "EVIDENCE_STORAGE_JURISDICTION",
+      ] as const) {
+        if (!value[capability]) {
+          context.addIssue({
+            code: "custom",
+            message: `${capability} is required when evidence storage is configured in production.`,
+            path: [capability],
+          });
+        }
+      }
     }
 
     if (

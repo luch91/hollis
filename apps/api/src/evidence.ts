@@ -1,4 +1,5 @@
 import { evidenceReferenceSchema } from "@hollis/contracts";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { EvidenceStorage } from "./evidence-storage.js";
 
@@ -22,6 +23,8 @@ export class EvidenceVerificationError extends Error {
 export type EvidenceUploadResult = EvidenceUpload & {
   evidenceId: string;
   objectName: string;
+  expiresAt: string;
+  state: "quarantined";
   uploadUrl: string;
 };
 
@@ -29,9 +32,15 @@ export interface EvidenceMetadataStore {
   create(
     tenantId: string,
     caseId: string,
-    input: EvidenceUpload & { objectName: string },
+    input: EvidenceUpload & { expiresAt: Date; id: string; objectName: string },
   ): Promise<{ id: string }>;
-  markVerified(tenantId: string, caseId: string, evidenceId: string): Promise<void>;
+  markVerified(
+    tenantId: string,
+    caseId: string,
+    evidenceId: string,
+    object: import("./evidence-storage.js").EvidenceObject,
+    actorId?: string,
+  ): Promise<void>;
   get(
     tenantId: string,
     caseId: string,
@@ -41,6 +50,8 @@ export interface EvidenceMetadataStore {
     id: string;
     mediaType: string;
     objectName: string;
+    providerEtag?: string | null;
+    providerVersion?: string | null;
     sizeBytes: number;
     verified: boolean;
   } | null>;
@@ -57,10 +68,25 @@ export async function createEvidenceUpload(
   storage: EvidenceStorage,
   metadata: EvidenceMetadataStore,
 ): Promise<EvidenceUploadResult> {
-  const objectName = `tenants/${tenantId}/evidence/${input.digest.slice("sha256:".length)}`;
-  const uploadUrl = await storage.createUploadUrl(tenantId, objectName, input.mediaType);
-  const created = await metadata.create(tenantId, caseId, { ...input, objectName });
-  return { ...input, evidenceId: created.id, objectName, uploadUrl };
+  const id = randomUUID();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const objectName = `tenants/${tenantId}/evidence/quarantine/${id}`;
+  const created = await metadata.create(tenantId, caseId, { ...input, expiresAt, id, objectName });
+  const uploadUrl = await storage.createUploadUrl(
+    tenantId,
+    objectName,
+    input.mediaType,
+    input.sizeBytes,
+    expiresAt,
+  );
+  return {
+    ...input,
+    evidenceId: created.id,
+    expiresAt: expiresAt.toISOString(),
+    objectName,
+    state: "quarantined",
+    uploadUrl,
+  };
 }
 
 export async function verifyEvidenceUpload(
@@ -69,16 +95,27 @@ export async function verifyEvidenceUpload(
   evidenceId: string,
   storage: EvidenceStorage,
   metadata: EvidenceMetadataStore,
+  actorId?: string,
 ): Promise<boolean> {
   const object = await metadata.get(tenantId, caseId, evidenceId);
   if (!object) return false;
   if (object.verified) return true;
   try {
-    await storage.verify(tenantId, object.objectName, object);
+    const verified = await storage.verify(tenantId, object.objectName, object);
+    if (!storage.promote) throw new Error("Evidence storage does not support immutable promotion.");
+    const immutableObject = await storage.promote(
+      tenantId,
+      object.objectName,
+      `tenants/${tenantId}/evidence/final/${object.digest.slice("sha256:".length)}`,
+    );
+    if (immutableObject.digest !== object.digest || immutableObject.sizeBytes !== object.sizeBytes) {
+      throw new EvidenceVerificationError();
+    }
+    await metadata.markVerified(tenantId, caseId, evidenceId, immutableObject, actorId);
+    await Promise.resolve(storage.delete?.(tenantId, object.objectName)).catch(() => undefined);
   } catch {
     throw new EvidenceVerificationError();
   }
-  await metadata.markVerified(tenantId, caseId, evidenceId);
   return true;
 }
 
@@ -91,7 +128,7 @@ export async function createEvidenceDownload(
 ) {
   const object = await metadata.get(tenantId, caseId, evidenceId);
   if (!object?.verified) return null;
-  return storage.createDownloadUrl(tenantId, object.objectName);
+  return storage.createDownloadUrl(tenantId, object.objectName, object.providerVersion);
 }
 
 export function evidenceReference(input: EvidenceUpload & { id: string }) {

@@ -14,7 +14,7 @@ export type ReviewQueueItem = {
   recommendation: "approve" | "partial_approve" | "deny" | "refer" | "investigate";
   reviewDueAt: string | null;
   riskLevel: "low" | "medium" | "high" | "critical";
-  status: "pending" | "in_review" | "escalated" | "completed";
+  status: "draft" | "pending" | "in_review" | "escalated" | "completed";
 };
 
 export type ReviewCaseDetail = ReviewQueueItem & {

@@ -1552,7 +1552,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           .code(503)
           .send({ code: "storage_unconfigured", message: "Evidence storage is not configured." });
       const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
-      const { tenant } = requireRequestContext(request);
+      const { principal, tenant } = requireRequestContext(request);
       const { verifyEvidenceUpload } = await import("./evidence.js");
       const verified = await verifyEvidenceUpload(
         tenant.id,
@@ -1560,6 +1560,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         evidenceId,
         evidenceStorage,
         evidenceMetadataStore,
+        principal.userId,
       );
       if (!verified)
         return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });

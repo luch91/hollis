@@ -7,6 +7,10 @@ import {
 
 const baseEnvironment = {
   DATABASE_URL: "postgres://hollis_app:hollis_app@localhost:5434/hollis",
+  EVIDENCE_STORAGE_ENCRYPTION: "provider_managed",
+  EVIDENCE_STORAGE_JURISDICTION: "eu",
+  EVIDENCE_STORAGE_PRIVATE: "true",
+  EVIDENCE_STORAGE_VERSIONING: "true",
   IDENTITY_PLATFORM_PROJECT_ID: "hollis-507001",
   NODE_ENV: "test",
   WEB_ORIGIN: "http://localhost:3000",

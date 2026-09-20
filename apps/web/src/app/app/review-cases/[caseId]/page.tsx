@@ -67,7 +67,7 @@ export default async function ReviewCasePage({
             Back to case workspace
           </Link>
           <nav aria-label="Case actions and export formats" className="detail-export-links">
-            {canCreate && reviewCase.status !== "completed" ? (
+            {canCreate && (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
               <a className="detail-add-evidence" href="#add-evidence">
                 Add evidence
               </a>
@@ -288,7 +288,7 @@ export default async function ReviewCasePage({
             </div>
           ) : null}
         </section>
-        {canCreate && reviewCase.status !== "completed" ? (
+        {canCreate && (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
           <section className="detail-evidence-upload" id="add-evidence">
             <div>
               <p className="eyebrow">Controlled evidence</p>

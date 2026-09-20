@@ -25,7 +25,7 @@ export type StoredReviewCase = {
   hollisCaseReference: string;
   id: string;
   reviewDueAt: Date | null;
-  status: "pending" | "in_review" | "completed" | "escalated";
+  status: "draft" | "pending" | "in_review" | "completed" | "escalated";
 };
 
 export interface ReviewIntakeStore {

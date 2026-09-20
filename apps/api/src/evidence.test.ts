@@ -40,12 +40,31 @@ describe("evidence verification", () => {
     }));
     const markVerified = vi.fn(async () => {});
     const metadata = { ...metadataStore(), markVerified };
-    const storage = { verify } as unknown as EvidenceStorage;
+    const promote = vi.fn(async () => ({
+      digest: evidence.digest,
+      mediaType: evidence.mediaType,
+      objectName: "tenants/tenant-1/evidence/final/example",
+      providerEtag: "etag-1",
+      providerVersion: "generation-1",
+      sizeBytes: evidence.sizeBytes,
+    }));
+    const storage = { promote, verify } as unknown as EvidenceStorage;
 
     await verifyEvidenceUpload("tenant-1", "case-1", evidence.id, storage, metadata);
 
     expect(verify).toHaveBeenCalledWith("tenant-1", evidence.objectName, evidence);
-    expect(markVerified).toHaveBeenCalledWith("tenant-1", "case-1", evidence.id);
+    expect(promote).toHaveBeenCalledWith(
+      "tenant-1",
+      evidence.objectName,
+      "tenants/tenant-1/evidence/final/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
+    expect(markVerified).toHaveBeenCalledWith(
+      "tenant-1",
+      "case-1",
+      evidence.id,
+      expect.objectContaining({ providerVersion: "generation-1" }),
+      undefined,
+    );
   });
 
   it("does not issue a download URL for unverified evidence", async () => {

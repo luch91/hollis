@@ -60,16 +60,34 @@ export function createAzureBlobEvidenceStorage(
       const name = assertTenantObject(tenantId, objectName);
       const blob = container.getBlockBlobClient(name);
       const properties = await blob.getProperties();
-      const content = await blob.downloadToBuffer();
-      const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
+      if ((properties.contentLength ?? 0) > expected.sizeBytes) {
+        throw new Error("Evidence object is oversized.");
+      }
+      const response = await blob.download();
+      if (!response.readableStreamBody) throw new Error("Evidence object has no content.");
+      const hash = createHash("sha256");
+      let received = 0;
+      for await (const chunk of response.readableStreamBody as AsyncIterable<Uint8Array>) {
+        received += chunk.byteLength;
+        if (received > expected.sizeBytes) throw new Error("Evidence object is oversized.");
+        hash.update(chunk);
+      }
+      const digest = `sha256:${hash.digest("hex")}`;
       if (
         digest !== expected.digest ||
-        properties.contentLength !== expected.sizeBytes ||
+        received !== expected.sizeBytes ||
         properties.contentType !== expected.mediaType
       ) {
         throw new Error("Evidence object does not match its declared metadata.");
       }
-      return { digest, mediaType: expected.mediaType, objectName, sizeBytes: content.byteLength };
+      return {
+        digest,
+        mediaType: expected.mediaType,
+        objectName,
+        providerEtag: properties.etag ?? null,
+        providerVersion: properties.versionId ?? null,
+        sizeBytes: received,
+      };
     },
 
     async put(tenantId, objectName, content, mediaType, expectedDigest) {
@@ -79,6 +97,25 @@ export function createAzureBlobEvidenceStorage(
         .getBlockBlobClient(assertTenantObject(tenantId, objectName))
         .uploadData(content, { blobHTTPHeaders: { blobContentType: mediaType } });
       return { digest, mediaType, objectName, sizeBytes: content.byteLength };
+    },
+    async promote(tenantId, quarantineObjectName, immutableObjectName) {
+      const sourceName = assertTenantObject(tenantId, quarantineObjectName);
+      const destinationName = assertTenantObject(tenantId, immutableObjectName);
+      const destination = container.getBlockBlobClient(destinationName);
+      if (!(await destination.exists())) {
+        const sourceUrl = await createSignedUrl(sourceName, "r");
+        const poller = await destination.beginCopyFromURL(sourceUrl, { conditions: { ifNoneMatch: "*" } });
+        await poller.pollUntilDone();
+      }
+      const properties = await destination.getProperties();
+      return {
+        digest: `sha256:${destinationName.split("/").at(-1)}`,
+        mediaType: properties.contentType ?? "application/octet-stream",
+        objectName: destinationName,
+        providerEtag: properties.etag ?? null,
+        providerVersion: properties.versionId ?? null,
+        sizeBytes: properties.contentLength ?? 0,
+      };
     },
   };
 }
