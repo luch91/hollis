@@ -1778,6 +1778,32 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           .where(and(eq(reviewCases.tenantId, tenantId), eq(reviewCases.id, caseId)));
       });
     },
+    async markFailed(tenantId, caseId, evidenceId, actorId = "system:evidence-verifier") {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [upload] = await transaction
+          .update(evidenceUploads)
+          .set({ failureCode: "verification_failed", state: "failed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(evidenceUploads.tenantId, tenantId),
+              eq(evidenceUploads.caseId, caseId),
+              eq(evidenceUploads.id, evidenceId),
+              not(eq(evidenceUploads.state, "verified")),
+            ),
+          )
+          .returning({ digest: evidenceUploads.digest, id: evidenceUploads.id, sizeBytes: evidenceUploads.sizeBytes });
+        if (!upload) return;
+        await appendEvent(transaction, {
+          actorId,
+          caseId,
+          eventType: "evidence_upload_failed",
+          occurredAt: new Date(),
+          payload: { digest: upload.digest, evidenceId: upload.id, failureCode: "verification_failed", sizeBytes: upload.sizeBytes },
+          tenantId,
+        });
+      });
+    },
     async get(tenantId, caseId, evidenceId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);

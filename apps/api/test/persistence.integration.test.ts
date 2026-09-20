@@ -240,6 +240,34 @@ describe("PostgreSQL review intake", () => {
     ).rejects.toThrow("transition");
   });
 
+  it("records a safe audit event when evidence verification fails", async () => {
+    const draft = await createReviewIntake(
+      { ...input, externalReference: `failed_upload_${randomUUID()}` },
+      { actorId: "user_01", tenantId },
+      store,
+    );
+    const upload = await createEvidenceUpload(
+      tenantId,
+      draft.id,
+      { digest: `sha256:${"e".repeat(64)}`, mediaType: "application/pdf", sizeBytes: 128 },
+      testStorage,
+      evidenceMetadataStore,
+    );
+    await expect(
+      verifyEvidenceUpload(tenantId, draft.id, upload.evidenceId, {
+        ...testStorage,
+        async verify() { throw new Error("synthetic verification failure"); },
+      }, evidenceMetadataStore, "user_01"),
+    ).rejects.toThrow("declared metadata");
+    const [storedUpload] = await owner.database
+      .select({ failureCode: evidenceUploads.failureCode, state: evidenceUploads.state })
+      .from(evidenceUploads)
+      .where(eq(evidenceUploads.id, upload.evidenceId));
+    expect(storedUpload).toEqual({ failureCode: "verification_failed", state: "failed" });
+    const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
+    expect(events.some((event) => event.eventType === "evidence_upload_failed")).toBe(true);
+  });
+
   it("enforces claim, escalation, handoff, and human decision transitions", async () => {
     const workflowCase = await createReviewIntake(
       { ...input, externalReference: `workflow_${randomUUID()}` },

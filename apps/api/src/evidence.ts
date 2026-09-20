@@ -41,6 +41,12 @@ export interface EvidenceMetadataStore {
     object: import("./evidence-storage.js").EvidenceObject,
     actorId?: string,
   ): Promise<void>;
+  markFailed?(
+    tenantId: string,
+    caseId: string,
+    evidenceId: string,
+    actorId?: string,
+  ): Promise<void>;
   get(
     tenantId: string,
     caseId: string,
@@ -120,6 +126,9 @@ export async function verifyEvidenceUpload(
     await metadata.markVerified(tenantId, caseId, evidenceId, immutableObject, actorId);
     await Promise.resolve(storage.delete?.(tenantId, object.objectName)).catch(() => undefined);
   } catch (error) {
+    await metadata
+      .markFailed?.(tenantId, caseId, evidenceId, actorId)
+      .catch(() => undefined);
     if (error instanceof EvidenceVerificationError) throw error;
     throw new EvidenceVerificationError({ cause: error });
   }
