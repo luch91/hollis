@@ -27,7 +27,7 @@ test("verified downloads remain immutable after a captured upload URL is reused"
   });
   expect(uploadResponse.status(), await uploadResponse.text()).toBe(201);
   const upload = await uploadResponse.json() as { evidenceId: string; uploadUrl: string };
-  expect(upload.uploadUrl).toContain("/evidence/quarantine/");
+  expect(new URL(upload.uploadUrl).searchParams.get("objectName")).toContain("/evidence/quarantine/");
 
   expect((await page.request.put(upload.uploadUrl, { data: original, headers: { "content-type": "text/plain" } })).status()).toBe(204);
   expect((await page.request.post(`${apiOrigin}/v1/review-cases/${caseId}/evidence/${upload.evidenceId}/verify`, { headers: { authorization } })).status()).toBe(204);

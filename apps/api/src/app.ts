@@ -705,7 +705,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         .send({ code: "invalid_transition", message: "Review case transition is not allowed." });
     }
 
-    if (error instanceof EvidenceVerificationError) {
+    if (
+      error instanceof EvidenceVerificationError ||
+      (error instanceof Error && error.name === "EvidenceVerificationError")
+    ) {
       return reply.code(422).send({
         code: "evidence_verification_failed",
         message: "Evidence object does not match its declared metadata.",

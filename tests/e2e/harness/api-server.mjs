@@ -28,10 +28,10 @@ const objects = new Map();
 const deliveredEmails = [];
 const evidenceStorage = {
   async createDownloadUrl(tenantId, objectName) {
-    return `http://127.0.0.1:4321/__e2e/storage/${encodeURIComponent(tenantId)}/${encodeURIComponent(objectName)}`;
+    return `http://127.0.0.1:4321/__e2e/storage?tenantId=${encodeURIComponent(tenantId)}&objectName=${encodeURIComponent(objectName)}`;
   },
   async createUploadUrl(tenantId, objectName) {
-    return `http://127.0.0.1:4321/__e2e/storage/${encodeURIComponent(tenantId)}/${encodeURIComponent(objectName)}`;
+    return `http://127.0.0.1:4321/__e2e/storage?tenantId=${encodeURIComponent(tenantId)}&objectName=${encodeURIComponent(objectName)}`;
   },
   async delete(_tenantId, objectName) {
     objects.delete(objectName);
@@ -87,20 +87,24 @@ const app = await buildApp(environment, {
   rateLimiter,
   transactionalEmailService,
 });
-app.put("/__e2e/storage/:tenantId/:objectName", async (request, reply) => {
-  const { objectName, tenantId } = request.params;
-  const chunks = [];
-  for await (const chunk of request.raw) chunks.push(Buffer.from(chunk));
-  objects.set(decodeURIComponent(objectName), {
-    content: Buffer.concat(chunks),
+app.put("/__e2e/storage", async (request, reply) => {
+  const { objectName, tenantId } = request.query;
+  if (typeof objectName !== "string" || typeof tenantId !== "string") return reply.code(400).send();
+  const content = Buffer.isBuffer(request.body)
+    ? request.body
+    : Buffer.from(typeof request.body === "string" ? request.body : "");
+  objects.set(objectName, {
+    content,
     expectedDigest: null,
     mediaType: request.headers["content-type"] ?? "application/octet-stream",
     tenantId,
   });
   return reply.code(204).send();
 });
-app.get("/__e2e/storage/:tenantId/:objectName", async (request, reply) => {
-  const object = objects.get(decodeURIComponent(request.params.objectName));
+app.get("/__e2e/storage", async (request, reply) => {
+  const { objectName } = request.query;
+  if (typeof objectName !== "string") return reply.code(400).send();
+  const object = objects.get(objectName);
   if (!object) return reply.code(404).send();
   return reply.type(object.mediaType).send(object.content);
 });
