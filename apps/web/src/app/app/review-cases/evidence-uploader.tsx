@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { beginEvidenceUploadAction, completeEvidenceVerificationAction } from "./actions";
 
 type UploadState = "quarantined" | "uploading" | "verifying" | "verified" | "failed" | "expired";
@@ -47,7 +46,6 @@ async function sha256(file: File) {
 
 export function EvidenceUploader({ caseId }: { caseId: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const router = useRouter();
   const [state, setState] = useState<UploadState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const busy = state === "quarantined" || state === "uploading" || state === "verifying";
@@ -96,9 +94,8 @@ export function EvidenceUploader({ caseId }: { caseId: string }) {
       }
       setState("verified");
       setMessage(
-        "The provider-confirmed immutable reference was attached. Refreshing the case record.",
+        "The provider-confirmed immutable reference was attached. Refresh the case record to see it in the frozen ledger.",
       );
-      router.refresh();
     } catch (error) {
       const failure = safeFailure(error);
       setState(failure.state);

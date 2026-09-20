@@ -141,3 +141,28 @@ test("upload verification rejects wrong metadata and an expired authorization", 
     ),
   ).toBe(false);
 });
+
+test("the case UI reports provider-confirmed verification after refresh", async ({
+  page,
+}, testInfo) => {
+  await establishRoleSession(page, "owner");
+  const caseId =
+    testInfo.project.name === "chromium-mobile"
+      ? "00000000-0000-4000-8000-000000000417"
+      : "00000000-0000-4000-8000-000000000416";
+  const bytes = Buffer.from("browser lifecycle evidence", "utf8");
+
+  await page.goto(`/app/review-cases/${caseId}`);
+  await page.getByLabel("Select evidence file").setInputFiles({
+    buffer: bytes,
+    mimeType: "text/plain",
+    name: "browser-lifecycle.txt",
+  });
+  await page.getByRole("button", { name: "Upload and verify evidence" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Verified: the immutable provider reference",
+  );
+  await page.reload();
+  await expect(page.getByText(digest(bytes), { exact: false })).toBeVisible();
+  await expect(page.getByText("Verified immutable reference", { exact: true })).toBeVisible();
+});

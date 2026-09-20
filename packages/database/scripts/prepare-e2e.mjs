@@ -151,6 +151,14 @@ try {
       ('e2e-ledger', '[]'::jsonb, 'e2e-negative-evidence-mobile', 'HL-26-TEST-0015',
        '00000000-0000-4000-8000-000000000415', ${`sha256:${"3".repeat(64)}`},
        'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'draft', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-visible-lifecycle-desktop', 'HL-26-TEST-0016',
+       '00000000-0000-4000-8000-000000000416', ${`sha256:${"4".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'draft', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-visible-lifecycle-mobile', 'HL-26-TEST-0017',
+       '00000000-0000-4000-8000-000000000417', ${`sha256:${"5".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
        'human-review', 'draft', ${tenantOne})
   `;
   await client`
