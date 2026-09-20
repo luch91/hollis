@@ -67,10 +67,6 @@ function humanize(value: string) {
   return value.replaceAll("_", " ");
 }
 
-function isDemoCase(reviewCase: Pick<ReviewQueueItem, "externalReference">) {
-  return reviewCase.externalReference.startsWith("DEMO-");
-}
-
 function CaseQueue({
   canCreate,
   cases,
@@ -146,7 +142,6 @@ function CaseQueue({
           cases.map((item, index) => (
             <Link
               className={item.id === selectedId ? "is-selected" : undefined}
-              data-demo-content={isDemoCase(item) ? "true" : undefined}
               href={workspaceHref(query, { caseId: item.id })}
               key={item.id}
               style={{ "--case-index": index } as CSSProperties}
@@ -289,6 +284,14 @@ function CaseHistory({ exported }: { exported: ReviewExport }) {
         </div>
         <strong>{exported.events.length} events</strong>
       </div>
+      <div className="case-commitment-summary" data-testid="case-commitment-summary">
+        <span>
+          {exported.canonical
+            ? exported.canonical.commitmentVersion
+            : "Legacy: hollis.review-export.v1 manifest"}
+        </span>
+        <code>{exported.canonical?.caseCommitment ?? exported.manifestHash}</code>
+      </div>
       <ol>
         {exported.events.map((event) => (
           <li key={event.eventSequence}>
@@ -319,7 +322,7 @@ function CaseEvidencePanel({
           <span>Managed evidence</span>
           <h3 id="evidence-panel-title">Evidence references</h3>
         </div>
-        {canCreate ? (
+        {canCreate && reviewCase.status !== "completed" ? (
           <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
         ) : null}
       </div>
@@ -758,10 +761,7 @@ function SelectedCaseWorkspace({
     managedAttestation.submission?.status === "submitting";
   return (
     <>
-      <section
-        className="reference-case-workspace"
-        data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
-      >
+      <section className="reference-case-workspace">
         <header className="reference-case-header">
           <div className="case-kicker">
             <span>{reviewCase.hollisCaseReference}</span>
@@ -847,7 +847,7 @@ function SelectedCaseWorkspace({
             <p>Hollis records your decision, then GenLayer checks the declared process.</p>
           </div>
           <nav className="right-rail-actions" aria-label="Selected case actions">
-            {canCreate ? (
+            {canCreate && reviewCase.status !== "completed" ? (
               <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
             ) : null}
             <Link href={`/app/review-cases/${reviewCase.id}`}>View details</Link>
@@ -1055,6 +1055,26 @@ export default async function ReviewCasesPage({
         })),
       ])
     : [[], null, { configured: false, deployment: null, submission: null }];
+
+  if (reviewCase?.status === "completed" && !exported) {
+    return (
+      <>
+        <OperationalPageHeader
+          eyebrow="Review workspace"
+          summary="Investigate consequential decisions with clear evidence, policy context, and accountable human judgment."
+          title="Review cases with confidence."
+        />
+        <section className="content-panel service-state" role="alert">
+          <p className="eyebrow">Commitment verification blocked</p>
+          <h2>The completed case commitment is unavailable.</h2>
+          <p>
+            Hollis cannot present this completed record until its policy, evidence, and canonical
+            commitment are verified. Refresh to retry or contact an administrator if this persists.
+          </p>
+        </section>
+      </>
+    );
+  }
 
   return (
     <>

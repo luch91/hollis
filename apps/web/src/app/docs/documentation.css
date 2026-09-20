@@ -487,6 +487,20 @@ main.docs-shell {
   box-shadow: var(--petrol-shadow-soft);
 }
 
+.docs-interface-reference .eyebrow,
+.docs-interface-reference code {
+  background: transparent;
+  color: #b5cbcc;
+}
+
+.docs-article-body .docs-interface-reference strong {
+  color: #eaf5f3;
+}
+
+.docs-interface-reference .docs-shot-evidence code {
+  color: #b5cbcc;
+}
+
 .docs-screenshot {
   width: 100%;
   max-width: 100%;

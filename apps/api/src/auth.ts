@@ -14,7 +14,7 @@ const rolePermissions = {
     "policies:manage",
   ],
   auditor: ["workspace:read", "reviews:read"],
-  contributor: ["workspace:read", "reviews:create"],
+  contributor: ["workspace:read", "reviews:read", "reviews:create"],
   owner: [
     "workspace:read",
     "reviews:read",

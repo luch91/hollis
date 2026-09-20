@@ -120,6 +120,10 @@ export default async function AttestationCaseFilePage({
             <dd>{caseFile.caseCommitment}</dd>
           </div>
           <div>
+            <dt>Commitment version</dt>
+            <dd>{caseFile.commitmentVersion ?? "Legacy: hollis.adjudication-case.v1 manifest"}</dd>
+          </div>
+          <div>
             <dt>Audit manifest</dt>
             <dd>{caseFile.auditManifestHash}</dd>
           </div>

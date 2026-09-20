@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
+  canonicalJson,
   createAttestationRequestSchema,
   createPolicyVersionSchema,
   createPublicAttestationCaseFileRequestSchema,
@@ -15,7 +16,6 @@ import {
 } from "@hollis/contracts";
 import { createDatabase } from "@hollis/database";
 import Fastify, { LogController } from "fastify";
-import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type {
   AttestationProvider,
@@ -26,7 +26,9 @@ import type {
 import {
   AttestationPreconditionError,
   buildAdjudicationCaseFile,
+  buildCanonicalReviewMetadata,
   buildGenLayerAttestationRequest,
+  verifyAdjudicationCaseFileIntegrity,
 } from "./attestation-workflow.js";
 import {
   type AccessTokenVerifier,
@@ -182,7 +184,6 @@ type AppDependencies = {
     actorId: string,
   ) => Promise<boolean>;
   workspaceProvisioner?: WorkspaceProvisioner;
-  demoWorkspaceSeeder?: (tenantId: string, actorId: string) => Promise<void>;
   unscopedAccessTokenVerifier?: UnscopedAccessTokenVerifier;
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
@@ -271,18 +272,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const workspaceProvisioner =
     dependencies.workspaceProvisioner ??
     createHollisWorkspaceProvisioner(createPostgresWorkspaceProvisioningStore(requireDatabase()));
-  const demoWorkspaceSeeder =
-    dependencies.demoWorkspaceSeeder ??
-    (databaseResource
-      ? async (tenantId: string, actorId: string) => {
-          await requireDatabase().execute(
-            sql`select public.cleanup_expired_hollis_demo_workspace(${tenantId}::uuid)`,
-          );
-          await requireDatabase().execute(
-            sql`select public.seed_hollis_demo_workspace(${tenantId}::uuid, ${actorId}::uuid)`,
-          );
-        }
-      : null);
   const applicationSessionStore =
     dependencies.applicationSessionStore ??
     createPostgresApplicationSessionStore(requireDatabase());
@@ -408,6 +397,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       submission.publicCaseFileUrl,
     );
     if (!caseFile) return;
+    verifyAdjudicationCaseFileIntegrity(caseFile.caseFile);
     await attestationStore.create(
       tenantId,
       caseId,
@@ -423,6 +413,47 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         verdict: submission.verdict,
       },
     );
+  }
+
+  async function resolveCanonicalPolicy(
+    tenantId: string,
+    exported: NonNullable<Awaited<ReturnType<typeof workflowStore.exportCase>>>,
+  ) {
+    if (!exported.case.policyId) {
+      throw new AttestationPreconditionError("The completed case has no published policy binding.");
+    }
+    const policy = await policyLibraryStore.findControl(
+      tenantId,
+      exported.case.policyId,
+      exported.case.policyVersion,
+      exported.case.ruleId,
+    );
+    const control = policy?.controls.find((item) => item.controlId === exported.case.ruleId);
+    if (!policy || !control) {
+      throw new AttestationPreconditionError(
+        "The completed case policy binding is unavailable for a canonical commitment.",
+      );
+    }
+    return {
+      control: {
+        attestationCriterion: control.attestationCriterion,
+        controlId: control.controlId,
+        controlVersion: control.controlVersion,
+        evidenceRequirement: control.evidenceRequirement,
+        interpretation: control.interpretation,
+        policyDocumentDigest: policy.documentDigest,
+      },
+      policyId: policy.policyId,
+      policyVersion: policy.version,
+    };
+  }
+
+  function requireExactPolicyBinding(input: unknown, canonical: unknown) {
+    if (canonicalJson(input) !== canonicalJson(canonical)) {
+      throw new AttestationPreconditionError(
+        "The requested attestation policy does not match the published case binding.",
+      );
+    }
   }
 
   async function reconcileManagedAttestation(
@@ -898,24 +929,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.post(
-    "/v1/workspace/demo",
-    {
-      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
-    },
-    async (request, reply) => {
-      if (!demoWorkspaceSeeder) {
-        return reply.code(503).send({
-          code: "demo_fixture_unconfigured",
-          message: "Demo workspace fixtures are not configured.",
-        });
-      }
-      const { principal, tenant } = requireRequestContext(request);
-      await demoWorkspaceSeeder(tenant.id, principal.userId);
-      return reply.code(204).send();
-    },
-  );
-
-  app.post(
     "/v1/workspace-invitations/accept",
     { preHandler: rateLimit("workspaceSetup") },
     async (request, reply) => {
@@ -953,6 +966,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       publicCaseFileUrl,
     );
     if (!record) return reply.code(404).send({ code: "not_found", message: "Not found." });
+    verifyAdjudicationCaseFileIntegrity(record.caseFile);
 
     return reply.header("cache-control", "no-store").type("application/json").send(record.caseFile);
   });
@@ -1369,11 +1383,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       }
       const { caseId } = caseParamsSchema.parse(request.params);
       const { tenant } = requireRequestContext(request);
-      return publicAttestationCaseFileStore.list(
+      const records = await publicAttestationCaseFileStore.list(
         tenant.id,
         caseId,
         environment.PUBLIC_ATTESTATION_ORIGIN,
       );
+      for (const record of records) verifyAdjudicationCaseFileIntegrity(record.caseFile);
+      return records;
     },
   );
 
@@ -1391,10 +1407,12 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { principal, tenant } = requireRequestContext(request);
       const exported = await workflowStore.exportCase(tenant.id, caseId);
       if (!exported) throw new ReviewCaseNotFoundError();
+      const canonicalPolicy = await resolveCanonicalPolicy(tenant.id, exported);
+      requireExactPolicyBinding(input.policy, canonicalPolicy);
       const caseFile = buildGenLayerAttestationRequest(
         exported,
         await evidenceMetadataStore.list(tenant.id, caseId),
-        input,
+        { ...input, policy: canonicalPolicy },
       );
       const receipt = await dependencies.attestationProvider.submit(caseFile);
       return reply
@@ -1432,6 +1450,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { principal, tenant } = requireRequestContext(request);
       const exported = await workflowStore.exportCase(tenant.id, caseId);
       if (!exported) throw new ReviewCaseNotFoundError();
+      const canonicalPolicy = await resolveCanonicalPolicy(tenant.id, exported);
+      requireExactPolicyBinding(input.policy, canonicalPolicy);
       const publicId = randomUUID();
       const publicCaseFileUrl = publicAttestationCaseFileUrl(
         environment.PUBLIC_ATTESTATION_ORIGIN,
@@ -1440,7 +1460,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const caseFile = buildAdjudicationCaseFile(
         exported,
         await evidenceMetadataStore.list(tenant.id, caseId),
-        input,
+        { policy: canonicalPolicy },
       );
       return reply
         .code(201)
@@ -1497,6 +1517,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           message: "Public attestation case file not found.",
         });
       }
+      verifyAdjudicationCaseFileIntegrity(publicCaseFile.caseFile);
       const receipt = await dependencies.finalizedAttestationImporter.importFinalized({
         caseFile: publicCaseFile.caseFile,
         publicCaseFileUrl: publicCaseFile.publicCaseFileUrl,
@@ -1929,8 +1950,18 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       if (!exported) {
         throw new ReviewCaseNotFoundError();
       }
+      if (
+        exported.case.status !== "completed" ||
+        !exported.case.policyId ||
+        !exported.case.decisionOutcome
+      ) {
+        return toExportResponse(exported);
+      }
+      const canonicalPolicy = await resolveCanonicalPolicy(tenant.id, exported);
+      const evidence = await evidenceMetadataStore.list(tenant.id, caseId);
+      const canonical = buildCanonicalReviewMetadata(exported, evidence, canonicalPolicy);
 
-      return toExportResponse(exported);
+      return toExportResponse({ ...exported, canonical });
     },
   );
 

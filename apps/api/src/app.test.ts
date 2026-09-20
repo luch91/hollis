@@ -314,6 +314,7 @@ const completedExport: ReviewExport = {
     escalationReason: null,
     finalRecommendation: "deny",
     id: "0198ef37-6216-7000-8000-000000000002",
+    policyId: "commercial-property-governance",
     policyVersion: "commercial-property-2026-01",
     recommendation: "deny",
     reviewDueAt: "2026-08-29T08:00:00.000Z",
@@ -989,12 +990,12 @@ describe("API boundaries", () => {
       payload: {
         policy: {
           control: {
-            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            attestationCriterion: "Human review must be recorded.",
             controlId: "human-review-adverse-action",
-            controlVersion: "2026-01",
+            controlVersion: "1",
             evidenceRequirement: "verified_reference_required",
             interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+            policyDocumentDigest: `sha256:${"a".repeat(64)}`,
           },
           policyId: "commercial-property-governance",
           policyVersion: "commercial-property-2026-01",
@@ -1013,7 +1014,8 @@ describe("API boundaries", () => {
     expect(storedCaseId).toBe(completedExport.case.id);
     expect(providerInput).toMatchObject({
       caseFile: {
-        caseCommitment: completedExport.manifestHash,
+        caseCommitment: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        commitmentVersion: "hollis.case-commitment.v1",
         policy: { control: { controlId: "human-review-adverse-action" } },
         review: { decisionRecorded: true, humanDecisionOutcome: "rejected" },
       },
@@ -1097,12 +1099,12 @@ describe("API boundaries", () => {
       {
         policy: {
           control: {
-            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            attestationCriterion: "Human review must be recorded.",
             controlId: "human-review-adverse-action",
-            controlVersion: "2026-01",
+            controlVersion: "1",
             evidenceRequirement: "verified_reference_required",
             interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+            policyDocumentDigest: `sha256:${"a".repeat(64)}`,
           },
           policyId: "commercial-property-governance",
           policyVersion: "commercial-property-2026-01",
@@ -1159,7 +1161,10 @@ describe("API boundaries", () => {
       verdict: "pass",
     });
     expect(importerInput).toMatchObject({
-      caseFile: { caseCommitment: completedExport.manifestHash },
+      caseFile: {
+        caseCommitment: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        commitmentVersion: "hollis.case-commitment.v1",
+      },
       transactionHash,
     });
   });
@@ -1239,12 +1244,12 @@ describe("API boundaries", () => {
       payload: {
         policy: {
           control: {
-            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            attestationCriterion: "Human review must be recorded.",
             controlId: "human-review-adverse-action",
-            controlVersion: "2026-01",
+            controlVersion: "1",
             evidenceRequirement: "verified_reference_required",
             interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+            policyDocumentDigest: `sha256:${"a".repeat(64)}`,
           },
           policyId: "commercial-property-governance",
           policyVersion: "commercial-property-2026-01",
@@ -1257,7 +1262,8 @@ describe("API boundaries", () => {
     const generated = response.json();
     expect(generated).toMatchObject({
       caseFile: {
-        caseCommitment: completedExport.manifestHash,
+        caseCommitment: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        commitmentVersion: "hollis.case-commitment.v1",
         policy: { control: { controlId: "human-review-adverse-action" } },
       },
       publicCaseFileUrl: expect.stringMatching(

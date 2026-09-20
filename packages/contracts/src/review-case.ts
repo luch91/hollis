@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalReviewMetadataSchema } from "@hollis/contracts/canonical-case";
 
 export const riskLevelSchema = z.enum(["low", "medium", "high", "critical"]);
 
@@ -94,6 +95,7 @@ export const reviewExportEventSchema = z
 
 export const reviewExportSchema = z
   .object({
+    canonical: canonicalReviewMetadataSchema.optional(),
     case: reviewQueueItemSchema.extend({
       assignedAt: z.iso.datetime().nullable(),
       automatedSystemVersion: z.string(),

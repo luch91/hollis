@@ -95,7 +95,8 @@ function WorkflowProgress({ active }: { active: number }) {
     "Export",
   ];
   return (
-    <ol className="docs-workflow-progress" aria-label="Hollis workflow">
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: The horizontally scrollable workflow needs a keyboard focus stop.
+    <ol className="docs-workflow-progress" aria-label="Hollis workflow" tabIndex={0}>
       {steps.map((step, index) => (
         <li
           className={index + 1 === active ? "active" : index + 1 < active ? "complete" : ""}

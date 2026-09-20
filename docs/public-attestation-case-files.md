@@ -20,7 +20,8 @@ file.
 
 1. An authorized reviewer completes a review under a published policy control.
 2. Hollis creates an immutable database record with a random public UUID and the validated
-   `hollis.adjudication-case.v1` document.
+   `hollis.adjudication-case.v1` document. New documents contain the same
+   `hollis.case-commitment.v1` value and canonical record as the authenticated case export.
 3. The public URL serves only that document at
    `/v1/public/attestation-case-files/:publicCaseFileId`.
 4. Hollis submits the commitment and generated URL from its dedicated server-side execution
@@ -39,6 +40,23 @@ The public route returns only the case commitment, policy-control metadata, bool
 review outcome, evidence digests, evidence media types, and evidence verification state. Do not add
 raw evidence, personal data, policy text, model output, prompts, secrets, internal identifiers, or
 audit events to this schema.
+
+The canonical record contains commitments to private identity, reviewer action, and other private
+review facts. It does not reveal those values. Evidence array order is binding. Historical files
+without `canonicalRecord` and `commitmentVersion` remain readable and are explicitly treated as
+legacy records.
+
+## Independent verification
+
+Save either an authenticated JSON export or a public case-file response, then run:
+
+```powershell
+.venv\Scripts\python.exe contracts/canonical/verify_canonical_case.py case-file.json
+```
+
+The verifier selects `canonical` from an authenticated export or `canonicalRecord` from a public
+case file, applies the versioned canonical JSON rules, and fails if any bound field, evidence order,
+version, or commitment value differs.
 
 ## Revocation and retention
 

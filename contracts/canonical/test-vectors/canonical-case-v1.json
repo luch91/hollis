@@ -1,0 +1,36 @@
+{
+  "canonicalJson": "{\"auditManifestHash\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"canonicalization\":\"hollis.canonical-json.v1\",\"caseIdentityCommitment\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"evidence\":[{\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"mediaType\":\"application/pdf\",\"verified\":true},{\"digest\":\"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"mediaType\":\"application/json\",\"verified\":false}],\"policy\":{\"controlId\":\"human-review-required\",\"controlVersion\":\"1.0\",\"policyDocumentDigest\":\"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"policyId\":\"claims\",\"policyVersion\":\"2026.1\"},\"privateReviewFactsCommitment\":\"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"review\":{\"decisionRecorded\":true,\"escalationRecorded\":false,\"humanDecisionOutcome\":\"modified\",\"reviewerActionCommitment\":\"sha256:9999999999999999999999999999999999999999999999999999999999999999\"},\"schemaVersion\":\"hollis.canonical-case.v1\"}",
+  "caseCommitment": "sha256:6c525ea84f7dd225216e91a8f8900f2a99434b954749dd1362d95c749563dd7b",
+  "record": {
+    "auditManifestHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "canonicalization": "hollis.canonical-json.v1",
+    "caseIdentityCommitment": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "evidence": [
+      {
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mediaType": "application/pdf",
+        "verified": true
+      },
+      {
+        "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "mediaType": "application/json",
+        "verified": false
+      }
+    ],
+    "policy": {
+      "controlId": "human-review-required",
+      "controlVersion": "1.0",
+      "policyDocumentDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "policyId": "claims",
+      "policyVersion": "2026.1"
+    },
+    "privateReviewFactsCommitment": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "review": {
+      "decisionRecorded": true,
+      "escalationRecorded": false,
+      "humanDecisionOutcome": "modified",
+      "reviewerActionCommitment": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "schemaVersion": "hollis.canonical-case.v1"
+  }
+}

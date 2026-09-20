@@ -185,6 +185,11 @@ function buildSections(source: CaseReportSource): ReportSection[] {
           ]),
           ["Export schema", exported.schemaVersion],
           ["Manifest hash", exported.manifestHash],
+          [
+            "Case commitment version",
+            exported.canonical?.commitmentVersion ?? "Legacy audit manifest commitment",
+          ],
+          ["Case commitment", exported.canonical?.caseCommitment ?? exported.manifestHash],
         ],
       },
     },

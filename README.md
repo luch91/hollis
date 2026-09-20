@@ -99,6 +99,7 @@ Customers do not operate Studio, fund a wallet, or enter a transaction hash duri
 - [Identity Platform setup](docs/runbooks/identity-platform-setup.md)
 - [Backup and recovery](docs/runbooks/backup-and-recovery.md)
 - [Incident response](docs/runbooks/incident-response.md)
+- [Testing and real-workflow verification](docs/testing.md)
 - [Contribution rules](CONTRIBUTING.md)
 - [Non-negotiables](docs/non-negotiables.md)
 - [Demo fixtures](docs/demo-fixtures.md)

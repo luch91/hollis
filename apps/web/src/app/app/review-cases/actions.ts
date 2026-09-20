@@ -3,31 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  claimReviewCase,
+  createEvidenceUpload,
+  createPublicAttestationCaseFile,
   createReviewCase,
   createWorkspacePolicy,
-  deployPolicyContract,
-  createPublicAttestationCaseFile,
-  createEvidenceUpload,
-  claimReviewCase,
   decideReviewCase,
+  deployPolicyContract,
   escalateReviewCase,
-  refreshAttestation,
   importFinalizedAttestation,
-  recoverWorkspace,
   ReviewServiceError,
+  recoverWorkspace,
+  refreshAttestation,
   uploadWorkspacePolicySource,
   verifyEvidence,
-  seedDemoWorkspace,
 } from "./data";
-
-export async function seedDemoWorkspaceAction() {
-  await seedDemoWorkspace();
-  revalidatePath("/app");
-  revalidatePath("/app/review-cases");
-  revalidatePath("/app/evidence");
-  revalidatePath("/app/policy");
-  redirect("/app");
-}
 
 function requiredValue(formData: FormData, name: string): string {
   const value = String(formData.get(name) ?? "").trim();
@@ -258,6 +248,7 @@ export async function claimAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   await claimReviewCase(caseId);
   revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 export async function recoverWorkspaceAction() {
@@ -270,6 +261,7 @@ export async function escalateAction(formData: FormData) {
   const reason = String(formData.get("reason") ?? "");
   await escalateReviewCase(caseId, reason);
   revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 export async function decideAction(formData: FormData) {
@@ -283,6 +275,7 @@ export async function decideAction(formData: FormData) {
   const rationale = String(formData.get("rationale") ?? "");
   await decideReviewCase(caseId, { finalRecommendation, outcome, rationale });
   revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 function policyFromForm(formData: FormData) {

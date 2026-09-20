@@ -9,7 +9,6 @@ import {
   SessionRevocationUnavailableError,
 } from "@/lib/hollis-session-revocation";
 import { HollisBrand } from "../hollis-brand";
-import { DemoVisibility } from "./demo-visibility";
 import { GlobalSearch } from "./global-search";
 import { GuidedTour } from "./guided-tour";
 import { ThemeToggle } from "./theme-toggle";
@@ -149,7 +148,6 @@ export default async function ApplicationLayout({ children }: { children: ReactN
         <div className="workspace-canvas">{children}</div>
       </section>
       <GuidedTour />
-      <DemoVisibility />
     </main>
   );
 }

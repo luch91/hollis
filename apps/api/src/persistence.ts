@@ -370,14 +370,6 @@ export function createPostgresWorkspaceProvisioningStore(
       if (!record) throw new Error("Workspace provisioning did not return a tenant.");
       return record;
     },
-    async seedDemo({ actorId, tenantId }) {
-      await database.execute(
-        sql`select public.cleanup_expired_hollis_demo_workspace(${tenantId}::uuid)`,
-      );
-      await database.execute(
-        sql`select public.seed_hollis_demo_workspace(${tenantId}::uuid, ${actorId}::uuid)`,
-      );
-    },
   };
 }
 
@@ -1554,6 +1546,12 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
     async decide(tenantId, actorId, caseId, input) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        await transaction.execute(sql`
+          select id
+          from review_cases
+          where tenant_id = ${tenantId}::uuid and id = ${caseId}::uuid
+          for update
+        `);
         const current = await selectCase(transaction, tenantId, caseId);
         if (!current) {
           throw new ReviewCaseNotFoundError();
@@ -1570,6 +1568,13 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
         }
 
         if (current.status !== "in_review" || current.assignedToUserId !== actorId) {
+          throw new ReviewCaseTransitionError();
+        }
+        const managedEvidence = await transaction
+          .select({ verified: evidenceObjects.verified })
+          .from(evidenceObjects)
+          .where(and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.caseId, caseId)));
+        if (managedEvidence.length === 0 || managedEvidence.some((item) => !item.verified)) {
           throw new ReviewCaseTransitionError();
         }
 
@@ -1635,8 +1640,15 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
     async create(tenantId, caseId, input: EvidenceUpload & { objectName: string }) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        await transaction.execute(sql`
+          select id
+          from review_cases
+          where tenant_id = ${tenantId}::uuid and id = ${caseId}::uuid
+          for update
+        `);
         const reviewCase = await selectCase(transaction, tenantId, caseId);
         if (!reviewCase) throw new Error("Review case was not found.");
+        if (reviewCase.status === "completed") throw new ReviewCaseTransitionError();
         const [created] = await transaction
           .insert(evidenceObjects)
           .values({ ...input, caseId, tenantId })
@@ -1704,7 +1716,7 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           })
           .from(evidenceObjects)
           .where(and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.caseId, caseId)))
-          .orderBy(asc(evidenceObjects.createdAt));
+          .orderBy(asc(evidenceObjects.createdAt), asc(evidenceObjects.id));
       });
     },
   };
