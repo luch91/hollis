@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ReviewExport } from "@hollis/contracts";
-import { buildGenLayerAttestationRequest } from "./attestation-workflow.js";
+import {
+  buildGenLayerAttestationRequest,
+  verifyAdjudicationCaseFileIntegrity,
+} from "./attestation-workflow.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
 
@@ -77,7 +80,14 @@ describe("buildGenLayerAttestationRequest", () => {
       input,
     );
 
-    expect(request.caseFile.caseCommitment).toBe(digest);
+    expect(request.caseFile.caseCommitment).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(request.caseFile.caseCommitment).not.toBe(digest);
+    expect(request.caseFile.commitmentVersion).toBe("hollis.case-commitment.v1");
+    expect(request.caseFile.canonicalRecord).toMatchObject({
+      auditManifestHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+      canonicalization: "hollis.canonical-json.v1",
+      schemaVersion: "hollis.canonical-case.v1",
+    });
     expect(request.caseFile.review.humanDecisionOutcome).toBe("modified");
     expect(request.caseFile.evidence).toEqual([
       { digest, mediaType: "application/pdf", verified: true },
@@ -98,5 +108,72 @@ describe("buildGenLayerAttestationRequest", () => {
         },
       ),
     ).toThrow("does not match the review case rule");
+  });
+
+  it("changes the commitment when ordered evidence changes", () => {
+    const first = buildGenLayerAttestationRequest(
+      exported,
+      [
+        { digest, mediaType: "application/pdf", verified: true },
+        { digest: `sha256:${"b".repeat(64)}`, mediaType: "application/json", verified: true },
+      ],
+      input,
+    );
+    const reversed = buildGenLayerAttestationRequest(
+      exported,
+      [
+        { digest: `sha256:${"b".repeat(64)}`, mediaType: "application/json", verified: true },
+        { digest, mediaType: "application/pdf", verified: true },
+      ],
+      input,
+    );
+
+    expect(first.caseFile.caseCommitment).not.toBe(reversed.caseFile.caseCommitment);
+  });
+
+  it("stays stable when attestation lifecycle events follow the decision", () => {
+    const before = buildGenLayerAttestationRequest(
+      exported,
+      [{ digest, mediaType: "application/pdf", verified: true }],
+      input,
+    );
+    const after = buildGenLayerAttestationRequest(
+      {
+        ...exported,
+        events: [
+          ...exported.events,
+          {
+            actorId: "user_01",
+            createdAt: "2026-09-03T12:03:00.000Z",
+            eventHash: `sha256:${"b".repeat(64)}`,
+            eventSequence: 3,
+            eventType: "attestation_case_file_published",
+            payload: {},
+            previousHash: digest,
+          },
+        ],
+        manifestHash: `sha256:${"c".repeat(64)}`,
+      },
+      [{ digest, mediaType: "application/pdf", verified: true }],
+      input,
+    );
+
+    expect(after.caseFile.caseCommitment).toBe(before.caseFile.caseCommitment);
+    expect(after.caseFile.canonicalRecord).toEqual(before.caseFile.canonicalRecord);
+  });
+
+  it("rejects a stored case file whose canonical record was changed", () => {
+    const request = buildGenLayerAttestationRequest(
+      exported,
+      [{ digest, mediaType: "application/pdf", verified: true }],
+      input,
+    );
+    const changed = structuredClone(request.caseFile);
+    if (!changed.canonicalRecord) throw new Error("Expected a canonical record.");
+    changed.canonicalRecord.review.humanDecisionOutcome = "rejected";
+
+    expect(() => verifyAdjudicationCaseFileIntegrity(changed)).toThrow(
+      "failed integrity verification",
+    );
   });
 });

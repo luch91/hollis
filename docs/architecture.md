@@ -82,11 +82,15 @@ Evidence metadata records tenant scope, provenance, media type, integrity digest
 
 Events are append-only and hash-linked. A database-generated sequence, not timestamps alone, determines event traversal. Corrections create new events rather than rewriting prior history. Exports are tenant-scoped reproducible packages with a manifest hash. Export filenames use the Hollis Case Reference, while the package retains the source reference for reconciliation with the originating system.
 
+Completed cases also carry a versioned `hollis.case-commitment.v1` commitment over a language-neutral canonical record. That record binds the private case identity, exact policy and control versions, policy-document digest, automated-system and recommendation facts through a private commitment, final human decision, reviewer actions, ordered verified evidence, relevant timestamps, and the audit manifest. JavaScript and Python implementations share committed test vectors. Array order is significant, object keys are sorted, only JSON safe integers are accepted, and SHA-256 inputs are domain-separated. Legacy exports without this metadata retain their historical manifest label and remain readable. See [ADR 0016](adr/0016-canonical-case-commitment.md).
+
+Evidence creation and decision completion lock the case row. A completed case cannot gain or replace commitment-bound evidence, and completion requires at least one verified managed evidence object. Corrections therefore require a future explicitly versioned amendment flow rather than mutating a completed record.
+
 ### Attestation
 
 An authorized reviewer can generate a privacy-safe `hollis.adjudication-case.v1` document only after the review facts and policy binding meet the publisher requirements. The document contains bounded process facts, policy-control identifiers, evidence digests and verification state. It excludes raw evidence, personal data, policy text, model output, prompts, secrets, internal case identifiers, and audit events.
 
-The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is a configured HTTPS API origin. Hollis generates a random public identifier and persists an immutable record before publication. Callers cannot supply their own public case-file URL.
+The public case-file route is unavailable unless `PUBLIC_ATTESTATION_ORIGIN` is a configured HTTPS API origin. Hollis generates a random public identifier and persists an immutable record before publication. Callers cannot supply their own public case-file URL. New public files expose the same canonical record, commitment value, and commitment version as the authenticated export. Import and managed-receipt paths independently recompute that commitment before trusting it.
 
 After a completed human decision, Hollis generates the public-safe case file, submits it from its dedicated server-side execution account to the active policy-control contract, tracks finalization, and records the finalized per-case views. A legacy read-only importer remains isolated for historical records only. Neither path alters a human decision or blocks the core review workflow.
 

@@ -60,7 +60,11 @@ export type AttestationRecord = {
 export type PublicAttestationCaseFile = {
   caseFile: {
     auditManifestHash: string;
+    canonicalRecord?: {
+      schemaVersion: "hollis.canonical-case.v1";
+    };
     caseCommitment: string;
+    commitmentVersion?: "hollis.case-commitment.v1";
     evidence: Array<{
       digest: string;
       mediaType: string;

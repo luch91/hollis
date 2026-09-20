@@ -1,4 +1,10 @@
-import { createDatabase, reviewCases, reviewEvents, tenants } from "@hollis/database";
+import {
+  createDatabase,
+  evidenceObjects,
+  reviewCases,
+  reviewEvents,
+  tenants,
+} from "@hollis/database";
 import { reviewExportSchema } from "@hollis/contracts";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -49,6 +55,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await owner.database.delete(evidenceObjects).where(eq(evidenceObjects.tenantId, tenantId));
   await owner.database.delete(reviewEvents).where(eq(reviewEvents.tenantId, tenantId));
   await owner.database.delete(reviewCases).where(eq(reviewCases.tenantId, tenantId));
   await owner.database.delete(tenants).where(eq(tenants.id, tenantId));
@@ -137,6 +144,16 @@ describe("PostgreSQL review intake", () => {
     expect(handedOff).toMatchObject({
       case: { assignedToUserId: "user_02", status: "in_review" },
       replayed: false,
+    });
+
+    await owner.database.insert(evidenceObjects).values({
+      caseId: workflowCase.id,
+      digest: input.evidence[0].digest,
+      mediaType: input.evidence[0].mediaType,
+      objectName: `${tenantId}/${workflowCase.id}/evidence.pdf`,
+      sizeBytes: 128,
+      tenantId,
+      verified: true,
     });
 
     const decided = await workflowStore.decide(tenantId, "user_02", workflowCase.id, {

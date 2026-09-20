@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const authorized = Object.freeze({
@@ -83,6 +83,16 @@ function verifyHistory() {
 
   for (const record of records.split("\n")) {
     const [hash, authorName, authorEmail, committerName, committerEmail] = record.split("\t");
+    const message = git(["show", "--no-patch", "--format=%B", hash]);
+    const isGithubPullRequestMerge =
+      authorName === authorized.name &&
+      /@users\.noreply\.github\.com$/i.test(authorEmail) &&
+      committerName === "GitHub" &&
+      committerEmail === "noreply@github.com" &&
+      /^Merge [0-9a-f]{40} into [0-9a-f]{40}$/i.test(message.trim());
+    if (isGithubPullRequestMerge) {
+      continue;
+    }
     if (
       authorName !== authorized.name ||
       authorEmail !== authorized.email ||
@@ -92,7 +102,6 @@ function verifyHistory() {
       failures.push(`Commit ${hash} has an unauthorized author or committer identity.`);
     }
 
-    const message = git(["show", "--no-patch", "--format=%B", hash]);
     const subject = message.split("\n", 1)[0];
     if (!conventionalSubject.test(subject)) {
       failures.push(`Commit ${hash} does not follow the required commit-message format.`);

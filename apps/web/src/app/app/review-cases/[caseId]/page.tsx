@@ -8,6 +8,7 @@ import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
 import {
   getManagedAttestationStatus,
   getReviewCase,
+  getReviewExport,
   listAttestations,
   listPublicAttestationCaseFiles,
 } from "../data";
@@ -33,7 +34,7 @@ export default async function ReviewCasePage({
   } catch {
     notFound();
   }
-  const [attestations, publicCaseFileResult, managedAttestation] = await Promise.all([
+  const [attestations, publicCaseFileResult, managedAttestation, exported] = await Promise.all([
     listAttestations(caseId).catch(() => []),
     listPublicAttestationCaseFiles(caseId)
       .then((caseFiles) => ({ caseFiles, available: true }))
@@ -43,6 +44,7 @@ export default async function ReviewCasePage({
       deployment: null,
       submission: null,
     })),
+    getReviewExport(caseId).catch(() => null),
   ]);
   const publicCaseFiles = publicCaseFileResult.caseFiles;
   const managedPending =
@@ -65,7 +67,7 @@ export default async function ReviewCasePage({
             Back to case workspace
           </Link>
           <nav aria-label="Case actions and export formats" className="detail-export-links">
-            {canCreate ? (
+            {canCreate && reviewCase.status !== "completed" ? (
               <a className="detail-add-evidence" href="#add-evidence">
                 Add evidence
               </a>
@@ -91,6 +93,22 @@ export default async function ReviewCasePage({
           <span>Policy {reviewCase.policyVersion}</span>
           <span>Rule {reviewCase.ruleId}</span>
         </div>
+        {exported ? (
+          <div className="case-commitment-summary" data-testid="case-commitment-summary">
+            <span>
+              {exported.canonical
+                ? exported.canonical.commitmentVersion
+                : "Legacy: hollis.review-export.v1 manifest"}
+            </span>
+            <code>{exported.canonical?.caseCommitment ?? exported.manifestHash}</code>
+          </div>
+        ) : null}
+        {!exported && reviewCase.status === "completed" ? (
+          <aside className="attestation-notice" role="alert">
+            Commitment verification is blocked. Hollis cannot attest or export this completed case
+            until its canonical policy and evidence binding is available. Refresh to retry.
+          </aside>
+        ) : null}
         <div className="case-workspace-grid">
           <div className="case-workspace-main">
             <CaseRecordOverview
@@ -155,6 +173,16 @@ export default async function ReviewCasePage({
               <dd>
                 {reviewCase.evidence.length} reference
                 {reviewCase.evidence.length === 1 ? "" : "s"}
+              </dd>
+            </div>
+            <div>
+              <dt>Case commitment</dt>
+              <dd data-testid="attestation-case-commitment">
+                {exported?.canonical
+                  ? `${exported.canonical.commitmentVersion} ${exported.canonical.caseCommitment}`
+                  : exported
+                    ? `Legacy: hollis.review-export.v1 manifest ${exported.manifestHash}`
+                    : "Verification blocked"}
               </dd>
             </div>
           </dl>
@@ -260,7 +288,7 @@ export default async function ReviewCasePage({
             </div>
           ) : null}
         </section>
-        {canCreate ? (
+        {canCreate && reviewCase.status !== "completed" ? (
           <section className="detail-evidence-upload" id="add-evidence">
             <div>
               <p className="eyebrow">Controlled evidence</p>
