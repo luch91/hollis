@@ -15,6 +15,7 @@ import {
   reviewCaseStatusSchema,
 } from "@hollis/contracts";
 import { createDatabase } from "@hollis/database";
+import { sql } from "drizzle-orm";
 import Fastify, { LogController } from "fastify";
 import { z } from "zod";
 import type {
@@ -826,6 +827,27 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
+
+  app.post("/v1/internal/e2e/migrate", async (request, reply) => {
+    const secret = process.env.HOLLIS_E2E_RUNNER_SECRET;
+    const supplied = request.headers["x-hollis-e2e-runner-secret"];
+    if (
+      process.env.VERCEL_ENV !== "preview" ||
+      !secret ||
+      typeof supplied !== "string" ||
+      supplied !== secret
+    ) {
+      return reply.code(404).send();
+    }
+    const body = request.body as { statements?: unknown };
+    if (!Array.isArray(body?.statements) || !body.statements.every((statement) => typeof statement === "string")) {
+      return reply.code(400).send({ code: "invalid_request" });
+    }
+    for (const statement of body.statements) {
+      await requireDatabase().execute(sql.raw(statement));
+    }
+    return reply.code(204).send();
+  });
 
   app.post(
     "/v1/auth/sessions",
