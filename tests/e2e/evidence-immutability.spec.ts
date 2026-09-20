@@ -58,9 +58,12 @@ test("verified downloads remain immutable after a captured upload URL is reused"
     headers: { authorization },
   });
   expect(detail.ok(), await detail.text()).toBeTruthy();
-  const attachment = (await detail.json()).evidence[0] as { id: string };
+  const attachment = ((await detail.json()).evidence as Array<{ digest: string; id: string }>).find(
+    (item) => item.digest === digest(original),
+  );
+  expect(attachment).toBeDefined();
   const download = await page.request.get(
-    `${apiOrigin}/v1/review-cases/${caseId}/evidence/${attachment.id}/download`,
+    `${apiOrigin}/v1/review-cases/${caseId}/evidence/${attachment?.id}/download`,
     { headers: { authorization } },
   );
   expect(download.ok(), await download.text()).toBeTruthy();
