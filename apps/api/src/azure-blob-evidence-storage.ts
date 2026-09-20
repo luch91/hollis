@@ -20,7 +20,11 @@ export function createAzureBlobEvidenceStorage(
 ): EvidenceStorage {
   const container = client.getContainerClient(containerName);
 
-  async function createSignedUrl(objectName: string, permissions: string): Promise<string> {
+  async function createSignedUrl(
+    objectName: string,
+    permissions: string,
+    providerVersion?: string | null,
+  ): Promise<string> {
     const now = new Date();
     const startsOn = new Date(now.valueOf() - 60_000);
     const expiresOn = new Date(now.valueOf() + signedUrlLifetimeMilliseconds);
@@ -37,13 +41,14 @@ export function createAzureBlobEvidenceStorage(
       delegationKey,
       accountName,
     ).toString();
-    return `${container.getBlockBlobClient(objectName).url}?${token}`;
+    const blob = container.getBlockBlobClient(objectName);
+    return `${providerVersion ? blob.withVersion(providerVersion).url : blob.url}?${token}`;
   }
 
   return {
-    async createDownloadUrl(tenantId, objectName) {
+    async createDownloadUrl(tenantId, objectName, providerVersion) {
       const name = assertTenantObject(tenantId, objectName);
-      return createSignedUrl(name, "r");
+      return createSignedUrl(name, "r", providerVersion);
     },
 
     async createUploadUrl(tenantId, objectName) {

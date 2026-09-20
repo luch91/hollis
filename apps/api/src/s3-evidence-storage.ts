@@ -19,11 +19,19 @@ export function createS3EvidenceStorage(
   client = new S3Client({ region }),
 ): EvidenceStorage {
   return {
-    async createDownloadUrl(tenantId, objectName) {
+    async createDownloadUrl(tenantId, objectName, providerVersion) {
       const key = assertTenantObject(tenantId, objectName);
-      return getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName, Key: key }), {
-        expiresIn: signedUrlLifetimeSeconds,
-      });
+      return getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+          VersionId: providerVersion ?? undefined,
+        }),
+        {
+          expiresIn: signedUrlLifetimeSeconds,
+        },
+      );
     },
 
     async createUploadUrl(tenantId, objectName, mediaType) {

@@ -20,6 +20,11 @@ function blobClient() {
     }),
     uploadData: vi.fn().mockResolvedValue(undefined),
     url: "https://hollisevidencedemo.blob.core.windows.net/evidence/object",
+    withVersion: vi.fn(function withVersion(version: string) {
+      return {
+        url: `https://hollisevidencedemo.blob.core.windows.net/evidence/object?versionid=${version}`,
+      };
+    }),
   };
 }
 
