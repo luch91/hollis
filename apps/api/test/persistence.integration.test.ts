@@ -1,6 +1,8 @@
 import {
   createDatabase,
+  evidenceAttachments,
   evidenceObjects,
+  evidenceUploads,
   reviewCases,
   reviewEvents,
   tenants,
@@ -11,9 +13,12 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createPostgresReviewIntakeStore,
+  createPostgresEvidenceMetadataStore,
   createPostgresTenantResolver,
   createPostgresReviewWorkflowStore,
 } from "../src/persistence.js";
+import { createEvidenceUpload, verifyEvidenceUpload } from "../src/evidence.js";
+import type { EvidenceStorage } from "../src/evidence-storage.js";
 import {
   createReviewIntake,
   type ReviewIntakeRecord,
@@ -55,6 +60,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await owner.database.delete(evidenceAttachments).where(eq(evidenceAttachments.tenantId, tenantId));
+  await owner.database.delete(evidenceUploads).where(eq(evidenceUploads.tenantId, tenantId));
   await owner.database.delete(evidenceObjects).where(eq(evidenceObjects.tenantId, tenantId));
   await owner.database.delete(reviewEvents).where(eq(reviewEvents.tenantId, tenantId));
   await owner.database.delete(reviewCases).where(eq(reviewCases.tenantId, tenantId));
@@ -66,19 +73,76 @@ describe("PostgreSQL review intake", () => {
   const resolver = createPostgresTenantResolver(runtime.database);
   const store = createPostgresReviewIntakeStore(runtime.database);
   const workflowStore = createPostgresReviewWorkflowStore(runtime.database);
+  const evidenceMetadataStore = createPostgresEvidenceMetadataStore(runtime.database);
+  const testStorage: EvidenceStorage = {
+    async createDownloadUrl() { return "https://evidence.test/download"; },
+    async createUploadUrl() { return "https://evidence.test/upload"; },
+    async delete() {},
+    async promote(_tenantId, _quarantineObjectName, immutableObjectName) {
+      return {
+        digest: `sha256:${immutableObjectName.split("/").at(-1)}`,
+        mediaType: "application/pdf",
+        objectName: immutableObjectName,
+        providerEtag: "test-etag",
+        providerVersion: "test-version-1",
+        sizeBytes: 128,
+      };
+    },
+    async put(_tenantId, objectName, content, mediaType, expectedDigest) {
+      return { digest: expectedDigest, mediaType, objectName, sizeBytes: content.byteLength };
+    },
+    async verify(_tenantId, objectName, expected) {
+      return { ...expected, objectName, providerEtag: "test-etag", providerVersion: "test-version-1" };
+    },
+  };
+
+  async function makeReviewable(caseId: string) {
+    const [object] = await owner.database
+      .insert(evidenceObjects)
+      .values({
+        digest: input.evidence[0].digest,
+        mediaType: input.evidence[0].mediaType,
+        objectName: `tenants/${tenantId}/evidence/final/${input.evidence[0].digest.slice(7)}`,
+        providerVersion: "test-version-1",
+        sizeBytes: 128,
+        tenantId,
+        verified: true,
+        verifiedAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning({ id: evidenceObjects.id });
+    const evidenceObjectId = object?.id ?? (
+      await owner.database.select({ id: evidenceObjects.id }).from(evidenceObjects).where(eq(evidenceObjects.tenantId, tenantId)).limit(1)
+    )[0]?.id;
+    if (!evidenceObjectId) throw new Error("Test evidence object was not created.");
+    const [attachment] = await owner.database
+      .insert(evidenceAttachments)
+      .values({
+        attachedByUserId: "user_01",
+        caseId,
+        evidenceObjectId,
+        ordinal: 1,
+        tenantId,
+      })
+      .returning({ id: evidenceAttachments.id });
+    await owner.database
+      .update(reviewCases)
+      .set({ evidence: [{ ...input.evidence[0], id: attachment.id }], status: "pending" })
+      .where(eq(reviewCases.id, caseId));
+  }
 
   it("resolves the active tenant through row security", async () => {
     await expect(resolver.findByTenantId(tenantId)).resolves.toEqual({ id: tenantId });
     await expect(resolver.findByTenantId(randomUUID())).resolves.toBeNull();
   });
 
-  it("atomically stores a pending case and its first audit event", async () => {
+  it("atomically stores a draft case and its first audit event", async () => {
     const created = await createReviewIntake(input, { actorId: "user_01", tenantId }, store);
 
     expect(created).toMatchObject({
       externalReference,
       replayed: false,
-      status: "pending",
+      status: "draft",
     });
 
     const [storedCase] = await owner.database
@@ -92,7 +156,7 @@ describe("PostgreSQL review intake", () => {
 
     expect(storedCase).toMatchObject({
       recommendation: "deny",
-      status: "pending",
+      status: "draft",
       tenantId,
     });
     expect(storedEvent).toHaveLength(1);
@@ -125,12 +189,53 @@ describe("PostgreSQL review intake", () => {
     ).rejects.toBeInstanceOf(ReviewIntakeConflictError);
   });
 
+  it("attaches immutable evidence idempotently and freezes it when review starts", async () => {
+    const draft = await createReviewIntake(
+      { ...input, externalReference: `ledger_${randomUUID()}` },
+      { actorId: "user_01", tenantId },
+      store,
+    );
+    const first = await createEvidenceUpload(
+      tenantId,
+      draft.id,
+      { digest: `sha256:${"c".repeat(64)}`, mediaType: "application/pdf", sizeBytes: 128 },
+      testStorage,
+      evidenceMetadataStore,
+    );
+    await verifyEvidenceUpload(tenantId, draft.id, first.evidenceId, testStorage, evidenceMetadataStore, "user_01");
+    const retry = await createEvidenceUpload(
+      tenantId,
+      draft.id,
+      { digest: `sha256:${"c".repeat(64)}`, mediaType: "application/pdf", sizeBytes: 128 },
+      testStorage,
+      evidenceMetadataStore,
+    );
+    await verifyEvidenceUpload(tenantId, draft.id, retry.evidenceId, testStorage, evidenceMetadataStore, "user_01");
+    const detail = await workflowStore.get(tenantId, draft.id);
+    expect(detail).toMatchObject({ status: "pending" });
+    expect(detail?.evidence).toHaveLength(1);
+    const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
+    expect(events.filter((event) => event.eventType === "evidence_added")).toHaveLength(1);
+
+    await workflowStore.claim(tenantId, "user_01", draft.id);
+    await expect(
+      createEvidenceUpload(
+        tenantId,
+        draft.id,
+        { digest: `sha256:${"d".repeat(64)}`, mediaType: "application/pdf", sizeBytes: 128 },
+        testStorage,
+        evidenceMetadataStore,
+      ),
+    ).rejects.toThrow("transition");
+  });
+
   it("enforces claim, escalation, handoff, and human decision transitions", async () => {
     const workflowCase = await createReviewIntake(
       { ...input, externalReference: `workflow_${randomUUID()}` },
       { actorId: "user_01", tenantId },
       store,
     );
+    await makeReviewable(workflowCase.id);
 
     const claimed = await workflowStore.claim(tenantId, "user_01", workflowCase.id);
     expect(claimed).toMatchObject({ case: { status: "in_review" }, replayed: false });
@@ -144,16 +249,6 @@ describe("PostgreSQL review intake", () => {
     expect(handedOff).toMatchObject({
       case: { assignedToUserId: "user_02", status: "in_review" },
       replayed: false,
-    });
-
-    await owner.database.insert(evidenceObjects).values({
-      caseId: workflowCase.id,
-      digest: input.evidence[0].digest,
-      mediaType: input.evidence[0].mediaType,
-      objectName: `${tenantId}/${workflowCase.id}/evidence.pdf`,
-      sizeBytes: 128,
-      tenantId,
-      verified: true,
     });
 
     const decided = await workflowStore.decide(tenantId, "user_02", workflowCase.id, {

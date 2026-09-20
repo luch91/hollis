@@ -1,5 +1,6 @@
 import { buildApp } from "../../../apps/api/src/app.ts";
 import { readEnvironment } from "../../../apps/api/src/config.ts";
+import { createHash } from "node:crypto";
 
 const identities = new Map(
   ["owner", "administrator", "reviewer", "contributor", "auditor", "outside-owner", "new-user"].map(
@@ -29,8 +30,8 @@ const evidenceStorage = {
   async createDownloadUrl(tenantId, objectName) {
     return `http://127.0.0.1:4321/__e2e/storage/${encodeURIComponent(tenantId)}/${encodeURIComponent(objectName)}`;
   },
-  async createUploadUrl() {
-    return "";
+  async createUploadUrl(tenantId, objectName) {
+    return `http://127.0.0.1:4321/__e2e/storage/${encodeURIComponent(tenantId)}/${encodeURIComponent(objectName)}`;
   },
   async delete(_tenantId, objectName) {
     objects.delete(objectName);
@@ -45,10 +46,10 @@ const evidenceStorage = {
     if (!objects.has(immutableObjectName)) objects.set(immutableObjectName, object);
     const immutable = objects.get(immutableObjectName);
     return {
-      digest: immutable.expectedDigest,
+      digest: `sha256:${createHash("sha256").update(immutable.content).digest("hex")}`,
       mediaType: immutable.mediaType,
       objectName: immutableObjectName,
-      providerEtag: `e2e-${immutable.expectedDigest.slice(-12)}`,
+      providerEtag: `e2e-${createHash("sha256").update(immutable.content).digest("hex").slice(-12)}`,
       providerVersion: "1",
       sizeBytes: immutable.content.byteLength,
     };
@@ -56,7 +57,15 @@ const evidenceStorage = {
   async verify(_tenantId, objectName, expected) {
     const object = objects.get(objectName);
     if (!object) throw new Error("E2E object was not found.");
-    return { ...expected, objectName };
+    const digest = `sha256:${createHash("sha256").update(object.content).digest("hex")}`;
+    if (
+      digest !== expected.digest ||
+      object.content.byteLength !== expected.sizeBytes ||
+      object.mediaType !== expected.mediaType
+    ) {
+      throw new Error("E2E object does not match metadata.");
+    }
+    return { ...expected, digest, objectName };
   },
 };
 
@@ -77,6 +86,23 @@ const app = await buildApp(environment, {
   identityPlatformTokenVerifier,
   rateLimiter,
   transactionalEmailService,
+});
+app.put("/__e2e/storage/:tenantId/:objectName", async (request, reply) => {
+  const { objectName, tenantId } = request.params;
+  const chunks = [];
+  for await (const chunk of request.raw) chunks.push(Buffer.from(chunk));
+  objects.set(decodeURIComponent(objectName), {
+    content: Buffer.concat(chunks),
+    expectedDigest: null,
+    mediaType: request.headers["content-type"] ?? "application/octet-stream",
+    tenantId,
+  });
+  return reply.code(204).send();
+});
+app.get("/__e2e/storage/:tenantId/:objectName", async (request, reply) => {
+  const object = objects.get(decodeURIComponent(request.params.objectName));
+  if (!object) return reply.code(404).send();
+  return reply.type(object.mediaType).send(object.content);
 });
 app.get("/__e2e/emails", async () => deliveredEmails);
 await app.listen({ host: environment.API_HOST, port: environment.API_PORT });

@@ -1913,6 +1913,25 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
+  app.delete(
+    "/v1/review-cases/:caseId/evidence/:evidenceId",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
+    async (request, reply) => {
+      const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
+      const { principal, tenant } = requireRequestContext(request);
+      const { removeEvidenceAttachment } = await import("./evidence.js");
+      const removed = await removeEvidenceAttachment(
+        tenant.id,
+        caseId,
+        evidenceId,
+        principal.userId,
+        evidenceMetadataStore,
+      );
+      if (!removed) return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
+      return reply.code(204).send();
+    },
+  );
+
   app.get(
     "/v1/review-cases/:caseId",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },

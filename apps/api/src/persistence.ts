@@ -1592,8 +1592,15 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
         }
         const managedEvidence = await transaction
           .select({ verified: evidenceObjects.verified })
-          .from(evidenceObjects)
-          .where(and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.caseId, caseId)));
+          .from(evidenceAttachments)
+          .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.state, "active"),
+            ),
+          );
         if (managedEvidence.length === 0 || managedEvidence.some((item) => !item.verified)) {
           throw new ReviewCaseTransitionError();
         }
@@ -1691,8 +1698,18 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
     async markVerified(tenantId, caseId, evidenceId, object, actorId = "system:evidence-verifier") {
       await database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        await transaction.execute(sql`
+          select id from review_cases
+          where tenant_id = ${tenantId}::uuid and id = ${caseId}::uuid
+          for update
+        `);
         const reviewCase = await selectCase(transaction, tenantId, caseId);
-        if (!reviewCase || reviewCase.status !== "draft") throw new ReviewCaseTransitionError();
+        if (
+          !reviewCase ||
+          (reviewCase.status !== "draft" && (reviewCase.status !== "pending" || reviewCase.evidenceFrozenAt))
+        ) {
+          throw new ReviewCaseTransitionError();
+        }
         const [upload] = await transaction
           .select()
           .from(evidenceUploads)
@@ -1805,7 +1822,6 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
         return transaction
           .select({
             digest: evidenceObjects.digest,
-            id: evidenceAttachments.id,
             mediaType: evidenceObjects.mediaType,
             verified: evidenceObjects.verified,
           })
@@ -1813,6 +1829,32 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
           .where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.state, "active")))
           .orderBy(asc(evidenceAttachments.ordinal));
+      });
+    },
+    async remove(tenantId, caseId, evidenceId, actorId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const reviewCase = await selectCase(transaction, tenantId, caseId);
+        if (!reviewCase || reviewCase.evidenceFrozenAt || !["draft", "pending"].includes(reviewCase.status)) {
+          throw new ReviewCaseTransitionError();
+        }
+        const [attachment] = await transaction
+          .update(evidenceAttachments)
+          .set({ removedAt: new Date(), removedByUserId: actorId, state: "removed" })
+          .where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.id, evidenceId), eq(evidenceAttachments.state, "active")))
+          .returning({ evidenceObjectId: evidenceAttachments.evidenceObjectId, id: evidenceAttachments.id });
+        if (!attachment) return false;
+        await appendEvent(transaction, {
+          actorId,
+          caseId,
+          eventType: "evidence_removed",
+          occurredAt: new Date(),
+          payload: { attachmentId: attachment.id, evidenceObjectId: attachment.evidenceObjectId },
+          tenantId,
+        });
+        const ledger = await transaction.select({ digest: evidenceObjects.digest, id: evidenceAttachments.id, mediaType: evidenceObjects.mediaType }).from(evidenceAttachments).innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id)).where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.state, "active"))).orderBy(asc(evidenceAttachments.ordinal));
+        await transaction.update(reviewCases).set({ evidence: ledger, updatedAt: new Date() }).where(and(eq(reviewCases.tenantId, tenantId), eq(reviewCases.id, caseId)));
+        return true;
       });
     },
   };
@@ -2183,13 +2225,15 @@ export async function requestRetentionDeletion(
         objectName: evidenceObjects.objectName,
         retentionUntil: evidenceObjects.retentionUntil,
       })
-      .from(evidenceObjects)
-      .innerJoin(reviewCases, eq(reviewCases.id, evidenceObjects.caseId))
+      .from(evidenceAttachments)
+      .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+      .innerJoin(reviewCases, eq(reviewCases.id, evidenceAttachments.caseId))
       .where(
         and(
           eq(evidenceObjects.tenantId, tenantId),
-          eq(evidenceObjects.caseId, caseId),
-          eq(evidenceObjects.id, evidenceId),
+          eq(evidenceAttachments.caseId, caseId),
+          eq(evidenceAttachments.id, evidenceId),
+          eq(evidenceAttachments.state, "active"),
           eq(evidenceObjects.verified, true),
           eq(evidenceObjects.legalHold, "none"),
           eq(reviewCases.tenantId, tenantId),
@@ -2233,13 +2277,14 @@ export async function setEvidenceLegalHold(
     const [updated] = await transaction
       .update(evidenceObjects)
       .set({ legalHold: active ? "active" : "none" })
-      .where(
-        and(
-          eq(evidenceObjects.tenantId, tenantId),
-          eq(evidenceObjects.caseId, caseId),
-          eq(evidenceObjects.id, evidenceId),
-        ),
-      )
+      .where(sql`${evidenceObjects.id} = (
+        select ea.evidence_object_id
+        from evidence_attachments ea
+        where ea.tenant_id = ${tenantId}::uuid
+          and ea.case_id = ${caseId}::uuid
+          and ea.id = ${evidenceId}::uuid
+          and ea.state = 'active'
+      )`)
       .returning({ id: evidenceObjects.id });
     if (!updated) return false;
     await appendEvent(transaction, {

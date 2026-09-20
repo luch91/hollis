@@ -58,6 +58,9 @@ FROM (
 ON CONFLICT ("case_id", "evidence_object_id") DO NOTHING;--> statement-breakpoint
 UPDATE "review_cases" AS rc SET "evidence_legacy" = true
 WHERE EXISTS (SELECT 1 FROM "evidence_attachments" ea WHERE ea."case_id" = rc."id" AND ea."state" = 'legacy');--> statement-breakpoint
+UPDATE "review_cases" AS rc SET "evidence_legacy" = true
+WHERE jsonb_array_length(rc."evidence") > 0
+  AND NOT EXISTS (SELECT 1 FROM "evidence_attachments" ea WHERE ea."case_id" = rc."id");--> statement-breakpoint
 
 ALTER TABLE "evidence_uploads" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "evidence_attachments" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

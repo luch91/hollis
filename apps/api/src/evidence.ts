@@ -14,8 +14,8 @@ export const evidenceUploadSchema = z
 export type EvidenceUpload = z.infer<typeof evidenceUploadSchema>;
 
 export class EvidenceVerificationError extends Error {
-  constructor() {
-    super("Evidence object does not match its declared metadata.");
+  constructor(options?: ErrorOptions) {
+    super("Evidence object does not match its declared metadata.", options);
     this.name = "EvidenceVerificationError";
   }
 }
@@ -59,6 +59,12 @@ export interface EvidenceMetadataStore {
     tenantId: string,
     caseId: string,
   ): Promise<Array<{ digest: string; mediaType: string; verified: boolean }>>;
+  remove?(
+    tenantId: string,
+    caseId: string,
+    evidenceId: string,
+    actorId: string,
+  ): Promise<boolean>;
 }
 
 export async function createEvidenceUpload(
@@ -113,8 +119,9 @@ export async function verifyEvidenceUpload(
     }
     await metadata.markVerified(tenantId, caseId, evidenceId, immutableObject, actorId);
     await Promise.resolve(storage.delete?.(tenantId, object.objectName)).catch(() => undefined);
-  } catch {
-    throw new EvidenceVerificationError();
+  } catch (error) {
+    if (error instanceof EvidenceVerificationError) throw error;
+    throw new EvidenceVerificationError({ cause: error });
   }
   return true;
 }
@@ -129,6 +136,17 @@ export async function createEvidenceDownload(
   const object = await metadata.get(tenantId, caseId, evidenceId);
   if (!object?.verified) return null;
   return storage.createDownloadUrl(tenantId, object.objectName, object.providerVersion);
+}
+
+export async function removeEvidenceAttachment(
+  tenantId: string,
+  caseId: string,
+  evidenceId: string,
+  actorId: string,
+  metadata: EvidenceMetadataStore,
+): Promise<boolean> {
+  if (!metadata.remove) throw new Error("Evidence metadata does not support attachment removal.");
+  return metadata.remove(tenantId, caseId, evidenceId, actorId);
 }
 
 export function evidenceReference(input: EvidenceUpload & { id: string }) {

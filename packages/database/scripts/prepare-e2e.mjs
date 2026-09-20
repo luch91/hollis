@@ -123,6 +123,29 @@ try {
     )
   `;
   await client`
+    insert into review_cases (
+      automated_system_version, evidence, external_reference, hollis_case_reference, id,
+      intake_fingerprint, policy_id, policy_version, recommendation, review_due_at,
+      risk_level, rule_id, status, tenant_id
+    ) values
+      ('e2e-ledger', '[]'::jsonb, 'e2e-immutable-desktop', 'HL-26-TEST-0010',
+       '00000000-0000-4000-8000-000000000410', ${`sha256:${"e".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'draft', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-immutable-mobile', 'HL-26-TEST-0011',
+       '00000000-0000-4000-8000-000000000411', ${`sha256:${"f".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'draft', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-ledger-desktop', 'HL-26-TEST-0012',
+       '00000000-0000-4000-8000-000000000412', ${`sha256:${"0".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'draft', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-ledger-mobile', 'HL-26-TEST-0013',
+       '00000000-0000-4000-8000-000000000413', ${`sha256:${"1".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'draft', ${tenantOne})
+  `;
+  await client`
     insert into evidence_objects (
       case_id, digest, id, media_type, object_name, size_bytes, tenant_id, verified
     ) values (
@@ -263,6 +286,25 @@ try {
       '00000000-0000-4000-8000-000000000393', ${`sha256:${"d".repeat(64)}`},
       'case_created', '{}'::jsonb, null, ${tenantOne}
     )
+  `;
+  await client`
+    insert into evidence_attachments (
+      attached_at, attached_by_user_id, case_id, evidence_object_id, ordinal, state, tenant_id
+    )
+    select
+      eo.created_at,
+      '00000000-0000-4000-8000-000000000001',
+      eo.case_id,
+      eo.id,
+      row_number() over (partition by eo.case_id order by eo.created_at, eo.id)::integer,
+      'active',
+      eo.tenant_id
+    from evidence_objects eo
+    where eo.case_id is not null
+      and not exists (
+        select 1 from evidence_attachments ea
+        where ea.case_id = eo.case_id and ea.evidence_object_id = eo.id
+      )
   `;
   const legacyCommitment = `sha256:${"d".repeat(64)}`;
   await client`
