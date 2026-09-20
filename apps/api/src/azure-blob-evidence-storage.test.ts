@@ -31,11 +31,29 @@ function blobClient() {
 function service(blockBlobClient: ReturnType<typeof blobClient>) {
   return {
     getContainerClient: vi.fn(() => ({ getBlockBlobClient: vi.fn(() => blockBlobClient) })),
-    getUserDelegationKey: vi.fn(),
+    getUserDelegationKey: vi.fn().mockResolvedValue({
+      signedExpiry: "2030-01-01T00:00:00Z",
+      signedOid: "00000000-0000-0000-0000-000000000001",
+      signedService: "b",
+      signedStart: "2020-01-01T00:00:00Z",
+      signedTid: "00000000-0000-0000-0000-000000000001",
+      signedVersion: "2020-02-10",
+      value: "test-key",
+    }),
   } as unknown as BlobServiceClient;
 }
 
 describe("Azure Blob evidence storage", () => {
+  it("signs downloads against the recorded immutable version", async () => {
+    const blob = blobClient();
+    const storage = createAzureBlobEvidenceStorage("hollisevidencedemo", "evidence", service(blob));
+
+    await expect(storage.createDownloadUrl(tenantId, objectName, "version-42")).resolves.toContain(
+      "versionid=version-42",
+    );
+    expect(blob.withVersion).toHaveBeenCalledWith("version-42");
+  });
+
   it("stores evidence under the tenant path", async () => {
     const blob = blobClient();
     const storage = createAzureBlobEvidenceStorage("hollisevidencedemo", "evidence", service(blob));
