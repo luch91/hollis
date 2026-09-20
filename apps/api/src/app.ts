@@ -43,7 +43,11 @@ import {
 } from "./auth.js";
 import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
 import { createConfiguredEvidenceStorage } from "./configured-evidence-storage.js";
-import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
+import {
+  EvidenceUploadExpiredError,
+  EvidenceVerificationError,
+  evidenceUploadSchema,
+} from "./evidence.js";
 import {
   createApplicationSessionToken,
   createIdentityPlatformTokenVerifier,
@@ -712,6 +716,13 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       return reply.code(422).send({
         code: "evidence_verification_failed",
         message: "Evidence object does not match its declared metadata.",
+      });
+    }
+
+    if (error instanceof EvidenceUploadExpiredError) {
+      return reply.code(410).send({
+        code: "evidence_upload_expired",
+        message: "Evidence upload authorization has expired. Start a new upload.",
       });
     }
 

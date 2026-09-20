@@ -220,6 +220,7 @@ async function appendEvent(
       | "evidence_added"
       | "evidence_verified"
       | "evidence_upload_failed"
+      | "evidence_upload_expired"
       | "evidence_removed"
       | "evidence_superseded"
       | "evidence_quarantine_cleaned"
@@ -1875,6 +1876,36 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
         });
       });
     },
+    async markExpired(tenantId, caseId, evidenceId, actorId = "system:evidence-verifier") {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [expired] = await transaction
+          .update(evidenceUploads)
+          .set({ failureCode: "upload_expired", state: "expired", updatedAt: new Date() })
+          .where(
+            and(
+              eq(evidenceUploads.tenantId, tenantId),
+              eq(evidenceUploads.caseId, caseId),
+              eq(evidenceUploads.id, evidenceId),
+              eq(evidenceUploads.state, "quarantined"),
+            ),
+          )
+          .returning({ digest: evidenceUploads.digest, id: evidenceUploads.id });
+        if (!expired) return;
+        await appendEvent(transaction, {
+          actorId,
+          caseId,
+          eventType: "evidence_upload_expired",
+          occurredAt: new Date(),
+          payload: {
+            digest: expired.digest,
+            evidenceId: expired.id,
+            failureCode: "upload_expired",
+          },
+          tenantId,
+        });
+      });
+    },
     async get(tenantId, caseId, evidenceId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
@@ -1887,6 +1918,8 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
             providerEtag: evidenceObjects.providerEtag,
             providerVersion: evidenceObjects.providerVersion,
             sizeBytes: sql<number>`coalesce(${evidenceObjects.sizeBytes}, ${evidenceUploads.sizeBytes})`,
+            expiresAt: evidenceUploads.expiresAt,
+            state: evidenceUploads.state,
             verified: sql<boolean>`coalesce(${evidenceObjects.verified}, false)`,
           })
           .from(evidenceUploads)
@@ -2037,7 +2070,7 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           .where(
             and(
               eq(evidenceUploads.tenantId, tenantId),
-              inArray(evidenceUploads.state, ["quarantined", "failed"]),
+              inArray(evidenceUploads.state, ["quarantined", "failed", "expired"]),
               sql`${evidenceUploads.expiresAt} <= now()`,
             ),
           )
@@ -2056,7 +2089,7 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
               eq(evidenceUploads.tenantId, tenantId),
               eq(evidenceUploads.caseId, caseId),
               eq(evidenceUploads.id, evidenceId),
-              inArray(evidenceUploads.state, ["quarantined", "failed"]),
+              inArray(evidenceUploads.state, ["quarantined", "failed", "expired"]),
             ),
           )
           .returning({ digest: evidenceUploads.digest, id: evidenceUploads.id });

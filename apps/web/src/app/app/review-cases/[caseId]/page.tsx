@@ -3,13 +3,7 @@ import { notFound } from "next/navigation";
 import { readHollisSession } from "@/lib/hollis-session";
 import { OperationalPageHeader } from "../../operational-page-header";
 import { canCreateReviewCases, canPerformHumanReview } from "../../workspace-capabilities";
-import {
-  claimAction,
-  decideAction,
-  escalateAction,
-  removeEvidenceAction,
-  uploadEvidenceAction,
-} from "../actions";
+import { claimAction, decideAction, escalateAction, removeEvidenceAction } from "../actions";
 import { AttestationHorizon, CaseRecordOverview } from "../attestation-visuals";
 import {
   getManagedAttestationStatus,
@@ -20,6 +14,7 @@ import {
 } from "../data";
 import { ManagedAttestationRefresh } from "../managed-attestation-refresh";
 import { keyEvidenceRecords } from "../review-presentation";
+import { EvidenceUploader } from "../evidence-uploader";
 
 export default async function ReviewCasePage({
   params,
@@ -321,12 +316,7 @@ export default async function ReviewCasePage({
                 Maximum file size is 5 MB.
               </p>
             </div>
-            <form action={uploadEvidenceAction}>
-              <input name="caseId" type="hidden" value={caseId} />
-              <label htmlFor="evidence-file">Select evidence file</label>
-              <input id="evidence-file" name="file" required type="file" />
-              <button type="submit">Upload and verify evidence</button>
-            </form>
+            <EvidenceUploader caseId={caseId} />
           </section>
         ) : null}
         {canReview && (reviewCase.status === "pending" || reviewCase.status === "escalated") ? (

@@ -20,6 +20,13 @@ export class EvidenceVerificationError extends Error {
   }
 }
 
+export class EvidenceUploadExpiredError extends Error {
+  constructor() {
+    super("Evidence upload authorization has expired.");
+    this.name = "EvidenceUploadExpiredError";
+  }
+}
+
 export type EvidenceUploadResult = EvidenceUpload & {
   evidenceId: string;
   objectName: string;
@@ -47,6 +54,12 @@ export interface EvidenceMetadataStore {
     evidenceId: string,
     actorId?: string,
   ): Promise<void>;
+  markExpired?(
+    tenantId: string,
+    caseId: string,
+    evidenceId: string,
+    actorId?: string,
+  ): Promise<void>;
   get(
     tenantId: string,
     caseId: string,
@@ -60,6 +73,8 @@ export interface EvidenceMetadataStore {
     providerVersion?: string | null;
     sizeBytes: number;
     verified: boolean;
+    expiresAt?: Date;
+    state?: "quarantined" | "verified" | "failed" | "expired" | "cleaned";
   } | null>;
   list(
     tenantId: string,
@@ -130,6 +145,13 @@ export async function verifyEvidenceUpload(
   const object = await metadata.get(tenantId, caseId, evidenceId);
   if (!object) return false;
   if (object.verified) return true;
+  if (object.state === "expired" || (object.expiresAt && object.expiresAt <= new Date())) {
+    await metadata.markExpired?.(tenantId, caseId, evidenceId, actorId).catch(() => undefined);
+    throw new EvidenceUploadExpiredError();
+  }
+  if (object.state === "failed" || object.state === "cleaned") {
+    throw new EvidenceVerificationError();
+  }
   try {
     const verified = await storage.verify(tenantId, object.objectName, object);
     if (

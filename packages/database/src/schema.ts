@@ -30,6 +30,7 @@ export const eventType = pgEnum("review_event_type", [
   "evidence_superseded",
   "evidence_verified",
   "evidence_upload_failed",
+  "evidence_upload_expired",
   "evidence_quarantine_cleaned",
   "decision_recorded",
   "case_escalated",

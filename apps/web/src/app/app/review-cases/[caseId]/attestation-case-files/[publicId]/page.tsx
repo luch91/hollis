@@ -107,6 +107,15 @@ export default async function AttestationCaseFilePage({
               {caseFile.evidence.length === 1 ? "" : "s"}
             </dd>
           </div>
+          {caseFile.evidence.map((evidence, index) => (
+            <div key={evidence.digest}>
+              <dt>Evidence {index + 1}</dt>
+              <dd>
+                {evidence.mediaType} · {evidence.digest} ·{" "}
+                {evidence.verified ? "Verified" : "Unverified"}
+              </dd>
+            </div>
+          ))}
           <div>
             <dt>Human decision</dt>
             <dd>{caseFile.review.decisionRecorded ? "Recorded" : "Not recorded"}</dd>

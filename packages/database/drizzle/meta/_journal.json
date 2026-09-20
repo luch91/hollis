@@ -379,6 +379,13 @@
       "when": 1789959600000,
       "tag": "0053_immutable_evidence_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790046000000,
+      "tag": "0054_evidence_upload_expiry",
+      "breakpoints": true
     }
   ]
 }

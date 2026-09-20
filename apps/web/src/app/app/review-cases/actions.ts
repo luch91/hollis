@@ -245,6 +245,52 @@ export async function uploadEvidenceAction(formData: FormData) {
   revalidateWorkspace(caseId);
 }
 
+/**
+ * Starts a browser-to-provider evidence upload.  Keeping the authorization
+ * request in a Server Action retains the user's Hollis session while letting
+ * the browser show the actual storage and verification lifecycle.
+ */
+export async function beginEvidenceUploadAction(input: {
+  caseId: string;
+  digest: string;
+  mediaType: string;
+  sizeBytes: number;
+}) {
+  if (!input.caseId || !/^sha256:[a-f0-9]{64}$/.test(input.digest)) {
+    throw new Error("Evidence upload metadata is invalid.");
+  }
+  if (
+    !input.mediaType ||
+    input.mediaType.length > 128 ||
+    input.sizeBytes <= 0 ||
+    input.sizeBytes > 524_288_000
+  ) {
+    throw new Error("Evidence must be a non-empty file no larger than 500 MB.");
+  }
+  try {
+    const upload = await createEvidenceUpload(input.caseId, {
+      digest: input.digest,
+      mediaType: input.mediaType,
+      sizeBytes: input.sizeBytes,
+    });
+    return { ok: true as const, upload };
+  } catch (error) {
+    if (error instanceof ReviewServiceError) return { code: error.code, ok: false as const };
+    throw error;
+  }
+}
+
+export async function completeEvidenceVerificationAction(caseId: string, evidenceId: string) {
+  try {
+    await verifyEvidence(caseId, evidenceId);
+    revalidateWorkspace(caseId);
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof ReviewServiceError) return { code: error.code, ok: false as const };
+    throw error;
+  }
+}
+
 export async function removeEvidenceAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const evidenceId = String(formData.get("evidenceId") ?? "");

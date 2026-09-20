@@ -210,6 +210,9 @@ function AuditRegister({ exports: caseExports }: { exports: ReviewExport[] }) {
           <div>
             <time dateTime={event.createdAt}>{formatDate(event.createdAt)}</time>
             <code>{event.eventHash}</code>
+            {event.eventType.startsWith("evidence_") ? (
+              <span>Safe evidence metadata: {JSON.stringify(event.payload)}</span>
+            ) : null}
           </div>
         </li>
       ))}
