@@ -203,6 +203,14 @@ describe("PostgreSQL review intake", () => {
       evidenceMetadataStore,
     );
     await verifyEvidenceUpload(tenantId, draft.id, first.evidenceId, testStorage, evidenceMetadataStore, "user_01");
+    const second = await createEvidenceUpload(
+      tenantId,
+      draft.id,
+      { digest: `sha256:${"d".repeat(64)}`, mediaType: "application/pdf", sizeBytes: 128 },
+      testStorage,
+      evidenceMetadataStore,
+    );
+    await verifyEvidenceUpload(tenantId, draft.id, second.evidenceId, testStorage, evidenceMetadataStore, "user_01");
     const retry = await createEvidenceUpload(
       tenantId,
       draft.id,
@@ -213,9 +221,12 @@ describe("PostgreSQL review intake", () => {
     await verifyEvidenceUpload(tenantId, draft.id, retry.evidenceId, testStorage, evidenceMetadataStore, "user_01");
     const detail = await workflowStore.get(tenantId, draft.id);
     expect(detail).toMatchObject({ status: "pending" });
-    expect(detail?.evidence).toHaveLength(1);
+    expect(detail?.evidence.map((item) => item.digest)).toEqual([
+      `sha256:${"c".repeat(64)}`,
+      `sha256:${"d".repeat(64)}`,
+    ]);
     const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
-    expect(events.filter((event) => event.eventType === "evidence_added")).toHaveLength(1);
+    expect(events.filter((event) => event.eventType === "evidence_added")).toHaveLength(2);
 
     await workflowStore.claim(tenantId, "user_01", draft.id);
     await expect(

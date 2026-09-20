@@ -1768,7 +1768,14 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           });
         }
         const ledger = await transaction.select({ digest: evidenceObjects.digest, id: evidenceAttachments.id, mediaType: evidenceObjects.mediaType }).from(evidenceAttachments).innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id)).where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.state, "active"))).orderBy(asc(evidenceAttachments.ordinal));
-        await transaction.update(reviewCases).set({ evidence: ledger, status: "pending", updatedAt: new Date() }).where(and(eq(reviewCases.tenantId, tenantId), eq(reviewCases.id, caseId), eq(reviewCases.status, "draft")));
+        await transaction
+          .update(reviewCases)
+          .set({
+            evidence: ledger,
+            status: reviewCase.status === "draft" ? "pending" : reviewCase.status,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(reviewCases.tenantId, tenantId), eq(reviewCases.id, caseId)));
       });
     },
     async get(tenantId, caseId, evidenceId) {
