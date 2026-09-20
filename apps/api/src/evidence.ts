@@ -65,21 +65,12 @@ export interface EvidenceMetadataStore {
     tenantId: string,
     caseId: string,
   ): Promise<Array<{ digest: string; mediaType: string; verified: boolean }>>;
-  remove?(
-    tenantId: string,
-    caseId: string,
-    evidenceId: string,
-    actorId: string,
-  ): Promise<boolean>;
+  remove?(tenantId: string, caseId: string, evidenceId: string, actorId: string): Promise<boolean>;
   listExpired?(
     tenantId: string,
     limit: number,
   ): Promise<Array<{ caseId: string; evidenceId: string; objectName: string }>>;
-  markQuarantineCleaned?(
-    tenantId: string,
-    caseId: string,
-    evidenceId: string,
-  ): Promise<void>;
+  markQuarantineCleaned?(tenantId: string, caseId: string, evidenceId: string): Promise<void>;
 }
 
 async function cleanupExpiredEvidenceUploads(
@@ -141,21 +132,29 @@ export async function verifyEvidenceUpload(
   if (object.verified) return true;
   try {
     const verified = await storage.verify(tenantId, object.objectName, object);
+    if (
+      verified.digest !== object.digest ||
+      verified.mediaType !== object.mediaType ||
+      verified.sizeBytes !== object.sizeBytes
+    ) {
+      throw new EvidenceVerificationError();
+    }
     if (!storage.promote) throw new Error("Evidence storage does not support immutable promotion.");
     const immutableObject = await storage.promote(
       tenantId,
       object.objectName,
       `tenants/${tenantId}/evidence/final/${object.digest.slice("sha256:".length)}`,
     );
-    if (immutableObject.digest !== object.digest || immutableObject.sizeBytes !== object.sizeBytes) {
+    if (
+      immutableObject.digest !== object.digest ||
+      immutableObject.sizeBytes !== object.sizeBytes
+    ) {
       throw new EvidenceVerificationError();
     }
     await metadata.markVerified(tenantId, caseId, evidenceId, immutableObject, actorId);
     await Promise.resolve(storage.delete?.(tenantId, object.objectName)).catch(() => undefined);
   } catch (error) {
-    await metadata
-      .markFailed?.(tenantId, caseId, evidenceId, actorId)
-      .catch(() => undefined);
+    await metadata.markFailed?.(tenantId, caseId, evidenceId, actorId).catch(() => undefined);
     if (error instanceof EvidenceVerificationError) throw error;
     throw new EvidenceVerificationError({ cause: error });
   }

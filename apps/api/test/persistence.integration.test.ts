@@ -60,7 +60,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await owner.database.delete(evidenceAttachments).where(eq(evidenceAttachments.tenantId, tenantId));
+  await owner.database
+    .delete(evidenceAttachments)
+    .where(eq(evidenceAttachments.tenantId, tenantId));
   await owner.database.delete(evidenceUploads).where(eq(evidenceUploads.tenantId, tenantId));
   await owner.database.delete(evidenceObjects).where(eq(evidenceObjects.tenantId, tenantId));
   await owner.database.delete(reviewEvents).where(eq(reviewEvents.tenantId, tenantId));
@@ -75,8 +77,12 @@ describe("PostgreSQL review intake", () => {
   const workflowStore = createPostgresReviewWorkflowStore(runtime.database);
   const evidenceMetadataStore = createPostgresEvidenceMetadataStore(runtime.database);
   const testStorage: EvidenceStorage = {
-    async createDownloadUrl() { return "https://evidence.test/download"; },
-    async createUploadUrl() { return "https://evidence.test/upload"; },
+    async createDownloadUrl() {
+      return "https://evidence.test/download";
+    },
+    async createUploadUrl() {
+      return "https://evidence.test/upload";
+    },
     async delete() {},
     async promote(_tenantId, _quarantineObjectName, immutableObjectName) {
       return {
@@ -92,7 +98,12 @@ describe("PostgreSQL review intake", () => {
       return { digest: expectedDigest, mediaType, objectName, sizeBytes: content.byteLength };
     },
     async verify(_tenantId, objectName, expected) {
-      return { ...expected, objectName, providerEtag: "test-etag", providerVersion: "test-version-1" };
+      return {
+        ...expected,
+        objectName,
+        providerEtag: "test-etag",
+        providerVersion: "test-version-1",
+      };
     },
   };
 
@@ -111,9 +122,15 @@ describe("PostgreSQL review intake", () => {
       })
       .onConflictDoNothing()
       .returning({ id: evidenceObjects.id });
-    const evidenceObjectId = object?.id ?? (
-      await owner.database.select({ id: evidenceObjects.id }).from(evidenceObjects).where(eq(evidenceObjects.tenantId, tenantId)).limit(1)
-    )[0]?.id;
+    const evidenceObjectId =
+      object?.id ??
+      (
+        await owner.database
+          .select({ id: evidenceObjects.id })
+          .from(evidenceObjects)
+          .where(eq(evidenceObjects.tenantId, tenantId))
+          .limit(1)
+      )[0]?.id;
     if (!evidenceObjectId) throw new Error("Test evidence object was not created.");
     const [attachment] = await owner.database
       .insert(evidenceAttachments)
@@ -202,7 +219,14 @@ describe("PostgreSQL review intake", () => {
       testStorage,
       evidenceMetadataStore,
     );
-    await verifyEvidenceUpload(tenantId, draft.id, first.evidenceId, testStorage, evidenceMetadataStore, "user_01");
+    await verifyEvidenceUpload(
+      tenantId,
+      draft.id,
+      first.evidenceId,
+      testStorage,
+      evidenceMetadataStore,
+      "user_01",
+    );
     const second = await createEvidenceUpload(
       tenantId,
       draft.id,
@@ -210,7 +234,14 @@ describe("PostgreSQL review intake", () => {
       testStorage,
       evidenceMetadataStore,
     );
-    await verifyEvidenceUpload(tenantId, draft.id, second.evidenceId, testStorage, evidenceMetadataStore, "user_01");
+    await verifyEvidenceUpload(
+      tenantId,
+      draft.id,
+      second.evidenceId,
+      testStorage,
+      evidenceMetadataStore,
+      "user_01",
+    );
     const retry = await createEvidenceUpload(
       tenantId,
       draft.id,
@@ -218,14 +249,24 @@ describe("PostgreSQL review intake", () => {
       testStorage,
       evidenceMetadataStore,
     );
-    await verifyEvidenceUpload(tenantId, draft.id, retry.evidenceId, testStorage, evidenceMetadataStore, "user_01");
+    await verifyEvidenceUpload(
+      tenantId,
+      draft.id,
+      retry.evidenceId,
+      testStorage,
+      evidenceMetadataStore,
+      "user_01",
+    );
     const detail = await workflowStore.get(tenantId, draft.id);
     expect(detail).toMatchObject({ status: "pending" });
     expect(detail?.evidence.map((item) => item.digest)).toEqual([
       `sha256:${"c".repeat(64)}`,
       `sha256:${"d".repeat(64)}`,
     ]);
-    const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
+    const events = await owner.database
+      .select()
+      .from(reviewEvents)
+      .where(eq(reviewEvents.caseId, draft.id));
     expect(events.filter((event) => event.eventType === "evidence_added")).toHaveLength(2);
 
     await workflowStore.claim(tenantId, "user_01", draft.id);
@@ -254,17 +295,29 @@ describe("PostgreSQL review intake", () => {
       evidenceMetadataStore,
     );
     await expect(
-      verifyEvidenceUpload(tenantId, draft.id, upload.evidenceId, {
-        ...testStorage,
-        async verify() { throw new Error("synthetic verification failure"); },
-      }, evidenceMetadataStore, "user_01"),
+      verifyEvidenceUpload(
+        tenantId,
+        draft.id,
+        upload.evidenceId,
+        {
+          ...testStorage,
+          async verify() {
+            throw new Error("synthetic verification failure");
+          },
+        },
+        evidenceMetadataStore,
+        "user_01",
+      ),
     ).rejects.toThrow("declared metadata");
     const [storedUpload] = await owner.database
       .select({ failureCode: evidenceUploads.failureCode, state: evidenceUploads.state })
       .from(evidenceUploads)
       .where(eq(evidenceUploads.id, upload.evidenceId));
     expect(storedUpload).toEqual({ failureCode: "verification_failed", state: "failed" });
-    const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
+    const events = await owner.database
+      .select()
+      .from(reviewEvents)
+      .where(eq(reviewEvents.caseId, draft.id));
     expect(events.some((event) => event.eventType === "evidence_upload_failed")).toBe(true);
   });
 
@@ -300,7 +353,10 @@ describe("PostgreSQL review intake", () => {
       .from(evidenceUploads)
       .where(eq(evidenceUploads.id, expiredId));
     expect(storedUpload).toEqual({ state: "cleaned" });
-    const events = await owner.database.select().from(reviewEvents).where(eq(reviewEvents.caseId, draft.id));
+    const events = await owner.database
+      .select()
+      .from(reviewEvents)
+      .where(eq(reviewEvents.caseId, draft.id));
     expect(events.some((event) => event.eventType === "evidence_quarantine_cleaned")).toBe(true);
   });
 

@@ -12,7 +12,11 @@ export type EvidenceObject = {
 };
 
 export interface EvidenceStorage {
-  createDownloadUrl(tenantId: string, objectName: string, providerVersion?: string | null): Promise<string>;
+  createDownloadUrl(
+    tenantId: string,
+    objectName: string,
+    providerVersion?: string | null,
+  ): Promise<string>;
   createUploadUrl(
     tenantId: string,
     objectName: string,
@@ -76,11 +80,14 @@ export async function createGoogleCloudEvidenceStorage(
   return {
     async createDownloadUrl(tenantId, objectName, providerVersion) {
       const [url] = await (await resolveBucket())
-        .file(assertTenantObject(tenantId, objectName), providerVersion ? { generation: providerVersion } : undefined)
+        .file(
+          assertTenantObject(tenantId, objectName),
+          providerVersion ? { generation: providerVersion } : undefined,
+        )
         .getSignedUrl({ ...signedUrlOptions(), action: "read" });
       return url;
     },
-    async createUploadUrl(tenantId, objectName, mediaType, sizeBytes, expiresAt) {
+    async createUploadUrl(tenantId, objectName, mediaType, _sizeBytes, expiresAt) {
       const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       const [exists] = await file.exists();
       if (exists) return "";
@@ -100,7 +107,8 @@ export async function createGoogleCloudEvidenceStorage(
     async verify(tenantId, objectName, expected) {
       const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       const [metadata] = await file.getMetadata();
-      if (Number(metadata.size) > expected.sizeBytes) throw new Error("Evidence object is oversized.");
+      if (Number(metadata.size) > expected.sizeBytes)
+        throw new Error("Evidence object is oversized.");
       const hash = createHash("sha256");
       let received = 0;
       await new Promise<void>((resolve, reject) => {

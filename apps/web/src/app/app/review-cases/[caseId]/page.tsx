@@ -131,7 +131,8 @@ export default async function ReviewCasePage({
                   <p>
                     {evidence.id} · {evidence.mediaType} · {evidence.digest}
                   </p>
-                  {canCreate && (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
+                  {canCreate &&
+                  (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
                     <form action={removeEvidenceAction}>
                       <input name="caseId" type="hidden" value={caseId} />
                       <input name="evidenceId" type="hidden" value={evidence.id} />

@@ -1664,7 +1664,11 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
 
 export function createPostgresEvidenceMetadataStore(database: Database): EvidenceMetadataStore {
   return {
-    async create(tenantId, caseId, input: EvidenceUpload & { expiresAt: Date; id: string; objectName: string }) {
+    async create(
+      tenantId,
+      caseId,
+      input: EvidenceUpload & { expiresAt: Date; id: string; objectName: string },
+    ) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         await transaction.execute(sql`
@@ -1675,7 +1679,10 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
         `);
         const reviewCase = await selectCase(transaction, tenantId, caseId);
         if (!reviewCase) throw new Error("Review case was not found.");
-        if (reviewCase.status !== "draft" && (reviewCase.status !== "pending" || reviewCase.evidenceFrozenAt)) {
+        if (
+          reviewCase.status !== "draft" &&
+          (reviewCase.status !== "pending" || reviewCase.evidenceFrozenAt)
+        ) {
           throw new ReviewCaseTransitionError();
         }
         const [created] = await transaction
@@ -1706,16 +1713,24 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
         const reviewCase = await selectCase(transaction, tenantId, caseId);
         if (
           !reviewCase ||
-          (reviewCase.status !== "draft" && (reviewCase.status !== "pending" || reviewCase.evidenceFrozenAt))
+          (reviewCase.status !== "draft" &&
+            (reviewCase.status !== "pending" || reviewCase.evidenceFrozenAt))
         ) {
           throw new ReviewCaseTransitionError();
         }
         const [upload] = await transaction
           .select()
           .from(evidenceUploads)
-          .where(and(eq(evidenceUploads.tenantId, tenantId), eq(evidenceUploads.caseId, caseId), eq(evidenceUploads.id, evidenceId)))
+          .where(
+            and(
+              eq(evidenceUploads.tenantId, tenantId),
+              eq(evidenceUploads.caseId, caseId),
+              eq(evidenceUploads.id, evidenceId),
+            ),
+          )
           .limit(1);
-        if (!upload || upload.expiresAt < new Date()) throw new Error("Evidence upload has expired.");
+        if (!upload || upload.expiresAt < new Date())
+          throw new Error("Evidence upload has expired.");
         if (upload.state === "verified") return;
 
         const [inserted] = await transaction
@@ -1733,10 +1748,27 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           })
           .onConflictDoNothing({ target: [evidenceObjects.tenantId, evidenceObjects.digest] })
           .returning({ id: evidenceObjects.id });
-        const evidenceObject = inserted ?? (await transaction.select({ id: evidenceObjects.id }).from(evidenceObjects).where(and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.digest, upload.digest))).limit(1))[0];
+        const evidenceObject =
+          inserted ??
+          (
+            await transaction
+              .select({ id: evidenceObjects.id })
+              .from(evidenceObjects)
+              .where(
+                and(
+                  eq(evidenceObjects.tenantId, tenantId),
+                  eq(evidenceObjects.digest, upload.digest),
+                ),
+              )
+              .limit(1)
+          )[0];
         if (!evidenceObject) throw new Error("Immutable evidence metadata could not be stored.");
 
-        const [ordinalRow] = await transaction.execute(sql<{ ordinal: number }>`select coalesce(max(ordinal), 0) + 1 as ordinal from evidence_attachments where tenant_id = ${tenantId}::uuid and case_id = ${caseId}::uuid`);
+        const [ordinalRow] = await transaction.execute(
+          sql<{
+            ordinal: number;
+          }>`select coalesce(max(ordinal), 0) + 1 as ordinal from evidence_attachments where tenant_id = ${tenantId}::uuid and case_id = ${caseId}::uuid`,
+        );
         const [attachment] = await transaction
           .insert(evidenceAttachments)
           .values({
@@ -1746,16 +1778,26 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
             ordinal: Number(ordinalRow?.ordinal ?? 1),
             tenantId,
           })
-          .onConflictDoNothing({ target: [evidenceAttachments.caseId, evidenceAttachments.evidenceObjectId] })
+          .onConflictDoNothing({
+            target: [evidenceAttachments.caseId, evidenceAttachments.evidenceObjectId],
+          })
           .returning({ id: evidenceAttachments.id });
-        await transaction.update(evidenceUploads).set({ evidenceObjectId: evidenceObject.id, state: "verified", updatedAt: new Date() }).where(eq(evidenceUploads.id, evidenceId));
+        await transaction
+          .update(evidenceUploads)
+          .set({ evidenceObjectId: evidenceObject.id, state: "verified", updatedAt: new Date() })
+          .where(eq(evidenceUploads.id, evidenceId));
         if (attachment) {
           await appendEvent(transaction, {
             actorId,
             caseId,
             eventType: "evidence_added",
             occurredAt: new Date(),
-            payload: { attachmentId: attachment.id, digest: upload.digest, mediaType: upload.mediaType, sizeBytes: upload.sizeBytes },
+            payload: {
+              attachmentId: attachment.id,
+              digest: upload.digest,
+              mediaType: upload.mediaType,
+              sizeBytes: upload.sizeBytes,
+            },
             tenantId,
           });
           await appendEvent(transaction, {
@@ -1763,11 +1805,31 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
             caseId,
             eventType: "evidence_verified",
             occurredAt: new Date(),
-            payload: { attachmentId: attachment.id, digest: upload.digest, providerVersion: object.providerVersion ?? null, sizeBytes: upload.sizeBytes },
+            payload: {
+              attachmentId: attachment.id,
+              digest: upload.digest,
+              providerVersion: object.providerVersion ?? null,
+              sizeBytes: upload.sizeBytes,
+            },
             tenantId,
           });
         }
-        const ledger = await transaction.select({ digest: evidenceObjects.digest, id: evidenceAttachments.id, mediaType: evidenceObjects.mediaType }).from(evidenceAttachments).innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id)).where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.state, "active"))).orderBy(asc(evidenceAttachments.ordinal));
+        const ledger = await transaction
+          .select({
+            digest: evidenceObjects.digest,
+            id: evidenceAttachments.id,
+            mediaType: evidenceObjects.mediaType,
+          })
+          .from(evidenceAttachments)
+          .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.state, "active"),
+            ),
+          )
+          .orderBy(asc(evidenceAttachments.ordinal));
         await transaction
           .update(reviewCases)
           .set({
@@ -1792,14 +1854,23 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
               not(eq(evidenceUploads.state, "verified")),
             ),
           )
-          .returning({ digest: evidenceUploads.digest, id: evidenceUploads.id, sizeBytes: evidenceUploads.sizeBytes });
+          .returning({
+            digest: evidenceUploads.digest,
+            id: evidenceUploads.id,
+            sizeBytes: evidenceUploads.sizeBytes,
+          });
         if (!upload) return;
         await appendEvent(transaction, {
           actorId,
           caseId,
           eventType: "evidence_upload_failed",
           occurredAt: new Date(),
-          payload: { digest: upload.digest, evidenceId: upload.id, failureCode: "verification_failed", sizeBytes: upload.sizeBytes },
+          payload: {
+            digest: upload.digest,
+            evidenceId: upload.id,
+            failureCode: "verification_failed",
+            sizeBytes: upload.sizeBytes,
+          },
           tenantId,
         });
       });
@@ -1842,10 +1913,35 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           })
           .from(evidenceAttachments)
           .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
-          .where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.id, evidenceId)))
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.id, evidenceId),
+            ),
+          )
           .limit(1);
         if (attachment) return attachment;
-        const [legacy] = await transaction.select({ digest: evidenceObjects.digest, id: evidenceObjects.id, mediaType: evidenceObjects.mediaType, objectName: evidenceObjects.objectName, providerEtag: evidenceObjects.providerEtag, providerVersion: evidenceObjects.providerVersion, sizeBytes: evidenceObjects.sizeBytes, verified: evidenceObjects.verified }).from(evidenceObjects).where(and(eq(evidenceObjects.tenantId, tenantId), eq(evidenceObjects.caseId, caseId), eq(evidenceObjects.id, evidenceId))).limit(1);
+        const [legacy] = await transaction
+          .select({
+            digest: evidenceObjects.digest,
+            id: evidenceObjects.id,
+            mediaType: evidenceObjects.mediaType,
+            objectName: evidenceObjects.objectName,
+            providerEtag: evidenceObjects.providerEtag,
+            providerVersion: evidenceObjects.providerVersion,
+            sizeBytes: evidenceObjects.sizeBytes,
+            verified: evidenceObjects.verified,
+          })
+          .from(evidenceObjects)
+          .where(
+            and(
+              eq(evidenceObjects.tenantId, tenantId),
+              eq(evidenceObjects.caseId, caseId),
+              eq(evidenceObjects.id, evidenceId),
+            ),
+          )
+          .limit(1);
         return legacy ?? null;
       });
     },
@@ -1860,7 +1956,13 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           })
           .from(evidenceAttachments)
           .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
-          .where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.state, "active")))
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.state, "active"),
+            ),
+          )
           .orderBy(asc(evidenceAttachments.ordinal));
       });
     },
@@ -1868,14 +1970,28 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         const reviewCase = await selectCase(transaction, tenantId, caseId);
-        if (!reviewCase || reviewCase.evidenceFrozenAt || !["draft", "pending"].includes(reviewCase.status)) {
+        if (
+          !reviewCase ||
+          reviewCase.evidenceFrozenAt ||
+          !["draft", "pending"].includes(reviewCase.status)
+        ) {
           throw new ReviewCaseTransitionError();
         }
         const [attachment] = await transaction
           .update(evidenceAttachments)
           .set({ removedAt: new Date(), removedByUserId: actorId, state: "removed" })
-          .where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.id, evidenceId), eq(evidenceAttachments.state, "active")))
-          .returning({ evidenceObjectId: evidenceAttachments.evidenceObjectId, id: evidenceAttachments.id });
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.id, evidenceId),
+              eq(evidenceAttachments.state, "active"),
+            ),
+          )
+          .returning({
+            evidenceObjectId: evidenceAttachments.evidenceObjectId,
+            id: evidenceAttachments.id,
+          });
         if (!attachment) return false;
         await appendEvent(transaction, {
           actorId,
@@ -1885,8 +2001,26 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
           payload: { attachmentId: attachment.id, evidenceObjectId: attachment.evidenceObjectId },
           tenantId,
         });
-        const ledger = await transaction.select({ digest: evidenceObjects.digest, id: evidenceAttachments.id, mediaType: evidenceObjects.mediaType }).from(evidenceAttachments).innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id)).where(and(eq(evidenceAttachments.tenantId, tenantId), eq(evidenceAttachments.caseId, caseId), eq(evidenceAttachments.state, "active"))).orderBy(asc(evidenceAttachments.ordinal));
-        await transaction.update(reviewCases).set({ evidence: ledger, updatedAt: new Date() }).where(and(eq(reviewCases.tenantId, tenantId), eq(reviewCases.id, caseId)));
+        const ledger = await transaction
+          .select({
+            digest: evidenceObjects.digest,
+            id: evidenceAttachments.id,
+            mediaType: evidenceObjects.mediaType,
+          })
+          .from(evidenceAttachments)
+          .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.state, "active"),
+            ),
+          )
+          .orderBy(asc(evidenceAttachments.ordinal));
+        await transaction
+          .update(reviewCases)
+          .set({ evidence: ledger, updatedAt: new Date() })
+          .where(and(eq(reviewCases.tenantId, tenantId), eq(reviewCases.id, caseId)));
         return true;
       });
     },
@@ -1894,7 +2028,11 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         return transaction
-          .select({ caseId: evidenceUploads.caseId, evidenceId: evidenceUploads.id, objectName: evidenceUploads.quarantineObjectName })
+          .select({
+            caseId: evidenceUploads.caseId,
+            evidenceId: evidenceUploads.id,
+            objectName: evidenceUploads.quarantineObjectName,
+          })
           .from(evidenceUploads)
           .where(
             and(

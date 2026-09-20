@@ -104,7 +104,9 @@ export function createAzureBlobEvidenceStorage(
       const destination = container.getBlockBlobClient(destinationName);
       if (!(await destination.exists())) {
         const sourceUrl = await createSignedUrl(sourceName, "r");
-        const poller = await destination.beginCopyFromURL(sourceUrl, { conditions: { ifNoneMatch: "*" } });
+        const poller = await destination.beginCopyFromURL(sourceUrl, {
+          conditions: { ifNoneMatch: "*" },
+        });
         await poller.pollUntilDone();
       }
       const properties = await destination.getProperties();

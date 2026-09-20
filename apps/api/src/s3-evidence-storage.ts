@@ -4,6 +4,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  type HeadObjectCommandOutput,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -102,9 +103,11 @@ export function createS3EvidenceStorage(
     async promote(tenantId, quarantineObjectName, immutableObjectName) {
       const source = assertTenantObject(tenantId, quarantineObjectName);
       const destination = assertTenantObject(tenantId, immutableObjectName);
-      let metadata;
+      let metadata: HeadObjectCommandOutput;
       try {
-        metadata = await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: destination }));
+        metadata = await client.send(
+          new HeadObjectCommand({ Bucket: bucketName, Key: destination }),
+        );
       } catch (error) {
         if (!isNotFound(error)) throw error;
         await client.send(
@@ -114,7 +117,9 @@ export function createS3EvidenceStorage(
             Key: destination,
           }),
         );
-        metadata = await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: destination }));
+        metadata = await client.send(
+          new HeadObjectCommand({ Bucket: bucketName, Key: destination }),
+        );
       }
       return {
         digest: `sha256:${destination.split("/").at(-1)}`,

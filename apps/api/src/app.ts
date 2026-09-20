@@ -1930,7 +1930,8 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         principal.userId,
         evidenceMetadataStore,
       );
-      if (!removed) return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
+      if (!removed)
+        return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
       return reply.code(204).send();
     },
   );
