@@ -126,11 +126,18 @@ export default async function ReviewCasePage({
             />
             <div className="evidence-panel">
               <h2>Evidence references</h2>
+              <p>
+                Evidence set:{" "}
+                {reviewCase.status === "draft" || reviewCase.status === "pending"
+                  ? "Editable before review starts"
+                  : "Frozen for review"}
+              </p>
               {keyEvidenceRecords(reviewCase.evidence).map(({ key, record: evidence }) => (
                 <div key={key}>
                   <p>
                     {evidence.id} · {evidence.mediaType} · {evidence.digest}
                   </p>
+                  <p>Verified immutable reference</p>
                   {canCreate &&
                   (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
                     <form action={removeEvidenceAction}>
