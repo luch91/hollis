@@ -317,7 +317,9 @@ export const evidenceObjects = pgTable(
 export const evidenceUploads = pgTable(
   "evidence_uploads",
   {
-    caseId: uuid("case_id").notNull().references(() => reviewCases.id),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     digest: text("digest").notNull(),
     evidenceObjectId: uuid("evidence_object_id").references(() => evidenceObjects.id),
@@ -328,12 +330,18 @@ export const evidenceUploads = pgTable(
     quarantineObjectName: text("quarantine_object_name").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     state: text("state").notNull().default("quarantined"),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("evidence_uploads_quarantine_object_unique").on(table.quarantineObjectName),
-    index("evidence_uploads_tenant_case_created_idx").on(table.tenantId, table.caseId, table.createdAt),
+    index("evidence_uploads_tenant_case_created_idx").on(
+      table.tenantId,
+      table.caseId,
+      table.createdAt,
+    ),
     index("evidence_uploads_expiry_idx").on(table.expiresAt),
   ],
 );
@@ -343,15 +351,21 @@ export const evidenceAttachments = pgTable(
   {
     attachedAt: timestamp("attached_at", { withTimezone: true }).notNull().defaultNow(),
     attachedByUserId: text("attached_by_user_id").notNull(),
-    caseId: uuid("case_id").notNull().references(() => reviewCases.id),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    evidenceObjectId: uuid("evidence_object_id").notNull().references(() => evidenceObjects.id),
+    evidenceObjectId: uuid("evidence_object_id")
+      .notNull()
+      .references(() => evidenceObjects.id),
     id: uuid("id").primaryKey().defaultRandom(),
     ordinal: integer("ordinal").notNull(),
     removedAt: timestamp("removed_at", { withTimezone: true }),
     removedByUserId: text("removed_by_user_id"),
     state: text("state").notNull().default("active"),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
   },
   (table) => [
     uniqueIndex("evidence_attachments_case_object_unique").on(table.caseId, table.evidenceObjectId),

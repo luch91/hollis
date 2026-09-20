@@ -12,7 +12,13 @@ export const recommendationSchema = z.enum([
 ]);
 
 export const reviewOutcomeSchema = z.enum(["approved", "modified", "rejected", "escalated"]);
-export const reviewCaseStatusSchema = z.enum(["draft", "pending", "in_review", "completed", "escalated"]);
+export const reviewCaseStatusSchema = z.enum([
+  "draft",
+  "pending",
+  "in_review",
+  "completed",
+  "escalated",
+]);
 
 export const evidenceReferenceSchema = z
   .object({
