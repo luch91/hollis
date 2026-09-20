@@ -10,9 +10,14 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { createS3EvidenceStorage } from "./s3-evidence-storage.js";
 
-const getSignedUrl = vi.hoisted(() => vi.fn(async () => "https://storage.test/signed"));
+const signedDownload = vi.hoisted(() => ({ command: null as GetObjectCommand | null }));
 
-vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl }));
+vi.mock("@aws-sdk/s3-request-presigner", () => ({
+  getSignedUrl: (_client: unknown, command: GetObjectCommand) => {
+    signedDownload.command = command;
+    return Promise.resolve("https://storage.test/signed");
+  },
+}));
 
 const tenantId = "tenant-1";
 const objectName = `tenants/${tenantId}/evidence/${"a".repeat(64)}`;
@@ -28,9 +33,8 @@ describe("S3 evidence storage", () => {
     await expect(storage.createDownloadUrl(tenantId, objectName, "version-42")).resolves.toBe(
       "https://storage.test/signed",
     );
-    const command = getSignedUrl.mock.calls.at(-1)?.[1];
-    expect(command).toBeInstanceOf(GetObjectCommand);
-    expect((command as GetObjectCommand).input).toMatchObject({
+    expect(signedDownload.command).toBeInstanceOf(GetObjectCommand);
+    expect(signedDownload.command?.input).toMatchObject({
       Bucket: "hollis-evidence-test",
       Key: objectName,
       VersionId: "version-42",
