@@ -1608,6 +1608,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     "/v1/review-cases",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
     async (request, reply) => {
+      app.log.info({ caseInputKeys: Object.keys(request.body as object) }, "review case intake shape");
       const input = createReviewCaseSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
       if (!input.policyId) {
