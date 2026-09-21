@@ -21,7 +21,7 @@ const policyBindingViewSchema = z
     policyId: z.string(),
     policyVersion: z.string(),
   })
-  .strict();
+  .passthrough();
 const finalizedDeploymentSchema = z
   .object({
     lifecycle: z.object({ outcome: z.string(), state: z.literal("finalized") }).passthrough(),
@@ -44,7 +44,7 @@ export interface StudioDevPolicyContractSdkClient {
   readContract(input: {
     address: `0x${string}`;
     args: string[];
-    functionName: "get_policy_binding";
+    functionName: "get_authorized_runtime_address" | "get_policy_binding";
     transactionHashVariant: TransactionHashVariant;
   }): Promise<unknown>;
   waitForFinalization(input: {
@@ -61,12 +61,16 @@ export class StudioDevPolicyContractClient implements PolicyContractDeploymentCl
     private readonly account: RuntimeAccount,
   ) {}
 
-  async deploy(input: { binding: PolicyContractBinding; source: string }): Promise<string> {
+  async deploy(input: {
+    binding: PolicyContractBinding;
+    runtimeAddress: string;
+    source: string;
+  }): Promise<string> {
     const fees = await this.client.estimateTransactionFees();
     return transactionHashSchema.parse(
       await this.client.deployContract({
         account: this.account,
-        args: policyContractConstructorArguments(input.binding),
+        args: policyContractConstructorArguments(input.binding, input.runtimeAddress),
         code: input.source,
         fees,
       }),
@@ -134,6 +138,16 @@ export class StudioDevPolicyContractClient implements PolicyContractDeploymentCl
       policyId: binding.policyId,
       policyVersion: binding.policyVersion,
     });
+  }
+
+  async readRuntimeAddress(contractAddress: string): Promise<string> {
+    const result = await this.client.readContract({
+      address: addressSchema.parse(contractAddress) as `0x${string}`,
+      args: [],
+      functionName: "get_authorized_runtime_address",
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
+    });
+    return addressSchema.parse(result);
   }
 }
 

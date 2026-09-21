@@ -1,12 +1,11 @@
 import {
+  type AdjudicationCaseFile,
   adjudicationCaseFileSchema,
-  canonicalCaseRecordSchema,
-  genLayerAttestationRequestSchema,
   type CanonicalReviewMetadata,
   type CreateAttestationRequest,
-  type CreatePublicAttestationCaseFileRequest,
-  type AdjudicationCaseFile,
+  canonicalCaseRecordSchema,
   type GenLayerAttestationRequest,
+  genLayerAttestationRequestSchema,
   type ReviewExport,
 } from "@hollis/contracts";
 import {
@@ -140,7 +139,7 @@ export function buildCanonicalReviewMetadata(
 export function buildAdjudicationCaseFile(
   exported: ReviewExport,
   evidence: EvidenceForAttestation[],
-  input: CreateAttestationRequest | CreatePublicAttestationCaseFileRequest,
+  input: Pick<CreateAttestationRequest, "policy">,
 ): AdjudicationCaseFile {
   if (exported.case.status !== "completed" || !exported.case.decisionOutcome) {
     throw new AttestationPreconditionError(

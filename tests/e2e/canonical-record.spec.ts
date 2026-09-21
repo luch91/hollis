@@ -3,19 +3,6 @@ import { establishRoleSession, expect, test } from "./fixtures";
 const caseId = "00000000-0000-4000-8000-000000000399";
 const desktopWorkflowCaseId = "00000000-0000-4000-8000-000000000396";
 const mobileWorkflowCaseId = "00000000-0000-4000-8000-000000000393";
-const policy = {
-  control: {
-    attestationCriterion: "A verified reference and a recorded human decision are required.",
-    controlId: "human-review",
-    controlVersion: "1.0",
-    evidenceRequirement: "verified_reference_required",
-    interpretation: "deterministic",
-    policyDocumentDigest: `sha256:${"8".repeat(64)}`,
-  },
-  policyId: "e2e-policy",
-  policyVersion: "1.0",
-};
-
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return JSON.stringify(value);
@@ -66,6 +53,12 @@ test("completed workflow produces a deterministic canonical export", async ({ pa
   await page
     .getByLabel("Rationale")
     .fill("Synthetic reviewer verified the evidence and modified the recommendation.");
+  await page
+    .getByLabel("Known limitations")
+    .fill(
+      "The supplied evidence is complete but does not independently prove every underlying fact.",
+    );
+  await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Record human decision" }).click();
   await expect(page.getByText("completed", { exact: true })).toBeVisible();
 
@@ -147,9 +140,9 @@ test("public case file and authenticated export use the same commitment", async 
   const exportBody = await exported.json();
   const publication = await page.request.post(
     `http://127.0.0.1:4321/v1/review-cases/${caseId}/attestation-case-files`,
-    { data: { policy }, headers },
+    { data: {}, headers },
   );
-  expect(publication.status(), await publication.text()).toBe(201);
+  expect([200, 201]).toContain(publication.status());
   const published = await publication.json();
   expect(published.caseFile.caseCommitment).toBe(exportBody.canonical.caseCommitment);
   expect(published.caseFile.canonicalRecord).toEqual(exportBody.canonical.record);

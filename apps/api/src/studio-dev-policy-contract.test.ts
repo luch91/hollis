@@ -1,7 +1,7 @@
+import type { PolicyContractBinding } from "@hollis/contracts";
 import { createAccount, generatePrivateKey } from "genlayer-js";
 import { TransactionHashVariant } from "genlayer-js/types";
 import { describe, expect, it, vi } from "vitest";
-import type { PolicyContractBinding } from "@hollis/contracts";
 import {
   StudioDevPolicyContractClient,
   type StudioDevPolicyContractSdkClient,
@@ -48,14 +48,14 @@ function sdk() {
 }
 
 describe("Studio Dev policy contract client", () => {
-  it("submits the exact V7 constructor order", async () => {
+  it("submits the exact V8 constructor order including the authorized runtime", async () => {
     const account = createAccount(generatePrivateKey());
     const client = sdk();
     const adapter = new StudioDevPolicyContractClient(client, account);
 
-    await expect(adapter.deploy({ binding, source: "contract source" })).resolves.toBe(
-      transactionHash,
-    );
+    await expect(
+      adapter.deploy({ binding, runtimeAddress: contractAddress, source: "contract source" }),
+    ).resolves.toBe(transactionHash);
     expect(client.deployContract).toHaveBeenCalledWith({
       account,
       args: [
@@ -67,6 +67,7 @@ describe("Studio Dev policy contract client", () => {
         "A human decision must be recorded.",
         "verified_reference_required",
         "deterministic",
+        contractAddress,
       ],
       code: "contract source",
       fees: { distribution: {}, feeValue: 1n },

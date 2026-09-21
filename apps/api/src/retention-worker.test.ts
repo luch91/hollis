@@ -15,9 +15,12 @@ const job = {
 
 function createJobs(overrides: Partial<RetentionDeletionJobStore> = {}) {
   return {
+    canDelete: vi.fn(async () => true),
     claimNext: vi.fn(async () => job),
+    listEligibleTenantIds: vi.fn(async () => [job.tenantId]),
     markCompleted: vi.fn(async () => {}),
     markFailed: vi.fn(async () => {}),
+    scheduleEligible: vi.fn(async () => 0),
     ...overrides,
   } satisfies RetentionDeletionJobStore;
 }
@@ -55,6 +58,15 @@ describe("retention deletion worker", () => {
 
     await expect(processNextRetentionDeletion("tenant-1", jobs, storage)).resolves.toBe("empty");
     expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not call the provider when a legal hold wins the eligibility check", async () => {
+    const jobs = createJobs({ canDelete: vi.fn(async () => false) });
+    const storage = { delete: vi.fn(async () => {}) } as unknown as EvidenceStorage;
+
+    await expect(processNextRetentionDeletion("tenant-1", jobs, storage)).resolves.toBe("empty");
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(jobs.markCompleted).not.toHaveBeenCalled();
   });
 
   it("processes at most one job per tenant in an explicit tenant list", async () => {

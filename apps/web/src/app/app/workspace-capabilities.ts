@@ -12,3 +12,7 @@ export function canPerformHumanReview(role: string): boolean {
 export function canManageAttestations(role: string): boolean {
   return humanReviewers.has(role);
 }
+
+export function canManageRetention(role: string): boolean {
+  return role === "administrator" || role === "owner";
+}

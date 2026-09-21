@@ -1,8 +1,8 @@
-import { z } from "zod";
 import {
   canonicalCaseRecordSchema,
   caseCommitmentVersionSchema,
 } from "@hollis/contracts/canonical-case";
+import { z } from "zod";
 
 const sha256DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 const identifierSchema = z.string().regex(/^[a-z][a-z0-9-]{0,127}$/);
@@ -118,17 +118,7 @@ export const createAttestationRequestSchema = z
   })
   .strict();
 
-export const createPublicAttestationCaseFileRequestSchema = z
-  .object({
-    policy: z
-      .object({
-        control: policyControlSchema,
-        policyId: identifierSchema,
-        policyVersion: z.string().trim().min(1).max(128),
-      })
-      .strict(),
-  })
-  .strict();
+export const createPublicAttestationCaseFileRequestSchema = z.object({}).strict();
 
 export const importFinalizedAttestationRequestSchema = z
   .object({

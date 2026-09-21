@@ -36,11 +36,26 @@ export type ReviewCaseDetail = ReviewQueueItem & {
   escalatedByUserId: string | null;
   evidence: Array<{ digest: string; id: string; mediaType: string }>;
   finalRecommendation: ReviewQueueItem["recommendation"] | null;
+  knownLimitations: string | null;
   policyId?: string | null;
   policyVersion: string;
   recommendation: ReviewQueueItem["recommendation"];
   riskLevel: ReviewQueueItem["riskLevel"];
   ruleId: string;
+};
+
+export type EvidenceLifecycleRecord = {
+  attempts: number;
+  deletedAt: string | null;
+  deletionProviderResult: string | null;
+  digest: string;
+  id: string;
+  lastFailure: string | null;
+  legalHold: "active" | "none";
+  mediaType: string;
+  retentionStatus: "available" | "scheduled" | "processing" | "failed" | "dead_letter" | "deleted";
+  retentionUntil: string | null;
+  verified: boolean;
 };
 
 export type AttestationRecord = {
@@ -124,9 +139,15 @@ export type WorkspacePolicy = {
 };
 
 export type PolicyContractDeployment = {
+  bindingDigest?: string;
   contractAddress: string | null;
   deploymentTransactionHash: string | null;
   failureCode: string | null;
+  network?: "studio-dev" | "studio-next";
+  networkChainId?: number;
+  runtimeAddress?: string;
+  sourceDigest?: string;
+  sourceVersion?: string;
   status: string;
 };
 
@@ -157,12 +178,6 @@ export type WorkspaceReviewerSearchResult = {
   email: string | null;
   role: string;
   userId: string;
-};
-
-type AttestationPolicy = {
-  control: PublicAttestationCaseFile["caseFile"]["policy"]["control"];
-  policyId: string;
-  policyVersion: string;
 };
 
 export class ReviewServiceError extends Error {
@@ -310,6 +325,23 @@ export function getReviewExport(caseId: string) {
   return request<ReviewExport>(`/v1/review-cases/${caseId}/export`);
 }
 
+export function listEvidenceLifecycle(caseId: string) {
+  return request<EvidenceLifecycleRecord[]>(`/v1/review-cases/${caseId}/evidence`);
+}
+
+export function setEvidenceLegalHold(caseId: string, evidenceId: string, active: boolean) {
+  return request<void>(`/v1/review-cases/${caseId}/evidence/${evidenceId}/legal-hold`, {
+    body: JSON.stringify({ active }),
+    method: "POST",
+  });
+}
+
+export function getEvidenceDownload(caseId: string, evidenceId: string) {
+  return request<{ downloadUrl: string }>(
+    `/v1/review-cases/${caseId}/evidence/${evidenceId}/download`,
+  );
+}
+
 export function claimReviewCase(caseId: string) {
   return request(`/v1/review-cases/${caseId}/claim`, { method: "POST" });
 }
@@ -325,6 +357,7 @@ export function decideReviewCase(
   caseId: string,
   input: {
     finalRecommendation: ReviewQueueItem["recommendation"];
+    knownLimitations: string;
     outcome: Exclude<ReviewCaseDetail["decisionOutcome"], null>;
     rationale: string;
   },
@@ -333,6 +366,16 @@ export function decideReviewCase(
     body: JSON.stringify(input),
     method: "POST",
   });
+}
+
+export function acknowledgeDecisionPacket(caseId: string, knownLimitations: string) {
+  return request<{ packetDigest: string }>(
+    `/v1/review-cases/${caseId}/decision-packet/acknowledgements`,
+    {
+      body: JSON.stringify({ knownLimitations }),
+      method: "POST",
+    },
+  );
 }
 
 export function createEvidenceUpload(
@@ -368,9 +411,9 @@ export function listPublicAttestationCaseFiles(caseId: string) {
   return request<PublicAttestationCaseFile[]>(`/v1/review-cases/${caseId}/attestation-case-files`);
 }
 
-export function createPublicAttestationCaseFile(caseId: string, policy: AttestationPolicy) {
+export function createPublicAttestationCaseFile(caseId: string) {
   return request<PublicAttestationCaseFile>(`/v1/review-cases/${caseId}/attestation-case-files`, {
-    body: JSON.stringify({ policy }),
+    body: JSON.stringify({}),
     method: "POST",
   });
 }

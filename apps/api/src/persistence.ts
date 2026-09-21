@@ -3,7 +3,9 @@ import type { AttestationReceipt, CreatePolicyVersion, PolicyVersion } from "@ho
 import {
   attestationRecordSchema,
   evidenceReferenceSchema,
+  type ManagedAttestationSubmission,
   managedAttestationSubmissionSchema,
+  type PolicyContractDeployment,
   policyContractBindingSchema,
   policyContractDeploymentSchema,
   policyLibraryControlSchema,
@@ -11,8 +13,6 @@ import {
   policyVersionSchema,
   publicAttestationCaseFileSchema,
   type ReviewExport,
-  type PolicyContractDeployment,
-  type ManagedAttestationSubmission,
   recommendationSchema,
   reviewCaseStatusSchema,
   reviewOutcomeSchema,
@@ -20,6 +20,7 @@ import {
 } from "@hollis/contracts";
 import type { createDatabase } from "@hollis/database";
 import {
+  auditCheckpoints,
   attestations,
   evidenceAttachments,
   evidenceObjects,
@@ -42,9 +43,11 @@ import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import type { AttestationStore, PublicAttestationCaseFileStore } from "./attestation.js";
 import type { ApplicationSessionStore } from "./auth.js";
 import type { EvidenceMetadataStore, EvidenceUpload } from "./evidence.js";
-import { PolicyVersionConflictError, type PolicyLibraryStore } from "./policy-library.js";
-import type { PolicyContractDeploymentStore } from "./policy-contract-deployment.js";
+import { hashAuditEvent, verifyCaseAuditChain } from "./audit-integrity.js";
+import type { AuditCheckpointSigner } from "./audit-checkpoint.js";
 import type { ManagedAttestationSubmissionStore } from "./managed-attestation-submission.js";
+import type { PolicyContractDeploymentStore } from "./policy-contract-deployment.js";
+import { type PolicyLibraryStore, PolicyVersionConflictError } from "./policy-library.js";
 import type { RetentionDeletionJob, RetentionDeletionJobStore } from "./retention-worker.js";
 import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
 import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
@@ -131,6 +134,7 @@ const caseColumns = {
   escalationReason: reviewCases.escalationReason,
   externalReference: reviewCases.externalReference,
   finalRecommendation: reviewCases.finalRecommendation,
+  knownLimitations: reviewCases.knownLimitations,
   hollisCaseReference: reviewCases.hollisCaseReference,
   id: reviewCases.id,
   policyId: reviewCases.policyId,
@@ -211,6 +215,105 @@ async function selectCase(transaction: DatabaseTransaction, tenantId: string, ca
   return row;
 }
 
+type DecisionPacket = {
+  digest: string;
+  evidenceRequirement: "none" | "reference_required" | "verified_reference_required";
+};
+
+async function buildDecisionPacket(
+  transaction: DatabaseTransaction,
+  tenantId: string,
+  reviewCase: NonNullable<Awaited<ReturnType<typeof selectCase>>>,
+  knownLimitations: string,
+): Promise<DecisionPacket> {
+  if (!reviewCase.policyId || !reviewCase.evidenceFrozenAt) {
+    throw new ReviewCaseTransitionError();
+  }
+
+  const [control] = await transaction
+    .select({
+      attestationCriterion: policyControls.attestationCriterion,
+      controlId: policyControls.controlId,
+      controlVersion: policyControls.controlVersion,
+      evidenceRequirement: policyControls.evidenceRequirement,
+      interpretation: policyControls.interpretation,
+      policyDocumentDigest: policyVersions.documentDigest,
+      title: policyControls.title,
+    })
+    .from(policyControls)
+    .innerJoin(policyVersions, eq(policyControls.policyVersionId, policyVersions.id))
+    .where(
+      and(
+        eq(policyControls.tenantId, tenantId),
+        eq(policyVersions.policyId, reviewCase.policyId),
+        eq(policyVersions.version, reviewCase.policyVersion),
+        eq(policyControls.controlId, reviewCase.ruleId),
+      ),
+    )
+    .limit(1);
+  const evidenceRequirement =
+    control?.evidenceRequirement === "none" ||
+    control?.evidenceRequirement === "reference_required" ||
+    control?.evidenceRequirement === "verified_reference_required"
+      ? control.evidenceRequirement
+      : null;
+  if (!control || !evidenceRequirement) throw new ReviewCaseTransitionError();
+
+  const evidence = await transaction
+    .select({
+      digest: evidenceObjects.digest,
+      mediaType: evidenceObjects.mediaType,
+      providerEtag: evidenceObjects.providerEtag,
+      providerVersion: evidenceObjects.providerVersion,
+      verified: evidenceObjects.verified,
+      verifiedAt: evidenceObjects.verifiedAt,
+    })
+    .from(evidenceAttachments)
+    .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+    .where(
+      and(
+        eq(evidenceAttachments.tenantId, tenantId),
+        eq(evidenceAttachments.caseId, reviewCase.id),
+        eq(evidenceAttachments.state, "active"),
+      ),
+    )
+    .orderBy(asc(evidenceAttachments.ordinal));
+  if (
+    evidenceRequirement !== "none" &&
+    (evidence.length === 0 ||
+      evidence.some(
+        (item) =>
+          !item.verified || !item.verifiedAt || (!item.providerVersion && !item.providerEtag),
+      ))
+  ) {
+    throw new ReviewCaseTransitionError();
+  }
+
+  return {
+    digest: hashEvent({
+      automatedSystemVersion: reviewCase.automatedSystemVersion,
+      evidence: evidence.map((item) => ({
+        digest: item.digest,
+        mediaType: item.mediaType,
+        providerEtag: item.providerEtag,
+        providerVersion: item.providerVersion,
+        verifiedAt: item.verifiedAt?.toISOString() ?? null,
+      })),
+      evidenceFrozenAt: reviewCase.evidenceFrozenAt.toISOString(),
+      knownLimitations,
+      policy: { ...control, evidenceRequirement },
+      priorEscalation: {
+        escalatedAt: reviewCase.escalatedAt?.toISOString() ?? null,
+        reason: reviewCase.escalationReason,
+      },
+      recommendation: reviewCase.recommendation,
+      reviewDueAt: reviewCase.reviewDueAt?.toISOString() ?? null,
+      ruleId: reviewCase.ruleId,
+    }),
+    evidenceRequirement,
+  };
+}
+
 async function appendEvent(
   transaction: DatabaseTransaction,
   record: {
@@ -224,6 +327,7 @@ async function appendEvent(
       | "evidence_removed"
       | "evidence_superseded"
       | "evidence_quarantine_cleaned"
+      | "decision_packet_acknowledged"
       | "review_started"
       | "case_escalated"
       | "decision_recorded"
@@ -238,6 +342,11 @@ async function appendEvent(
     tenantId: string;
   },
 ) {
+  // A transaction-scoped advisory lock makes predecessor selection and insert
+  // one serialization point even when unrelated case mutations run in parallel.
+  await transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`${record.tenantId}:${record.caseId}`}, 0))`,
+  );
   const [previous] = await transaction
     .select({ eventHash: reviewEvents.eventHash })
     .from(reviewEvents)
@@ -245,7 +354,7 @@ async function appendEvent(
     .orderBy(desc(reviewEvents.eventSequence))
     .limit(1);
   const previousHash = previous?.eventHash ?? null;
-  const eventHash = hashEvent({ ...record, previousHash });
+  const eventHash = hashAuditEvent({ ...record, previousHash });
 
   await transaction.insert(reviewEvents).values({
     actorId: record.actorId,
@@ -1320,7 +1429,10 @@ export function createPostgresReviewIntakeStore(database: Database): ReviewIntak
   };
 }
 
-export function createPostgresReviewWorkflowStore(database: Database): ReviewWorkflowStore {
+export function createPostgresReviewWorkflowStore(
+  database: Database,
+  checkpointSigner?: AuditCheckpointSigner,
+): ReviewWorkflowStore {
   return {
     async exportCase(tenantId, caseId) {
       return database.transaction(async (transaction) => {
@@ -1361,6 +1473,7 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
             escalationReason: detail.escalationReason,
             externalReference: detail.externalReference,
             finalRecommendation: detail.finalRecommendation,
+            knownLimitations: detail.knownLimitations ?? null,
             hollisCaseReference: detail.hollisCaseReference,
             id: detail.id,
             policyId: detail.policyId,
@@ -1383,8 +1496,74 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
           schemaVersion: "hollis.review-export.v1" as const,
         };
 
+        const auditIntegrity = verifyCaseAuditChain({ caseId, events: base.events, tenantId });
+        let auditCheckpoint:
+          | {
+              algorithm: "ed25519";
+              createdAt: string;
+              eventCount: number;
+              headHash: string;
+              keyId: string;
+              signature: string;
+            }
+          | undefined;
+        if (checkpointSigner && auditIntegrity.status === "verified" && auditIntegrity.headHash) {
+          const [existing] = await transaction
+            .select()
+            .from(auditCheckpoints)
+            .where(
+              and(
+                eq(auditCheckpoints.tenantId, tenantId),
+                eq(auditCheckpoints.caseId, caseId),
+                eq(auditCheckpoints.headHash, auditIntegrity.headHash),
+              ),
+            )
+            .limit(1);
+          const checkpoint =
+            existing ??
+            (
+              await transaction
+                .insert(auditCheckpoints)
+                .values({
+                  ...checkpointSigner.create({
+                    eventCount: auditIntegrity.eventCount,
+                    headHash: auditIntegrity.headHash,
+                    keyId: checkpointSigner.keyId,
+                  }),
+                  caseId,
+                  tenantId,
+                })
+                .onConflictDoNothing()
+                .returning()
+            )[0] ??
+            (
+              await transaction
+                .select()
+                .from(auditCheckpoints)
+                .where(
+                  and(
+                    eq(auditCheckpoints.tenantId, tenantId),
+                    eq(auditCheckpoints.caseId, caseId),
+                    eq(auditCheckpoints.headHash, auditIntegrity.headHash),
+                  ),
+                )
+                .limit(1)
+            )[0];
+          if (checkpoint) {
+            auditCheckpoint = {
+              algorithm: "ed25519",
+              createdAt: checkpoint.createdAt.toISOString(),
+              eventCount: checkpoint.eventCount,
+              headHash: checkpoint.headHash,
+              keyId: checkpoint.keyId,
+              signature: checkpoint.signature,
+            };
+          }
+        }
         return {
           ...base,
+          auditCheckpoint,
+          auditIntegrity,
           manifestHash: hashEvent(base),
         } satisfies ReviewExport;
       });
@@ -1564,6 +1743,53 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
       });
     },
 
+    async acknowledgeDecisionPacket(tenantId, actorId, caseId, knownLimitations) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        await transaction.execute(sql`
+          select id from review_cases
+          where tenant_id = ${tenantId}::uuid and id = ${caseId}::uuid
+          for update
+        `);
+        const current = await selectCase(transaction, tenantId, caseId);
+        if (!current) throw new ReviewCaseNotFoundError();
+        if (current.status !== "in_review" || current.assignedToUserId !== actorId) {
+          throw new ReviewCaseTransitionError();
+        }
+        const packet = await buildDecisionPacket(transaction, tenantId, current, knownLimitations);
+        const [previousAcknowledgement] = await transaction
+          .select({ payload: reviewEvents.payload })
+          .from(reviewEvents)
+          .where(
+            and(
+              eq(reviewEvents.tenantId, tenantId),
+              eq(reviewEvents.caseId, caseId),
+              eq(reviewEvents.actorId, actorId),
+              eq(reviewEvents.eventType, "decision_packet_acknowledged"),
+            ),
+          )
+          .orderBy(desc(reviewEvents.eventSequence))
+          .limit(1);
+        if (
+          previousAcknowledgement?.payload &&
+          typeof previousAcknowledgement.payload === "object" &&
+          "packetDigest" in previousAcknowledgement.payload &&
+          previousAcknowledgement.payload.packetDigest === packet.digest
+        ) {
+          return { packetDigest: packet.digest };
+        }
+        await appendEvent(transaction, {
+          actorId,
+          caseId,
+          eventType: "decision_packet_acknowledged",
+          occurredAt: new Date(),
+          payload: { packetDigest: packet.digest },
+          tenantId,
+        });
+        return { packetDigest: packet.digest };
+      });
+    },
+
     async decide(tenantId, actorId, caseId, input) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
@@ -1583,7 +1809,8 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
           current.decidedByUserId === actorId &&
           current.decisionOutcome === input.outcome &&
           current.decisionRationale === input.rationale &&
-          current.finalRecommendation === input.finalRecommendation
+          current.finalRecommendation === input.finalRecommendation &&
+          current.knownLimitations === input.knownLimitations
         ) {
           return { case: mapDetail(current as unknown as Record<string, unknown>), replayed: true };
         }
@@ -1591,18 +1818,31 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
         if (current.status !== "in_review" || current.assignedToUserId !== actorId) {
           throw new ReviewCaseTransitionError();
         }
-        const managedEvidence = await transaction
-          .select({ verified: evidenceObjects.verified })
-          .from(evidenceAttachments)
-          .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+        const packet = await buildDecisionPacket(
+          transaction,
+          tenantId,
+          current,
+          input.knownLimitations,
+        );
+        const [acknowledgement] = await transaction
+          .select({ payload: reviewEvents.payload })
+          .from(reviewEvents)
           .where(
             and(
-              eq(evidenceAttachments.tenantId, tenantId),
-              eq(evidenceAttachments.caseId, caseId),
-              eq(evidenceAttachments.state, "active"),
+              eq(reviewEvents.tenantId, tenantId),
+              eq(reviewEvents.caseId, caseId),
+              eq(reviewEvents.actorId, actorId),
+              eq(reviewEvents.eventType, "decision_packet_acknowledged"),
             ),
-          );
-        if (managedEvidence.length === 0 || managedEvidence.some((item) => !item.verified)) {
+          )
+          .orderBy(desc(reviewEvents.eventSequence))
+          .limit(1);
+        if (
+          !acknowledgement?.payload ||
+          typeof acknowledgement.payload !== "object" ||
+          !("packetDigest" in acknowledgement.payload) ||
+          acknowledgement.payload.packetDigest !== packet.digest
+        ) {
           throw new ReviewCaseTransitionError();
         }
 
@@ -1615,6 +1855,7 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
             decidedAt: occurredAt,
             decidedByUserId: actorId,
             finalRecommendation: input.finalRecommendation,
+            knownLimitations: input.knownLimitations,
             status: "completed",
             updatedAt: occurredAt,
           })
@@ -1642,7 +1883,9 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
             decisionOutcome: input.outcome,
             evidence: parseEvidence(current.evidence),
             finalRecommendation: input.finalRecommendation,
+            knownLimitations: input.knownLimitations,
             policyVersion: current.policyVersion,
+            decisionPacketDigest: packet.digest,
             rationale: input.rationale,
             recommendation: current.recommendation,
             reviewDueAt: current.reviewDueAt?.toISOString() ?? null,
@@ -1663,7 +1906,10 @@ export function createPostgresReviewWorkflowStore(database: Database): ReviewWor
   };
 }
 
-export function createPostgresEvidenceMetadataStore(database: Database): EvidenceMetadataStore {
+export function createPostgresEvidenceMetadataStore(
+  database: Database,
+  retentionDays = 365,
+): EvidenceMetadataStore {
   return {
     async create(
       tenantId,
@@ -1742,6 +1988,7 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
             objectName: object.objectName,
             providerEtag: object.providerEtag ?? null,
             providerVersion: object.providerVersion ?? null,
+            retentionUntil: new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000),
             sizeBytes: upload.sizeBytes,
             tenantId,
             verified: true,
@@ -1997,6 +2244,65 @@ export function createPostgresEvidenceMetadataStore(database: Database): Evidenc
             ),
           )
           .orderBy(asc(evidenceAttachments.ordinal));
+      });
+    },
+    async listLifecycle(tenantId, caseId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const rows = await transaction
+          .select({
+            attempts: sql<number>`coalesce(${retentionDeletionJobs.attempts}, 0)`,
+            deletedAt: evidenceObjects.deletedAt,
+            deletionProviderResult: evidenceObjects.deletionProviderResult,
+            digest: evidenceObjects.digest,
+            id: evidenceAttachments.id,
+            lastFailure: retentionDeletionJobs.lastError,
+            legalHold: evidenceObjects.legalHold,
+            mediaType: evidenceObjects.mediaType,
+            retentionUntil: evidenceObjects.retentionUntil,
+            retentionJobStatus: retentionDeletionJobs.status,
+            verified: evidenceObjects.verified,
+          })
+          .from(evidenceAttachments)
+          .innerJoin(evidenceObjects, eq(evidenceAttachments.evidenceObjectId, evidenceObjects.id))
+          .leftJoin(
+            retentionDeletionJobs,
+            and(
+              eq(retentionDeletionJobs.tenantId, evidenceObjects.tenantId),
+              eq(retentionDeletionJobs.evidenceId, evidenceObjects.id),
+            ),
+          )
+          .where(
+            and(
+              eq(evidenceAttachments.tenantId, tenantId),
+              eq(evidenceAttachments.caseId, caseId),
+              eq(evidenceAttachments.state, "active"),
+            ),
+          )
+          .orderBy(asc(evidenceAttachments.ordinal));
+        return rows.map((row) => ({
+          attempts: Number(row.attempts),
+          deletedAt: row.deletedAt,
+          deletionProviderResult: row.deletionProviderResult,
+          digest: row.digest,
+          id: row.id,
+          lastFailure: row.lastFailure,
+          legalHold: row.legalHold === "active" ? ("active" as const) : ("none" as const),
+          mediaType: row.mediaType,
+          retentionStatus: row.deletedAt
+            ? ("deleted" as const)
+            : row.retentionJobStatus === "pending"
+              ? ("scheduled" as const)
+              : row.retentionJobStatus === "processing"
+                ? ("processing" as const)
+                : row.retentionJobStatus === "failed"
+                  ? ("failed" as const)
+                  : row.retentionJobStatus === "dead_letter"
+                    ? ("dead_letter" as const)
+                    : ("available" as const),
+          retentionUntil: row.retentionUntil,
+          verified: row.verified && !row.deletedAt,
+        }));
       });
     },
     async remove(tenantId, caseId, evidenceId, actorId) {
@@ -2385,6 +2691,83 @@ export function createPostgresRetentionDeletionJobStore(
   database: Database,
 ): RetentionDeletionJobStore {
   return {
+    async listEligibleTenantIds() {
+      const rows = await database.execute<{ tenantId: string }>(
+        sql`select * from public.list_hollis_retention_job_tenants()`,
+      );
+      return rows.map((row) => row.tenantId);
+    },
+    async scheduleEligible(tenantId, limit) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const created = await transaction.execute<{
+          caseId: string;
+          evidenceId: string;
+          id: string;
+          retentionUntil: Date;
+        }>(sql`
+          with candidates as (
+            select attachment.case_id as case_id, evidence.id as evidence_id,
+              evidence.object_name as object_name, evidence.retention_until as retention_until
+            from evidence_attachments attachment
+            inner join evidence_objects evidence on evidence.id = attachment.evidence_object_id
+            inner join review_cases review_case on review_case.id = attachment.case_id
+            where attachment.tenant_id = ${tenantId}::uuid
+              and attachment.state = 'active'
+              and evidence.tenant_id = ${tenantId}::uuid
+              and evidence.verified = true
+              and evidence.deleted_at is null
+              and evidence.legal_hold = 'none'
+              and evidence.retention_until <= now()
+              and review_case.tenant_id = ${tenantId}::uuid
+              and review_case.status = 'completed'
+            order by evidence.retention_until asc, evidence.id asc
+            limit ${limit}
+          ), inserted as (
+            insert into retention_deletion_jobs (case_id, evidence_id, object_name, tenant_id)
+            select case_id, evidence_id, object_name, ${tenantId}::uuid from candidates
+            on conflict (tenant_id, evidence_id) do nothing
+            returning id, case_id, evidence_id
+          )
+          select inserted.case_id as "caseId", inserted.evidence_id as "evidenceId",
+            inserted.id, candidates.retention_until as "retentionUntil"
+          from inserted
+          inner join candidates on candidates.case_id = inserted.case_id
+            and candidates.evidence_id = inserted.evidence_id
+        `);
+        for (const job of created) {
+          await appendEvent(transaction, {
+            actorId: "retention-system",
+            caseId: job.caseId,
+            eventType: "retention_deletion_requested",
+            occurredAt: new Date(),
+            payload: {
+              evidenceId: job.evidenceId,
+              jobId: job.id,
+              retentionUntil: new Date(job.retentionUntil).toISOString(),
+            },
+            tenantId,
+          });
+        }
+        return created.length;
+      });
+    },
+    async canDelete(tenantId, jobId) {
+      return database.transaction(async (transaction) => {
+        await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+        const [eligible] = await transaction.execute<{ id: string }>(sql`
+          select job.id
+          from retention_deletion_jobs job
+          inner join evidence_objects evidence on evidence.id = job.evidence_id
+          where job.tenant_id = ${tenantId}::uuid and job.id = ${jobId}::uuid
+            and job.status = 'processing'
+            and evidence.legal_hold = 'none'
+            and evidence.deleted_at is null
+          for update of job, evidence
+        `);
+        return Boolean(eligible);
+      });
+    },
     async claimNext(tenantId) {
       return database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
@@ -2393,14 +2776,15 @@ export function createPostgresRetentionDeletionJobStore(
             select id
             from retention_deletion_jobs
             where tenant_id = ${tenantId}::uuid
-              and status in ('pending', 'failed')
+              and (status in ('pending', 'failed') or (status = 'processing' and lease_expires_at <= now()))
               and available_at <= now()
             order by available_at, created_at
             for update skip locked
             limit 1
           )
           update retention_deletion_jobs job
-          set status = 'processing', claimed_at = now(), attempts = job.attempts + 1
+          set status = 'processing', claimed_at = now(),
+            lease_expires_at = now() + interval '10 minutes', attempts = job.attempts + 1
           from candidate
           where job.id = candidate.id
           returning job.evidence_id as "evidenceId", job.id as "jobId",
@@ -2414,7 +2798,7 @@ export function createPostgresRetentionDeletionJobStore(
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
         const [job] = await transaction
           .update(retentionDeletionJobs)
-          .set({ completedAt: new Date(), status: "completed" })
+          .set({ completedAt: new Date(), leaseExpiresAt: null, status: "completed" })
           .where(
             and(
               eq(retentionDeletionJobs.tenantId, tenantId),
@@ -2427,6 +2811,25 @@ export function createPostgresRetentionDeletionJobStore(
             evidenceId: retentionDeletionJobs.evidenceId,
           });
         if (!job) throw new Error("Retention deletion job is not claimable.");
+        const [deleted] = await transaction
+          .update(evidenceObjects)
+          .set({
+            deletedAt: new Date(),
+            deletionProviderResult: "deleted",
+            verified: false,
+            verifiedAt: null,
+          })
+          .where(
+            and(
+              eq(evidenceObjects.id, job.evidenceId),
+              eq(evidenceObjects.tenantId, tenantId),
+              eq(evidenceObjects.legalHold, "none"),
+              sql`${evidenceObjects.deletedAt} is null`,
+            ),
+          )
+          .returning({ id: evidenceObjects.id });
+        if (!deleted)
+          throw new Error("Retention deletion was blocked by a legal hold or prior deletion.");
         await appendEvent(transaction, {
           actorId: "retention-system",
           caseId: job.caseId,
@@ -2440,12 +2843,13 @@ export function createPostgresRetentionDeletionJobStore(
     async markFailed(tenantId, jobId, reason) {
       await database.transaction(async (transaction) => {
         await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-        await transaction
+        const [updated] = await transaction
           .update(retentionDeletionJobs)
           .set({
-            availableAt: new Date(Date.now() + 5 * 60 * 1000),
+            availableAt: sql`now() + make_interval(secs => least(86400, 60 * power(2, attempts)::integer))`,
+            leaseExpiresAt: null,
             lastError: reason,
-            status: "failed",
+            status: sql`case when attempts >= 8 then 'dead_letter'::retention_deletion_status else 'failed'::retention_deletion_status end`,
           })
           .where(
             and(
@@ -2453,7 +2857,9 @@ export function createPostgresRetentionDeletionJobStore(
               eq(retentionDeletionJobs.id, jobId),
               eq(retentionDeletionJobs.status, "processing"),
             ),
-          );
+          )
+          .returning({ id: retentionDeletionJobs.id });
+        if (!updated) throw new Error("Retention deletion job is not claimable.");
       });
     },
   };
@@ -2469,6 +2875,7 @@ export async function requestRetentionDeletion(
     await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
     const [candidate] = await transaction
       .select({
+        evidenceObjectId: evidenceObjects.id,
         objectName: evidenceObjects.objectName,
         retentionUntil: evidenceObjects.retentionUntil,
       })
@@ -2489,11 +2896,16 @@ export async function requestRetentionDeletion(
         ),
       )
       .limit(1);
-    if (!candidate) return null;
+    if (!candidate || !candidate.retentionUntil) return null;
 
     const [job] = await transaction
       .insert(retentionDeletionJobs)
-      .values({ caseId, evidenceId, objectName: candidate.objectName, tenantId })
+      .values({
+        caseId,
+        evidenceId: candidate.evidenceObjectId,
+        objectName: candidate.objectName,
+        tenantId,
+      })
       .onConflictDoNothing({
         target: [retentionDeletionJobs.tenantId, retentionDeletionJobs.evidenceId],
       })
@@ -2504,7 +2916,12 @@ export async function requestRetentionDeletion(
       caseId,
       eventType: "retention_deletion_requested",
       occurredAt: new Date(),
-      payload: { evidenceId, jobId: job.id, retentionUntil: candidate.retentionUntil },
+      payload: {
+        attachmentId: evidenceId,
+        evidenceId: candidate.evidenceObjectId,
+        jobId: job.id,
+        retentionUntil: candidate.retentionUntil.toISOString(),
+      },
       tenantId,
     });
     return job.id;
@@ -2521,19 +2938,15 @@ export async function setEvidenceLegalHold(
 ): Promise<boolean> {
   return database.transaction(async (transaction) => {
     await transaction.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-    const [updated] = await transaction
-      .update(evidenceObjects)
-      .set({ legalHold: active ? "active" : "none" })
-      .where(sql`${evidenceObjects.id} = (
-        select ea.evidence_object_id
-        from evidence_attachments ea
-        where ea.tenant_id = ${tenantId}::uuid
-          and ea.case_id = ${caseId}::uuid
-          and ea.id = ${evidenceId}::uuid
-          and ea.state = 'active'
-      )`)
-      .returning({ id: evidenceObjects.id });
-    if (!updated) return false;
+    const [result] = await transaction.execute<{ updated: boolean }>(sql`
+      select public.set_hollis_evidence_legal_hold(
+        ${tenantId}::uuid,
+        ${caseId}::uuid,
+        ${evidenceId}::uuid,
+        ${active}
+      ) as updated
+    `);
+    if (!result?.updated) return false;
     await appendEvent(transaction, {
       actorId,
       caseId,

@@ -31,6 +31,7 @@ export type ReviewCaseDetail = ReviewQueueItem & {
   escalatedByUserId: string | null;
   evidence: Array<{ digest: string; id: string; mediaType: string }>;
   finalRecommendation: CreateReviewCase["recommendation"] | null;
+  knownLimitations?: string | null;
   policyId?: string | null;
   policyVersion: string;
   ruleId: string;
@@ -39,6 +40,10 @@ export type ReviewCaseDetail = ReviewQueueItem & {
 export type WorkflowResult = {
   case: ReviewCaseDetail;
   replayed: boolean;
+};
+
+export type DecisionPacketAcknowledgement = {
+  packetDigest: string;
 };
 
 export type ReviewMemberIdentity = {
@@ -50,6 +55,12 @@ export type ReviewMemberIdentity = {
 };
 
 export interface ReviewWorkflowStore {
+  acknowledgeDecisionPacket?(
+    tenantId: string,
+    actorId: string,
+    caseId: string,
+    knownLimitations: string,
+  ): Promise<DecisionPacketAcknowledgement>;
   claim(tenantId: string, actorId: string, caseId: string): Promise<WorkflowResult>;
   decide(
     tenantId: string,
@@ -133,6 +144,7 @@ export function toDetailResponse(
     externalReference: item.externalReference,
     hollisCaseReference: item.hollisCaseReference,
     finalRecommendation: item.finalRecommendation,
+    knownLimitations: item.knownLimitations,
     id: item.id,
     policyId: item.policyId,
     policyVersion: item.policyVersion,

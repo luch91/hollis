@@ -1,22 +1,22 @@
-import type { ManagedAttestationSubmission, PolicyContractDeployment } from "@hollis/contracts";
 import { randomUUID } from "node:crypto";
+import type { ManagedAttestationSubmission, PolicyContractDeployment } from "@hollis/contracts";
+import type { PublicAttestationCaseFileStore } from "./attestation.js";
 import {
   buildAdjudicationCaseFile,
   buildGenLayerAttestationRequest,
 } from "./attestation-workflow.js";
-import type { PublicAttestationCaseFileStore } from "./attestation.js";
 import type { EvidenceMetadataStore } from "./evidence.js";
 import {
   beginManagedAttestationSubmission,
-  reconcileManagedAttestationSubmission,
   type ManagedAttestationClient,
   type ManagedAttestationSubmissionStore,
+  reconcileManagedAttestationSubmission,
 } from "./managed-attestation-submission.js";
 import {
   beginPolicyContractDeployment,
-  reconcilePolicyContractDeployment,
   type PolicyContractDeploymentClient,
   type PolicyContractDeploymentStore,
+  reconcilePolicyContractDeployment,
 } from "./policy-contract-deployment.js";
 import type { PolicyLibraryStore } from "./policy-library.js";
 import type { ReviewWorkflowStore } from "./workflow.js";
@@ -70,6 +70,12 @@ export async function startManagedAttestationForCase(input: {
   if (exported?.case.status !== "completed" || !exported.case.decisionOutcome) {
     return { deployment: null, submission: null };
   }
+  // A public receipt would amplify a broken private record. Do not publish or
+  // submit an attestation until the independently reproducible audit chain is
+  // intact; the export exposes the failure to authorized users for response.
+  if (exported.auditIntegrity?.status !== "verified") {
+    return { deployment: null, submission: null };
+  }
   const control = await casePolicyBinding(
     input.dependencies,
     input.tenantId,
@@ -83,6 +89,9 @@ export async function startManagedAttestationForCase(input: {
     input.tenantId,
     control.controlRecordId,
   );
+  // V7 is retained strictly for historical reads. A new submission must bind
+  // the V8 authorization and canonical-record guarantees.
+  if (deployment && deployment.sourceVersion !== "v8") deployment = null;
   if (!deployment) {
     deployment = await beginPolicyContractDeployment({
       binding: control.binding,
@@ -91,7 +100,7 @@ export async function startManagedAttestationForCase(input: {
       policyControlRecordId: control.controlRecordId,
       runtimeAddress: input.dependencies.runtimeAddress,
       source: input.dependencies.source,
-      sourceVersion: "v7",
+      sourceVersion: "v8",
       store: input.dependencies.deploymentStore,
       tenantId: input.tenantId,
     });

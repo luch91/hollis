@@ -103,4 +103,24 @@ On Windows, the upstream GenLayer direct VM currently cannot release its stdin t
 
 ## Test evidence
 
+### Independent audit-chain verification
+
+Download the authorized JSON export, then run the verifier outside the API process.
+The tenant ID is required because it is part of each event digest; do not place it in
+the export itself or in a public case file.
+
+```powershell
+$env:HOLLIS_AUDIT_TENANT_ID = "<authorized workspace UUID>"
+$env:HOLLIS_AUDIT_CHECKPOINT_PUBLIC_KEY_BASE64 = "<optional configured Ed25519 SPKI key>"
+node scripts/verify-review-export.mjs .\case-export.json
+```
+
+The command exits non-zero for altered, missing, reordered, duplicated, or forked
+events. When an export contains a checkpoint, provide its configured public key
+to verify the signature and checkpoint coverage too. A verified chain is
+necessary but not sufficient for a production release.
+
+For retention-job recovery and supported-provider version-expiry procedures, use
+the [evidence-retention runbook](runbooks/evidence-retention.md).
+
 For a release record, capture the commit, environment name, execution date, operator, command results, synthetic record identifiers, cleanup result, and artifact location. Do not retain raw evidence, policy source files, credentials, signed URLs, or identity tokens.

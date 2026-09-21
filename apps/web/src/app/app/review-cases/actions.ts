@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  acknowledgeDecisionPacket,
   claimReviewCase,
   createEvidenceUpload,
-  removeEvidence,
   createPublicAttestationCaseFile,
   createReviewCase,
   createWorkspacePolicy,
@@ -16,8 +16,11 @@ import {
   ReviewServiceError,
   recoverWorkspace,
   refreshAttestation,
+  removeEvidence,
   uploadWorkspacePolicySource,
   verifyEvidence,
+  setEvidenceLegalHold,
+  getEvidenceDownload,
 } from "./data";
 
 function requiredValue(formData: FormData, name: string): string {
@@ -301,6 +304,25 @@ export async function removeEvidenceAction(formData: FormData) {
   redirect(`/app/review-cases/${caseId}`);
 }
 
+export async function setEvidenceLegalHoldAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  const evidenceId = requiredValue(formData, "evidenceId");
+  const active = requiredValue(formData, "active") === "true";
+  if (formData.get("confirmation") !== "on") {
+    throw new Error("Confirm the legal-hold change before submitting it.");
+  }
+  await setEvidenceLegalHold(caseId, evidenceId, active);
+  revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}#evidence-lifecycle`);
+}
+
+export async function downloadEvidenceAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  const evidenceId = requiredValue(formData, "evidenceId");
+  const { downloadUrl } = await getEvidenceDownload(caseId, evidenceId);
+  redirect(downloadUrl);
+}
+
 export async function claimAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   await claimReviewCase(caseId);
@@ -330,34 +352,19 @@ export async function decideAction(formData: FormData) {
     typeof decideReviewCase
   >[1]["outcome"];
   const rationale = String(formData.get("rationale") ?? "");
-  await decideReviewCase(caseId, { finalRecommendation, outcome, rationale });
+  const knownLimitations = String(formData.get("knownLimitations") ?? "");
+  if (formData.get("packetAcknowledged") !== "on") {
+    throw new Error("You must acknowledge the decision packet before recording a decision.");
+  }
+  await acknowledgeDecisionPacket(caseId, knownLimitations);
+  await decideReviewCase(caseId, { finalRecommendation, knownLimitations, outcome, rationale });
   revalidateWorkspace(caseId);
   redirect(`/app/review-cases/${caseId}`);
 }
 
-function policyFromForm(formData: FormData) {
-  return {
-    control: {
-      attestationCriterion: requiredValue(formData, "attestationCriterion"),
-      controlId: requiredValue(formData, "controlId"),
-      controlVersion: requiredValue(formData, "controlVersion"),
-      evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
-        | "none"
-        | "reference_required"
-        | "verified_reference_required",
-      interpretation: requiredValue(formData, "interpretation") as
-        | "deterministic"
-        | "judgment_required",
-      policyDocumentDigest: requiredValue(formData, "policyDocumentDigest"),
-    },
-    policyId: requiredValue(formData, "policyId"),
-    policyVersion: requiredValue(formData, "policyVersion"),
-  };
-}
-
 export async function createPublicAttestationCaseFileAction(formData: FormData) {
   const caseId = requiredValue(formData, "caseId");
-  const caseFile = await createPublicAttestationCaseFile(caseId, policyFromForm(formData));
+  const caseFile = await createPublicAttestationCaseFile(caseId);
   revalidateWorkspace(caseId);
   redirect(`/app/review-cases/${caseId}?caseFile=${caseFile.publicId}#attestation`);
 }

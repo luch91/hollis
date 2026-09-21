@@ -125,6 +125,14 @@ test("approved environment identity and primary application workflow", async ({ 
   await page
     .getByLabel("Rationale")
     .fill("Approved non-production workflow verified the synthetic evidence and policy binding.");
+  await page
+    .getByLabel("Known limitations")
+    .fill("Synthetic test evidence and the approved non-production environment were reviewed.");
+  await page
+    .getByLabel(
+      /I reviewed the frozen evidence, policy control, recommendation, deadline, and any prior escalation/i,
+    )
+    .check();
   await page.getByRole("button", { name: "Record human decision" }).click();
   await expect(page.getByText("completed", { exact: true })).toBeVisible();
 

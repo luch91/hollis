@@ -3,8 +3,8 @@ import {
   bigserial,
   boolean,
   foreignKey,
-  integer,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -32,6 +32,7 @@ export const eventType = pgEnum("review_event_type", [
   "evidence_upload_failed",
   "evidence_upload_expired",
   "evidence_quarantine_cleaned",
+  "decision_packet_acknowledged",
   "decision_recorded",
   "case_escalated",
   "attestation_recorded",
@@ -47,6 +48,7 @@ export const retentionDeletionStatus = pgEnum("retention_deletion_status", [
   "processing",
   "completed",
   "failed",
+  "dead_letter",
 ]);
 
 export const attestationStatus = pgEnum("attestation_status", [
@@ -259,6 +261,7 @@ export const reviewCases = pgTable(
       .default(sql`public.generate_hollis_case_reference(now())`),
     id: uuid("id").primaryKey().defaultRandom(),
     intakeFingerprint: text("intake_fingerprint").notNull(),
+    knownLimitations: text("known_limitations"),
     policyId: text("policy_id"),
     policyVersion: text("policy_version").notNull(),
     recommendation: text("recommendation").notNull(),
@@ -294,6 +297,8 @@ export const evidenceObjects = pgTable(
     // represented exclusively by evidenceAttachments below.
     caseId: uuid("case_id").references(() => reviewCases.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletionProviderResult: text("deletion_provider_result"),
     digest: text("digest").notNull(),
     id: uuid("id").primaryKey().defaultRandom(),
     legalHold: text("legal_hold").notNull().default("none"),
@@ -397,6 +402,37 @@ export const reviewEvents = pgTable(
     uniqueIndex("review_events_event_hash_unique").on(table.eventHash),
     index("review_events_case_created_idx").on(table.caseId, table.createdAt),
     index("review_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ],
+);
+
+export const auditCheckpoints = pgTable(
+  "audit_checkpoints",
+  {
+    algorithm: text("algorithm").notNull(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => reviewCases.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    eventCount: integer("event_count").notNull(),
+    headHash: text("head_hash").notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    keyId: text("key_id").notNull(),
+    signature: text("signature").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+  },
+  (table) => [
+    uniqueIndex("audit_checkpoints_case_head_unique").on(
+      table.tenantId,
+      table.caseId,
+      table.headHash,
+    ),
+    index("audit_checkpoints_tenant_case_created_idx").on(
+      table.tenantId,
+      table.caseId,
+      table.createdAt,
+    ),
   ],
 );
 
@@ -627,6 +663,7 @@ export const retentionDeletionJobs = pgTable(
       .references(() => evidenceObjects.id),
     id: uuid("id").primaryKey().defaultRandom(),
     lastError: text("last_error"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
     objectName: text("object_name").notNull(),
     status: retentionDeletionStatus("status").notNull().default("pending"),
     tenantId: uuid("tenant_id")

@@ -8,7 +8,10 @@ export type RetentionDeletionJob = {
 };
 
 export interface RetentionDeletionJobStore {
+  canDelete(tenantId: string, jobId: string): Promise<boolean>;
   claimNext(tenantId: string): Promise<RetentionDeletionJob | null>;
+  listEligibleTenantIds(): Promise<string[]>;
+  scheduleEligible(tenantId: string, limit: number): Promise<number>;
   markCompleted(tenantId: string, jobId: string): Promise<void>;
   markFailed(tenantId: string, jobId: string, reason: string): Promise<void>;
 }
@@ -22,6 +25,7 @@ export async function processNextRetentionDeletion(
   if (!job) return "empty";
 
   try {
+    if (!(await jobs.canDelete(tenantId, job.jobId))) return "empty";
     await storage.delete(job.tenantId, job.objectName);
     await jobs.markCompleted(tenantId, job.jobId);
     return "completed";

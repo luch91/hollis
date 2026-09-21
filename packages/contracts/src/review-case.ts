@@ -82,6 +82,7 @@ export const escalateReviewCaseSchema = z
 export const decideReviewCaseSchema = z
   .object({
     finalRecommendation: recommendationSchema,
+    knownLimitations: z.string().trim().min(1).max(4000),
     outcome: reviewOutcomeSchema.exclude(["escalated"]),
     rationale: z.string().trim().min(1).max(4000),
   })
@@ -99,8 +100,44 @@ export const reviewExportEventSchema = z
   })
   .strict();
 
+export const auditIntegritySchema = z
+  .object({
+    algorithm: z.literal("hollis.audit-event.v1"),
+    eventCount: z.number().int().nonnegative(),
+    failure: z
+      .enum([
+        "duplicate_event_hash",
+        "event_hash_mismatch",
+        "invalid_genesis",
+        "non_monotonic_sequence",
+        "previous_hash_mismatch",
+      ])
+      .nullable(),
+    headHash: z
+      .string()
+      .regex(/^sha256:[a-f0-9]{64}$/)
+      .nullable(),
+    status: z.enum(["verified", "failed"]),
+  })
+  .strict();
+
+export const auditCheckpointSchema = z
+  .object({
+    algorithm: z.literal("ed25519"),
+    createdAt: z.iso.datetime(),
+    eventCount: z.number().int().positive(),
+    headHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    keyId: z.string().trim().min(1).max(128),
+    signature: z.string().min(1),
+  })
+  .strict();
+
 export const reviewExportSchema = z
   .object({
+    // Historical exports predate explicit audit-verification metadata. New
+    // exports always include it, while readers keep those archives usable.
+    auditIntegrity: auditIntegritySchema.optional(),
+    auditCheckpoint: auditCheckpointSchema.optional(),
     canonical: canonicalReviewMetadataSchema.optional(),
     case: reviewQueueItemSchema.extend({
       assignedAt: z.iso.datetime().nullable(),
@@ -114,6 +151,7 @@ export const reviewExportSchema = z
       escalatedByUserId: z.string().nullable(),
       escalationReason: z.string().nullable(),
       finalRecommendation: recommendationSchema.nullable(),
+      knownLimitations: z.string().nullable().optional(),
       policyId: z.string().nullable().optional(),
       policyVersion: z.string(),
       ruleId: z.string(),

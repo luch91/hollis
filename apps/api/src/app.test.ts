@@ -898,7 +898,7 @@ describe("API boundaries", () => {
     });
   });
 
-  it("submits a completed review as a GenLayer attestation and persists its receipt", async () => {
+  it("retires the caller-controlled direct GenLayer attestation endpoint", async () => {
     let providerInput: unknown;
     let storedCaseId: string | undefined;
     const workflowStore: ReviewWorkflowStore = {
@@ -1005,21 +1005,10 @@ describe("API boundaries", () => {
       url: `/v1/review-cases/${completedExport.case.id}/attestations`,
     });
 
-    expect(response.statusCode).toBe(201);
-    expect(response.json()).toMatchObject({
-      provider: "genlayer",
-      providerSubmissionId: "submission-001",
-      status: "submitted",
-    });
-    expect(storedCaseId).toBe(completedExport.case.id);
-    expect(providerInput).toMatchObject({
-      caseFile: {
-        caseCommitment: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
-        commitmentVersion: "hollis.case-commitment.v1",
-        policy: { control: { controlId: "human-review-adverse-action" } },
-        review: { decisionRecorded: true, humanDecisionOutcome: "rejected" },
-      },
-    });
+    expect(response.statusCode).toBe(410);
+    expect(response.json()).toMatchObject({ code: "manual_attestation_retired" });
+    expect(storedCaseId).toBeUndefined();
+    expect(providerInput).toBeUndefined();
   });
 
   it("imports a verified finalized GenLayer attestation without a server signing key", async () => {
@@ -1241,20 +1230,7 @@ describe("API boundaries", () => {
     const response = await app.inject({
       headers: { authorization: "Bearer verified-token" },
       method: "POST",
-      payload: {
-        policy: {
-          control: {
-            attestationCriterion: "Human review must be recorded.",
-            controlId: "human-review-adverse-action",
-            controlVersion: "1",
-            evidenceRequirement: "verified_reference_required",
-            interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"a".repeat(64)}`,
-          },
-          policyId: "commercial-property-governance",
-          policyVersion: "commercial-property-2026-01",
-        },
-      },
+      payload: {},
       url: `/v1/review-cases/${completedExport.case.id}/attestation-case-files`,
     });
 

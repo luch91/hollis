@@ -35,6 +35,20 @@ export type EvidenceUploadResult = EvidenceUpload & {
   uploadUrl: string;
 };
 
+export type EvidenceLifecycleRecord = {
+  attempts: number;
+  deletedAt: Date | null;
+  deletionProviderResult: string | null;
+  digest: string;
+  id: string;
+  lastFailure: string | null;
+  legalHold: "active" | "none";
+  mediaType: string;
+  retentionStatus: "available" | "scheduled" | "processing" | "failed" | "dead_letter" | "deleted";
+  retentionUntil: Date | null;
+  verified: boolean;
+};
+
 export interface EvidenceMetadataStore {
   create(
     tenantId: string,
@@ -80,6 +94,7 @@ export interface EvidenceMetadataStore {
     tenantId: string,
     caseId: string,
   ): Promise<Array<{ digest: string; mediaType: string; verified: boolean }>>;
+  listLifecycle?(tenantId: string, caseId: string): Promise<EvidenceLifecycleRecord[]>;
   remove?(tenantId: string, caseId: string, evidenceId: string, actorId: string): Promise<boolean>;
   listExpired?(
     tenantId: string,
