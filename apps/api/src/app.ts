@@ -844,7 +844,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       return reply.code(404).send();
     }
     const body = request.body as { statements?: unknown };
-    if (!Array.isArray(body?.statements) || !body.statements.every((statement) => typeof statement === "string")) {
+    if (
+      !Array.isArray(body?.statements) ||
+      !body.statements.every((statement) => typeof statement === "string")
+    ) {
       return reply.code(400).send({ code: "invalid_request" });
     }
     for (const statement of body.statements) {
@@ -1600,7 +1603,10 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     "/v1/review-cases",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
     async (request, reply) => {
-      app.log.info({ caseInputKeys: Object.keys(request.body as object) }, "review case intake shape");
+      app.log.info(
+        { caseInputKeys: Object.keys(request.body as object) },
+        "review case intake shape",
+      );
       const input = createReviewCaseSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
       if (!input.policyId) {
