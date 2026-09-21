@@ -1,28 +1,31 @@
+import { randomUUID } from "node:crypto";
+import { reviewExportSchema } from "@hollis/contracts";
 import {
   createDatabase,
   evidenceAttachments,
   evidenceObjects,
   evidenceUploads,
+  policyControls,
+  policyVersions,
   reviewCases,
   reviewEvents,
   tenants,
+  users,
 } from "@hollis/database";
-import { reviewExportSchema } from "@hollis/contracts";
 import { eq } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import {
-  createPostgresReviewIntakeStore,
-  createPostgresEvidenceMetadataStore,
-  createPostgresTenantResolver,
-  createPostgresReviewWorkflowStore,
-} from "../src/persistence.js";
 import { createEvidenceUpload, verifyEvidenceUpload } from "../src/evidence.js";
 import type { EvidenceStorage } from "../src/evidence-storage.js";
 import {
+  createPostgresEvidenceMetadataStore,
+  createPostgresReviewIntakeStore,
+  createPostgresReviewWorkflowStore,
+  createPostgresTenantResolver,
+} from "../src/persistence.js";
+import {
   createReviewIntake,
-  type ReviewIntakeRecord,
   ReviewIntakeConflictError,
+  type ReviewIntakeRecord,
 } from "../src/review-intake.js";
 
 const ownerUrl = process.env.DATABASE_TEST_URL;
@@ -34,6 +37,8 @@ if (!ownerUrl || !runtimeUrl) {
 const owner = createDatabase(ownerUrl);
 const runtime = createDatabase(runtimeUrl);
 const tenantId = randomUUID();
+const policyAuthorId = randomUUID();
+const policyVersionId = randomUUID();
 const externalReference = `claim_${randomUUID()}`;
 const input = {
   automatedSystemVersion: "claims-model-2026-08",
@@ -45,6 +50,7 @@ const input = {
     },
   ],
   externalReference,
+  policyId: "commercial-property",
   policyVersion: "commercial-property-2026-01",
   recommendation: "deny" as const,
   riskLevel: "high" as const,
@@ -57,6 +63,31 @@ beforeAll(async () => {
     id: tenantId,
     name: "Persistence integration tenant",
   });
+  await owner.database.insert(users).values({
+    displayName: "Persistence integration policy author",
+    email: `policy-author-${policyAuthorId}@hollis.test`,
+    emailVerifiedAt: new Date(),
+    id: policyAuthorId,
+  });
+  await owner.database.insert(policyVersions).values({
+    createdByUserId: policyAuthorId,
+    documentDigest: `sha256:${"p".repeat(64)}`,
+    id: policyVersionId,
+    policyId: input.policyId,
+    tenantId,
+    title: "Persistence integration policy",
+    version: input.policyVersion,
+  });
+  await owner.database.insert(policyControls).values({
+    attestationCriterion: "A frozen verified reference and recorded human decision are required.",
+    controlId: input.ruleId,
+    controlVersion: "1.0",
+    evidenceRequirement: "verified_reference_required",
+    interpretation: "deterministic",
+    policyVersionId,
+    tenantId,
+    title: "Human review",
+  });
 });
 
 afterAll(async () => {
@@ -67,7 +98,10 @@ afterAll(async () => {
   await owner.database.delete(evidenceObjects).where(eq(evidenceObjects.tenantId, tenantId));
   await owner.database.delete(reviewEvents).where(eq(reviewEvents.tenantId, tenantId));
   await owner.database.delete(reviewCases).where(eq(reviewCases.tenantId, tenantId));
+  await owner.database.delete(policyControls).where(eq(policyControls.tenantId, tenantId));
+  await owner.database.delete(policyVersions).where(eq(policyVersions.tenantId, tenantId));
   await owner.database.delete(tenants).where(eq(tenants.id, tenantId));
+  await owner.database.delete(users).where(eq(users.id, policyAuthorId));
   await Promise.all([owner.client.end(), runtime.client.end()]);
 });
 
@@ -144,7 +178,11 @@ describe("PostgreSQL review intake", () => {
       .returning({ id: evidenceAttachments.id });
     await owner.database
       .update(reviewCases)
-      .set({ evidence: [{ ...input.evidence[0], id: attachment.id }], status: "pending" })
+      .set({
+        evidence: [{ ...input.evidence[0], id: attachment.id }],
+        evidenceFrozenAt: new Date(),
+        status: "pending",
+      })
       .where(eq(reviewCases.id, caseId));
   }
 
@@ -382,8 +420,17 @@ describe("PostgreSQL review intake", () => {
       replayed: false,
     });
 
+    const knownLimitations =
+      "The reviewer relied on the frozen case evidence and did not independently verify external records.";
+    await workflowStore.acknowledgeDecisionPacket(
+      tenantId,
+      "user_02",
+      workflowCase.id,
+      knownLimitations,
+    );
     const decided = await workflowStore.decide(tenantId, "user_02", workflowCase.id, {
       finalRecommendation: "refer",
+      knownLimitations,
       outcome: "modified",
       rationale: "The reviewer changed the recommendation after examining the evidence.",
     });
