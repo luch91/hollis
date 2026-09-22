@@ -1653,11 +1653,24 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     "/v1/review-cases",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
     async (request, reply) => {
+      const normalizedCaseInput = normalizeLegacyReviewCaseInput(request.body);
+      const inputPrototype =
+        request.body && typeof request.body === "object"
+          ? Object.getPrototypeOf(request.body)
+          : null;
       app.log.info(
-        { caseInputKeys: Object.keys(request.body as object) },
+        {
+          caseInputKeys: Object.keys(request.body as object),
+          caseInputNormalizer: "v3",
+          inheritedCaseInputKeys: inputPrototype ? Object.getOwnPropertyNames(inputPrototype) : [],
+          normalizedCaseInputKeys:
+            normalizedCaseInput && typeof normalizedCaseInput === "object"
+              ? Object.getOwnPropertyNames(normalizedCaseInput)
+              : [],
+        },
         "review case intake shape",
       );
-      const input = createReviewCaseSchema.parse(normalizeLegacyReviewCaseInput(request.body));
+      const input = createReviewCaseSchema.parse(normalizedCaseInput);
       const { principal, tenant } = requireRequestContext(request);
       if (!input.policyId) {
         return reply.code(400).send({
