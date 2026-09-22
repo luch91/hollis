@@ -1723,7 +1723,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
               policyControlRecordId: record.controlRecordId,
               runtimeAddress: managedAttestationDependencies.runtimeAddress,
               source: managedAttestationDependencies.source,
-              sourceVersion: "v7",
+              sourceVersion: "v8",
               store: managedAttestationDependencies.deploymentStore,
               tenantId: tenant.id,
             });
@@ -1783,7 +1783,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           policyControlRecordId: control.controlRecordId,
           runtimeAddress: environment.GENLAYER_RUNTIME_ADDRESS,
           source: policyContractSource,
-          sourceVersion: "v7",
+          sourceVersion: "v8",
           store: policyContractDeploymentStore,
           tenantId: tenant.id,
         }),

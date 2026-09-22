@@ -212,7 +212,7 @@ const environmentSchema = z
       if (value.GENLAYER_RPC_URL !== "https://studio-next.genlayer.com/api") {
         context.addIssue({
           code: "custom",
-          message: "GENLAYER_RPC_URL must use the canonical Studio Next endpoint.",
+          message: "GENLAYER_RPC_URL must use the approved Studio Next endpoint.",
           path: ["GENLAYER_RPC_URL"],
         });
       }

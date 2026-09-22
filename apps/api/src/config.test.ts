@@ -145,7 +145,7 @@ describe("readEnvironment", () => {
     ).toMatchObject({ RESEND_FROM: "Hollis <hello@mail.thehollis.xyz>" });
   });
 
-  it("accepts only a complete canonical Studio Next runtime configuration", () => {
+  it("accepts only a complete approved Studio Next runtime configuration", () => {
     const runtime = {
       GENLAYER_CHAIN_ID: "61997",
       GENLAYER_NETWORK: "studio-next",
