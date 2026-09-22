@@ -37,6 +37,10 @@ if (!approvedEnvironments.has(environment)) {
 }
 if (!token) throw new Error("HOLLIS_E2E_MANAGEMENT_TOKEN is required.");
 
+// The operator may paste the full Session Pooler URL, but downstream safety
+// checks deliberately compare hostnames only.
+process.env.HOLLIS_E2E_ALLOWED_DATABASE_HOST = poolerHost;
+
 const here = fileURLToPath(new URL(".", import.meta.url));
 const migrationsDirectory = join(here, "..", "drizzle");
 const journal = JSON.parse(
