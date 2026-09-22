@@ -121,7 +121,7 @@ await query(`
 const runtimeUrl = `postgresql://hollis_app.${projectRef}:${runtimePassword}@${poolerHost}:5432/postgres?sslmode=require`;
 assertSafeE2eDatabase(runtimeUrl, "Hollis E2E runtime database");
 execFileSync(
-  "vercel",
+  process.platform === "win32" ? "vercel.cmd" : "vercel",
   ["env", "add", "DATABASE_URL", "preview", "--force", "--project", "hollis-api"],
   {
     input: runtimeUrl,
