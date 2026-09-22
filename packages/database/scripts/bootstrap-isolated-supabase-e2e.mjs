@@ -126,6 +126,8 @@ const vercelCommand = [
   "DATABASE_URL",
   "preview",
   "--force",
+  "--non-interactive",
+  "--yes",
   "--project",
   "hollis-api",
 ];
