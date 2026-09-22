@@ -64,6 +64,19 @@ export default async function ReviewCasePage({
     ]);
   const publicCaseFiles = publicCaseFileResult.caseFiles;
   const auditIntegrity = exported?.auditIntegrity;
+  // Evidence uploaded through the immutable-provider workflow is stored as an
+  // attachment. Older records retain evidence in the case JSON field. Render
+  // their union so refreshes show the provider-confirmed attachment.
+  const visibleEvidence = [...reviewCase.evidence];
+  for (const lifecycle of evidenceLifecycle) {
+    if (!visibleEvidence.some((evidence) => evidence.digest === lifecycle.digest)) {
+      visibleEvidence.push({
+        digest: lifecycle.digest,
+        id: lifecycle.id,
+        mediaType: lifecycle.mediaType,
+      });
+    }
+  }
   const managedPending =
     managedAttestation.deployment?.status === "submitted" ||
     managedAttestation.submission?.status === "submitted" ||
@@ -158,7 +171,7 @@ export default async function ReviewCasePage({
                   ? "Editable before review starts"
                   : "Frozen for review"}
               </p>
-              {keyEvidenceRecords(reviewCase.evidence).map(({ key, record: evidence }) => {
+              {keyEvidenceRecords(visibleEvidence).map(({ key, record: evidence }) => {
                 const lifecycle = evidenceLifecycle.find(
                   (record) => record.id === evidence.id || record.digest === evidence.digest,
                 );
@@ -170,9 +183,11 @@ export default async function ReviewCasePage({
                     {lifecycle ? (
                       <>
                         <p>
-                          {lifecycle.verified
-                            ? "Verified immutable reference"
-                            : "No longer available"}{" "}
+                          <strong>
+                            {lifecycle.verified
+                              ? "Verified immutable reference"
+                              : "No longer available"}
+                          </strong>{" "}
                           · retention {lifecycle.retentionStatus.replaceAll("_", " ")} · legal hold{" "}
                           {lifecycle.legalHold}
                         </p>

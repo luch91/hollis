@@ -1,15 +1,19 @@
 import { establishRoleSession, expect, test } from "./fixtures";
 
 const apiOrigin = "http://127.0.0.1:4321";
-const caseId = "00000000-0000-4000-8000-000000000393";
-
 async function authorization(page: import("@playwright/test").Page) {
   const session = (await page.context().cookies()).find((item) => item.name === "hollis_session");
   expect(session).toBeDefined();
   return { authorization: `Bearer ${session?.value ?? ""}` };
 }
 
-test("concurrent claim attempts produce one linear case audit chain", async ({ browser }) => {
+test("concurrent claim attempts produce one linear case audit chain", async ({
+  browser,
+}, testInfo) => {
+  const caseId =
+    testInfo.project.name === "chromium-mobile"
+      ? "00000000-0000-4000-8000-000000000420"
+      : "00000000-0000-4000-8000-000000000419";
   const [ownerContext, reviewerContext] = await Promise.all([
     browser.newContext({ baseURL: "http://127.0.0.1:3101" }),
     browser.newContext({ baseURL: "http://127.0.0.1:3101" }),

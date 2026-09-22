@@ -178,6 +178,26 @@ try {
     previousHash: null,
     tenantId: tenantOne,
   });
+  const case419GenesisAt = "2026-09-19T10:03:00.000Z";
+  const case419GenesisHash = auditEventHash({
+    actorId: "00000000-0000-4000-8000-000000000001",
+    caseId: "00000000-0000-4000-8000-000000000419",
+    eventType: "case_created",
+    occurredAt: case419GenesisAt,
+    payload: {},
+    previousHash: null,
+    tenantId: tenantOne,
+  });
+  const case420GenesisAt = "2026-09-19T10:04:00.000Z";
+  const case420GenesisHash = auditEventHash({
+    actorId: "00000000-0000-4000-8000-000000000001",
+    caseId: "00000000-0000-4000-8000-000000000420",
+    eventType: "case_created",
+    occurredAt: case420GenesisAt,
+    payload: {},
+    previousHash: null,
+    tenantId: tenantOne,
+  });
   await client`
     insert into identity_accounts (email, email_verified_at, provider, provider_subject, user_id)
     values ('outside-owner@hollis.test', now(), 'identity_platform', 'e2e-outside-owner', ${outsideUser})
@@ -325,6 +345,54 @@ try {
       '00000000-0000-4000-8000-000000000400', ${case400GenesisAt}, ${case400GenesisHash},
       'case_created', '{}'::jsonb, null, ${tenantOne}
     )
+  `;
+  await client`
+    insert into review_cases (
+      automated_system_version, evidence, external_reference, hollis_case_reference, id,
+      intake_fingerprint, policy_id, policy_version, recommendation, review_due_at,
+      risk_level, rule_id, status, tenant_id
+    ) values
+      ('e2e-ledger', '[]'::jsonb, 'e2e-audit-concurrency-desktop', 'HL-26-TEST-0020',
+       '00000000-0000-4000-8000-000000000419', ${`sha256:${"9".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'pending', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-audit-concurrency-mobile', 'HL-26-TEST-0021',
+       '00000000-0000-4000-8000-000000000420', ${`sha256:${"f".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'pending', ${tenantOne})
+  `;
+  await client`
+    insert into review_events (
+      actor_id, case_id, created_at, event_hash, event_type, payload, previous_hash, tenant_id
+    ) values
+      (
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000419', ${case419GenesisAt}, ${case419GenesisHash},
+        'case_created', '{}'::jsonb, null, ${tenantOne}
+      ),
+      (
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000420', ${case420GenesisAt}, ${case420GenesisHash},
+        'case_created', '{}'::jsonb, null, ${tenantOne}
+      )
+  `;
+  await client`
+    insert into evidence_objects (
+      case_id, digest, id, media_type, object_name, provider_etag, provider_version,
+      retention_until, size_bytes, tenant_id, verified, verified_at
+    ) values
+      (
+        '00000000-0000-4000-8000-000000000419', ${`sha256:${"9".repeat(64)}`},
+        '00000000-0000-4000-8000-000000000421', 'application/json',
+        ${`tenants/${tenantOne}/evidence/${"9".repeat(64)}`}, 'e2e-etag-9', '1',
+        now() + interval '365 days', 31, ${tenantOne}, true, now()
+      ),
+      (
+        '00000000-0000-4000-8000-000000000420', ${`sha256:${"f".repeat(64)}`},
+        '00000000-0000-4000-8000-000000000422', 'application/json',
+        ${`tenants/${tenantOne}/evidence/${"f".repeat(64)}`}, 'e2e-etag-10', '1',
+        now() + interval '365 days', 31, ${tenantOne}, true, now()
+      )
   `;
   await client`select set_config('app.tenant_id', ${tenantTwo}, false)`;
   await client`
