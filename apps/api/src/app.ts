@@ -226,12 +226,11 @@ const rateLimitPolicies = {
  */
 function normalizeLegacyReviewCaseInput(input: unknown): unknown {
   if (!input || typeof input !== "object" || Array.isArray(input)) return input;
-  const {
-    sourceFileName: _sourceFileName,
-    sourceMediaType: _sourceMediaType,
-    sourceSizeBytes: _sourceSizeBytes,
-    ...reviewCaseInput
-  } = input as Record<string, unknown>;
+  const legacyKeys = new Set(["sourceFileName", "sourceMediaType", "sourceSizeBytes"]);
+  const reviewCaseInput: Record<string, unknown> = Object.create(null);
+  for (const key of Object.getOwnPropertyNames(input)) {
+    if (!legacyKeys.has(key)) reviewCaseInput[key] = (input as Record<string, unknown>)[key];
+  }
   return reviewCaseInput;
 }
 
