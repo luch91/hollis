@@ -186,38 +186,45 @@ export async function createReviewCaseAction(formData: FormData) {
   const digestBuffer = await crypto.subtle.digest("SHA-256", bytes);
   const digest = `sha256:${Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
   const policyBinding = selectedPolicyBinding(requiredValue(formData, "policyBinding"));
-  const reviewCase = await createReviewCase({
-    automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
-    evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
-    externalReference: requiredValue(formData, "externalReference"),
-    policyId: policyBinding.policyId,
-    policyVersion: policyBinding.policyVersion,
-    recommendation: requiredValue(formData, "recommendation") as Parameters<
-      typeof createReviewCase
-    >[0]["recommendation"],
-    riskLevel: requiredValue(formData, "riskLevel") as Parameters<
-      typeof createReviewCase
-    >[0]["riskLevel"],
-    reviewDueAt: dueAtUtc(requiredValue(formData, "reviewDueAt")),
-    ruleId: policyBinding.ruleId,
-  });
-
-  const upload = await createEvidenceUpload(reviewCase.id, {
-    digest,
-    mediaType: file.type || "application/octet-stream",
-    sizeBytes: file.size,
-  });
-  if (upload.uploadUrl) {
-    const stored = await fetch(upload.uploadUrl, {
-      body: bytes,
-      headers: { "content-type": file.type || "application/octet-stream" },
-      method: "PUT",
+  try {
+    const reviewCase = await createReviewCase({
+      automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
+      evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
+      externalReference: requiredValue(formData, "externalReference"),
+      policyId: policyBinding.policyId,
+      policyVersion: policyBinding.policyVersion,
+      recommendation: requiredValue(formData, "recommendation") as Parameters<
+        typeof createReviewCase
+      >[0]["recommendation"],
+      riskLevel: requiredValue(formData, "riskLevel") as Parameters<
+        typeof createReviewCase
+      >[0]["riskLevel"],
+      reviewDueAt: dueAtUtc(requiredValue(formData, "reviewDueAt")),
+      ruleId: policyBinding.ruleId,
     });
-    if (!stored.ok) throw new Error("Evidence storage upload failed.");
+
+    const upload = await createEvidenceUpload(reviewCase.id, {
+      digest,
+      mediaType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+    });
+    if (upload.uploadUrl) {
+      const stored = await fetch(upload.uploadUrl, {
+        body: bytes,
+        headers: { "content-type": file.type || "application/octet-stream" },
+        method: "PUT",
+      });
+      if (!stored.ok) throw new Error("Evidence storage upload failed.");
+    }
+    await verifyEvidence(reviewCase.id, upload.evidenceId);
+    revalidateWorkspace(reviewCase.id);
+    redirect(`/app/review-cases?caseId=${encodeURIComponent(reviewCase.id)}`);
+  } catch (error) {
+    if (error instanceof ReviewServiceError) {
+      redirect(`/app/review-cases/new?error=${encodeURIComponent(error.code ?? "review_service")}`);
+    }
+    throw error;
   }
-  await verifyEvidence(reviewCase.id, upload.evidenceId);
-  revalidateWorkspace(reviewCase.id);
-  redirect(`/app/review-cases?caseId=${encodeURIComponent(reviewCase.id)}`);
 }
 
 export async function uploadEvidenceAction(formData: FormData) {

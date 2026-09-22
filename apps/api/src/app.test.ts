@@ -687,14 +687,17 @@ describe("API boundaries", () => {
     apps.push(app);
 
     const response = await app.inject({
-      headers: { authorization: "Bearer verified-token" },
+      headers: {
+        authorization: "Bearer verified-token",
+        "content-type": "application/json",
+      },
       method: "POST",
-      payload: {
+      payload: JSON.stringify({
         ...validIntake,
         sourceFileName: "evidence.json",
         sourceMediaType: "application/json",
         sourceSizeBytes: 42,
-      },
+      }),
       url: "/v1/review-cases",
     });
 

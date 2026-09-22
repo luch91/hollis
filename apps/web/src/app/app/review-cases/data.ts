@@ -238,10 +238,28 @@ export function createReviewCase(input: {
   reviewDueAt: string;
   ruleId: string;
 }) {
+  // Construct the wire object explicitly. This keeps the intake contract
+  // stable even if a server-action or framework object carries legacy
+  // metadata through its prototype.
+  const payload = {
+    automatedSystemVersion: input.automatedSystemVersion,
+    evidence: input.evidence.map((evidence) => ({
+      digest: evidence.digest,
+      id: evidence.id,
+      mediaType: evidence.mediaType,
+    })),
+    externalReference: input.externalReference,
+    policyId: input.policyId,
+    policyVersion: input.policyVersion,
+    recommendation: input.recommendation,
+    riskLevel: input.riskLevel,
+    reviewDueAt: input.reviewDueAt,
+    ruleId: input.ruleId,
+  };
   return request<{ hollisCaseReference: string; id: string; replayed: boolean }>(
     "/v1/review-cases",
     {
-      body: JSON.stringify(input),
+      body: JSON.stringify(payload),
       method: "POST",
     },
   );
