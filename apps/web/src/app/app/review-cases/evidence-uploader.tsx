@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { beginEvidenceUploadAction, completeEvidenceVerificationAction } from "./actions";
+import { uploadEvidenceAction } from "./actions";
 
 type UploadState = "quarantined" | "uploading" | "verifying" | "verified" | "failed" | "expired";
 
@@ -39,11 +39,6 @@ function safeFailure(error: unknown): { message: string; state: "failed" | "expi
   };
 }
 
-async function sha256(file: File) {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-}
-
 export function EvidenceUploader({ caseId }: { caseId: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<UploadState | null>(null);
@@ -53,45 +48,19 @@ export function EvidenceUploader({ caseId }: { caseId: string }) {
   async function upload() {
     const file = fileInput.current?.files?.[0];
     if (!file) return;
-    if (file.size === 0 || file.size > 524_288_000) {
+    if (file.size === 0 || file.size > 5_242_880) {
       setState("failed");
-      setMessage("Choose a non-empty file no larger than 500 MB.");
+      setMessage("Choose a non-empty file no larger than 5 MB.");
       return;
     }
     try {
       setMessage(null);
-      const digest = await sha256(file);
-      const mediaType = file.type || "application/octet-stream";
-      const started = await beginEvidenceUploadAction({
-        caseId,
-        digest,
-        mediaType,
-        sizeBytes: file.size,
-      });
-      if (!started.ok) {
-        if (started.code === "invalid_transition") throw new Error("case frozen conflict");
-        throw new Error("evidence authorization failed");
-      }
-      const authorization = started.upload;
-      setState("quarantined");
-      if (!authorization.uploadUrl) throw new Error("upload authorization expired");
       setState("uploading");
-      const stored = await fetch(authorization.uploadUrl, {
-        body: file,
-        headers: { "content-type": mediaType },
-        method: "PUT",
-      });
-      if (!stored.ok)
-        throw new Error(stored.status === 403 ? "upload authorization expired" : "upload failed");
       setState("verifying");
-      const completed = await completeEvidenceVerificationAction(caseId, authorization.evidenceId);
-      if (!completed.ok) {
-        if (completed.code === "invalid_transition") throw new Error("case frozen conflict");
-        if (completed.code === "evidence_upload_expired") {
-          throw new Error("upload authorization expired");
-        }
-        throw new Error("evidence verification failed");
-      }
+      const formData = new FormData();
+      formData.set("caseId", caseId);
+      formData.set("file", file);
+      await uploadEvidenceAction(formData);
       setState("verified");
       setMessage(
         "The provider-confirmed immutable reference was attached. Refresh the case record to see it in the frozen ledger.",
