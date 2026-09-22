@@ -120,13 +120,22 @@ await query(`
 
 const runtimeUrl = `postgresql://hollis_app.${projectRef}:${runtimePassword}@${poolerHost}:5432/postgres?sslmode=require`;
 assertSafeE2eDatabase(runtimeUrl, "Hollis E2E runtime database");
-execFileSync(
-  process.platform === "win32" ? "vercel.cmd" : "vercel",
-  ["env", "add", "DATABASE_URL", "preview", "--force", "--project", "hollis-api"],
-  {
-    input: runtimeUrl,
-    stdio: ["pipe", "inherit", "inherit"],
-  },
-);
+const vercelCommand = [
+  "env",
+  "add",
+  "DATABASE_URL",
+  "preview",
+  "--force",
+  "--project",
+  "hollis-api",
+];
+const vercelInvocation =
+  process.platform === "win32"
+    ? ["cmd.exe", ["/d", "/s", "/c", `vercel ${vercelCommand.join(" ")}`]]
+    : ["vercel", vercelCommand];
+execFileSync(vercelInvocation[0], vercelInvocation[1], {
+  input: runtimeUrl,
+  stdio: ["pipe", "inherit", "inherit"],
+});
 
 console.log("Isolated Supabase E2E schema initialized and Preview runtime connection updated.");
