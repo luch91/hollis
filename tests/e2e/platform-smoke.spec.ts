@@ -1,6 +1,8 @@
 import axe from "axe-core";
 import { establishRoleSession, expect, test, type E2ERole } from "./fixtures";
 
+const roleActionCaseId = "00000000-0000-4000-8000-000000000418";
+
 test("public landing and protected route boundaries", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -62,7 +64,7 @@ for (const role of ["owner", "administrator", "reviewer", "contributor", "audito
       role === "auditor" ? 0 : 1,
     );
 
-    await page.goto("/app/review-cases/00000000-0000-4000-8000-000000000397");
+    await page.goto(`/app/review-cases/${roleActionCaseId}`);
     await expect(page.getByRole("button", { name: "Claim for review" })).toHaveCount(
       ["owner", "administrator", "reviewer"].includes(role) ? 1 : 0,
     );

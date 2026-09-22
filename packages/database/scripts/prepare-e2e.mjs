@@ -268,7 +268,11 @@ try {
       ('e2e-ledger', '[]'::jsonb, 'e2e-visible-lifecycle-mobile', 'HL-26-TEST-0017',
        '00000000-0000-4000-8000-000000000417', ${`sha256:${"5".repeat(64)}`},
        'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
-       'human-review', 'draft', ${tenantOne})
+       'human-review', 'draft', ${tenantOne}),
+      ('e2e-ledger', '[]'::jsonb, 'e2e-role-actions', 'HL-26-TEST-0019',
+       '00000000-0000-4000-8000-000000000418', ${`sha256:${"6".repeat(64)}`},
+       'e2e-policy', '1.0', 'investigate', now() + interval '4 days', 'medium',
+       'human-review', 'pending', ${tenantOne})
   `;
   await client`
     insert into evidence_objects (

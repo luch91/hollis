@@ -58,7 +58,9 @@ test("completed workflow produces a deterministic canonical export", async ({ pa
     .fill(
       "The supplied evidence is complete but does not independently prove every underlying fact.",
     );
-  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("checkbox", { name: /I reviewed the frozen evidence, policy control/i })
+    .check();
   await page.getByRole("button", { name: "Record human decision" }).click();
   await expect(page.getByText("completed", { exact: true })).toBeVisible();
 
