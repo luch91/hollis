@@ -8,6 +8,7 @@ const approval = process.env.HOLLIS_E2E_APPROVED_ENVIRONMENT;
 const reviewCaseId = process.env.HOLLIS_E2E_REAL_REVIEW_CASE_ID;
 const workspaceName = process.env.HOLLIS_E2E_REAL_WORKSPACE_NAME;
 const protectionBypassSecret = process.env.HOLLIS_E2E_REAL_PROTECTION_BYPASS_SECRET;
+const protectionCookie = process.env.HOLLIS_E2E_REAL_PROTECTION_COOKIE;
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL as "chrome" | undefined;
 
 if (
@@ -26,6 +27,15 @@ if (
 const parsed = new URL(baseURL);
 const parsedApiOrigin = new URL(apiOrigin);
 const normalizedAllowedOrigin = new URL(allowedOrigin).origin;
+const parsedProtectionCookie = protectionCookie ? JSON.parse(protectionCookie) : undefined;
+if (
+  parsedProtectionCookie &&
+  (typeof parsedProtectionCookie.name !== "string" ||
+    typeof parsedProtectionCookie.value !== "string" ||
+    typeof parsedProtectionCookie.domain !== "string")
+) {
+  throw new Error("HOLLIS_E2E_REAL_PROTECTION_COOKIE must be a Playwright cookie object.");
+}
 const productionHosts = new Set(["thehollis.xyz", "www.thehollis.xyz", "thehollis.vercel.app"]);
 if (
   parsed.protocol !== "https:" ||
@@ -62,6 +72,9 @@ export default defineConfig({
         }
       : undefined,
     screenshot: "only-on-failure",
+    storageState: parsedProtectionCookie
+      ? { cookies: [parsedProtectionCookie], origins: [] }
+      : undefined,
     trace: "off",
   },
   workers: 1,
