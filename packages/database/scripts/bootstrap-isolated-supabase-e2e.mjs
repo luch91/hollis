@@ -6,10 +6,21 @@ import { fileURLToPath } from "node:url";
 import { assertSafeE2eDatabase } from "./e2e-database-safety.mjs";
 
 const projectRef = process.env.HOLLIS_E2E_ISOLATED_SUPABASE_PROJECT_REF?.trim().toLowerCase();
-const poolerHost = process.env.HOLLIS_E2E_ALLOWED_DATABASE_HOST?.trim().toLowerCase();
+const poolerInput = process.env.HOLLIS_E2E_ALLOWED_DATABASE_HOST?.trim();
 const token = process.env.HOLLIS_E2E_MANAGEMENT_TOKEN?.trim();
 const environment = process.env.HOLLIS_E2E_APPROVED_ENVIRONMENT?.trim().toLowerCase();
 const approvedEnvironments = new Set(["evaluation", "staging", "test"]);
+
+function parsePoolerHost(value) {
+  if (!value) return undefined;
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return value.toLowerCase();
+  }
+}
+
+const poolerHost = parsePoolerHost(poolerInput);
 
 if (!/^[a-z0-9]{20}$/.test(projectRef ?? "")) {
   throw new Error(
@@ -18,7 +29,7 @@ if (!/^[a-z0-9]{20}$/.test(projectRef ?? "")) {
 }
 if (!poolerHost?.endsWith(".pooler.supabase.com")) {
   throw new Error(
-    "HOLLIS_E2E_ALLOWED_DATABASE_HOST must be the copied Supabase shared-pooler host.",
+    "HOLLIS_E2E_ALLOWED_DATABASE_HOST must be a copied Supabase Session Pooler host or connection string.",
   );
 }
 if (!approvedEnvironments.has(environment)) {
