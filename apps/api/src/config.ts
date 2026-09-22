@@ -62,6 +62,7 @@ const environmentSchema = z
     EVIDENCE_STORAGE_PRIVATE: z.enum(["true"]).optional(),
     EVIDENCE_STORAGE_VERSIONING: z.enum(["true"]).optional(),
     EVIDENCE_RETENTION_DAYS: z.coerce.number().int().min(1).max(36_500).optional(),
+    CRON_SECRET: z.string().min(32).optional(),
     R2_ACCESS_KEY_ID: z.string().min(1).optional(),
     R2_ACCOUNT_ID: z.string().min(1).optional(),
     R2_BUCKET: z.string().min(3).optional(),
@@ -242,6 +243,14 @@ const environmentSchema = z
             path: [capability],
           });
         }
+      }
+      if (value.EVIDENCE_RETENTION_DAYS === undefined) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "EVIDENCE_RETENTION_DAYS is required when evidence storage is configured in production.",
+          path: ["EVIDENCE_RETENTION_DAYS"],
+        });
       }
     }
 

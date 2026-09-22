@@ -88,6 +88,10 @@ function createDependencies(
     welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
     evidenceStorage?: EvidenceStorage;
     organizationLogoService?: OrganizationLogoService;
+    scheduledMaintenanceRunner?: () => Promise<{
+      checkpoints: number;
+      retention: { completed: number; failed: number };
+    }>;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -277,6 +281,7 @@ function createDependencies(
     publicAttestationCaseFileStore,
     policyLibraryStore,
     organizationLogoService: options.organizationLogoService,
+    scheduledMaintenanceRunner: options.scheduledMaintenanceRunner,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
@@ -364,6 +369,36 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
+  });
+
+  it("runs scheduled maintenance only with the configured Vercel cron secret", async () => {
+    const scheduledMaintenanceRunner = vi.fn(async () => ({
+      checkpoints: 2,
+      retention: { completed: 1, failed: 0 },
+    }));
+    const app = await buildApp(
+      { ...environment, CRON_SECRET: "s".repeat(32) },
+      createDependencies({ scheduledMaintenanceRunner }),
+    );
+    apps.push(app);
+
+    const denied = await app.inject({
+      method: "GET",
+      url: "/v1/internal/scheduled/maintenance",
+    });
+    expect(denied.statusCode).toBe(401);
+
+    const accepted = await app.inject({
+      headers: { authorization: `Bearer ${"s".repeat(32)}` },
+      method: "GET",
+      url: "/v1/internal/scheduled/maintenance",
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toEqual({
+      checkpoints: 2,
+      retention: { completed: 1, failed: 0 },
+    });
+    expect(scheduledMaintenanceRunner).toHaveBeenCalledTimes(1);
   });
 
   it("returns the configured server-side session expiry at session establishment", async () => {

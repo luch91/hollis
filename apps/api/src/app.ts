@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -85,6 +85,7 @@ import {
   setEvidenceLegalHold,
 } from "./persistence.js";
 import { createAuditCheckpointSigner } from "./audit-checkpoint.js";
+import { runAuditCheckpointScheduler } from "./audit-checkpoint-scheduler.js";
 import {
   beginPolicyContractDeployment,
   ensurePolicyContractDeployment,
@@ -111,6 +112,7 @@ import {
   createRateLimitPreHandler,
   type RateLimiter,
 } from "./rate-limit.js";
+import { runRetentionScheduler } from "./retention-scheduler.js";
 import {
   createReviewIntake,
   ReviewIntakeConflictError,
@@ -196,6 +198,10 @@ type AppDependencies = {
   welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
   rateLimiter?: RateLimiter;
   organizationLogoService?: OrganizationLogoService;
+  scheduledMaintenanceRunner?: () => Promise<{
+    checkpoints: number;
+    retention: { completed: number; failed: number };
+  }>;
 };
 
 const rateLimitPolicies = {
@@ -390,6 +396,19 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           workflowStore,
         }
       : null;
+  const scheduledMaintenanceRunner =
+    dependencies.scheduledMaintenanceRunner ??
+    (async () => ({
+      checkpoints: (await runAuditCheckpointScheduler()).checked,
+      retention: await runRetentionScheduler(),
+    }));
+
+  function hasScheduledMaintenanceAuthorization(value: unknown): boolean {
+    if (!environment.CRON_SECRET || typeof value !== "string") return false;
+    const actual = Buffer.from(value);
+    const expected = Buffer.from(`Bearer ${environment.CRON_SECRET}`);
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
 
   async function recordManagedReceipt(
     tenantId: string,
@@ -832,6 +851,21 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
+  app.get("/v1/internal/scheduled/maintenance", async (request, reply) => {
+    if (!environment.CRON_SECRET) {
+      return reply.code(404).send({ code: "not_found", message: "Not found." });
+    }
+    if (!hasScheduledMaintenanceAuthorization(request.headers.authorization)) {
+      return reply.code(401).send({ code: "unauthorized", message: "Authentication required." });
+    }
+    try {
+      return await scheduledMaintenanceRunner();
+    } catch {
+      return reply
+        .code(500)
+        .send({ code: "internal_error", message: "Scheduled maintenance failed." });
+    }
+  });
   app.post("/v1/internal/e2e/migrate", async (request, reply) => {
     const secret = process.env.HOLLIS_E2E_RUNNER_SECRET;
     const supplied = request.headers["x-hollis-e2e-runner-secret"];

@@ -11,6 +11,7 @@ const baseEnvironment = {
   EVIDENCE_STORAGE_JURISDICTION: "eu",
   EVIDENCE_STORAGE_PRIVATE: "true",
   EVIDENCE_STORAGE_VERSIONING: "true",
+  EVIDENCE_RETENTION_DAYS: "365",
   IDENTITY_PLATFORM_PROJECT_ID: "hollis-507001",
   NODE_ENV: "test",
   WEB_ORIGIN: "http://localhost:3000",
@@ -43,6 +44,19 @@ describe("readEnvironment", () => {
         WEB_ORIGIN: "https://console.hollis.test",
       }),
     ).toMatchObject({ API_HOST: "0.0.0.0", API_PORT: 8080 });
+  });
+
+  it("requires an explicit retention period for production evidence storage", () => {
+    expect(() =>
+      readEnvironment({
+        ...baseEnvironment,
+        CLAIMS_WEBHOOK_SECRET: "a".repeat(32),
+        EVIDENCE_RETENTION_DAYS: undefined,
+        GCS_BUCKET: "hollis-evidence-429498177112",
+        NODE_ENV: "production",
+        WEB_ORIGIN: "https://console.hollis.test",
+      }),
+    ).toThrow(/EVIDENCE_RETENTION_DAYS/);
   });
 
   it("accepts a complete AWS production configuration", () => {
