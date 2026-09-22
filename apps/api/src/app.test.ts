@@ -663,6 +663,44 @@ describe("API boundaries", () => {
     });
   });
 
+  it("accepts only the known legacy case-intake metadata from cached web clients", async () => {
+    const store: ReviewIntakeStore = {
+      async create(record) {
+        return {
+          created: true,
+          reviewCase: {
+            createdAt: record.occurredAt,
+            externalReference: record.externalReference,
+            fingerprint: record.fingerprint,
+            hollisCaseReference: "HL-26-7M4K-P9Q2",
+            id: record.caseId,
+            reviewDueAt: new Date(record.reviewDueAt),
+            status: "pending",
+          },
+        };
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({ permissions: ["reviews:create"], store }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: "Bearer verified-token" },
+      method: "POST",
+      payload: {
+        ...validIntake,
+        sourceFileName: "evidence.json",
+        sourceMediaType: "application/json",
+        sourceSizeBytes: 42,
+      },
+      url: "/v1/review-cases",
+    });
+
+    expect(response.statusCode).toBe(201);
+  });
+
   it("creates a pending review under the resolved tenant", async () => {
     let received: ReviewIntakeRecord | undefined;
     const store: ReviewIntakeStore = {

@@ -218,6 +218,23 @@ const rateLimitPolicies = {
   workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
 } as const;
 
+/**
+ * The intake form used these fields before policy source documents were moved
+ * to their own controlled upload endpoint. Keep a narrowly-scoped wire
+ * compatibility boundary for already-cached web clients: discard only these
+ * inert legacy values, then leave the strict request contract in force.
+ */
+function normalizeLegacyReviewCaseInput(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const {
+    sourceFileName: _sourceFileName,
+    sourceMediaType: _sourceMediaType,
+    sourceSizeBytes: _sourceSizeBytes,
+    ...reviewCaseInput
+  } = input as Record<string, unknown>;
+  return reviewCaseInput;
+}
+
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
   const rateLimiter = dependencies.rateLimiter ?? createInMemoryRateLimiter();
   const rateLimit = (scope: keyof typeof rateLimitPolicies) =>
@@ -1641,7 +1658,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         { caseInputKeys: Object.keys(request.body as object) },
         "review case intake shape",
       );
-      const input = createReviewCaseSchema.parse(request.body);
+      const input = createReviewCaseSchema.parse(normalizeLegacyReviewCaseInput(request.body));
       const { principal, tenant } = requireRequestContext(request);
       if (!input.policyId) {
         return reply.code(400).send({

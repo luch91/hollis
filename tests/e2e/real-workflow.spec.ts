@@ -65,9 +65,7 @@ test("approved environment identity and primary application workflow", async ({ 
   );
   expect(uploadResponse.status(), await uploadResponse.text()).toBe(201);
   const upload = (await uploadResponse.json()) as { evidenceId: string; uploadUrl: string };
-  expect(new URL(upload.uploadUrl).searchParams.get("objectName")).toContain(
-    "/evidence/quarantine/",
-  );
+  expect(decodeURIComponent(upload.uploadUrl)).toContain("/evidence/quarantine/");
   expect(
     (
       await page.request.put(upload.uploadUrl, {
