@@ -787,6 +787,12 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
         )
         .limit(1);
       if (!policy) return null;
+      const {
+        sourceFileName: _sourceFileName,
+        sourceMediaType: _sourceMediaType,
+        sourceSizeBytes: _sourceSizeBytes,
+        ...policyRecord
+      } = policy;
       const controls = await transaction
         .select({
           attestationCriterion: policyControls.attestationCriterion,
@@ -799,7 +805,7 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
         .from(policyControls)
         .where(eq(policyControls.policyVersionId, policy.id));
       return policyVersionSchema.parse({
-        ...policy,
+        ...policyRecord,
         controls,
         createdAt: policy.createdAt.toISOString(),
         publishedAt: policy.publishedAt.toISOString(),
@@ -884,6 +890,12 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
               version: policyVersions.version,
             });
           if (!created) throw new Error("Policy version could not be created.");
+          const {
+            sourceFileName: _sourceFileName,
+            sourceMediaType: _sourceMediaType,
+            sourceSizeBytes: _sourceSizeBytes,
+            ...createdPolicy
+          } = created;
           const controls = await transaction
             .insert(policyControls)
             .values(
@@ -901,13 +913,13 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
               interpretation: policyControls.interpretation,
               title: policyControls.title,
             });
-          return {
-            ...created,
+          return policyVersionSchema.parse({
+            ...createdPolicy,
             controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
             createdAt: created.createdAt.toISOString(),
             publishedAt: created.publishedAt.toISOString(),
             source: input.source,
-          } satisfies PolicyVersion;
+          });
         });
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
@@ -945,6 +957,12 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
           )
           .limit(1);
         if (!policy) return null;
+        const {
+          sourceFileName: _sourceFileName,
+          sourceMediaType: _sourceMediaType,
+          sourceSizeBytes: _sourceSizeBytes,
+          ...policyRecord
+        } = policy;
         const controls = await transaction
           .select({
             attestationCriterion: policyControls.attestationCriterion,
@@ -956,13 +974,13 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
           })
           .from(policyControls)
           .where(eq(policyControls.policyVersionId, policy.id));
-        return {
-          ...policy,
+        return policyVersionSchema.parse({
+          ...policyRecord,
           controls: controls.map((control) => policyLibraryControlSchema.parse(control)),
           createdAt: policy.createdAt.toISOString(),
           publishedAt: policy.publishedAt.toISOString(),
           source: toPolicySource(policy),
-        } satisfies PolicyVersion;
+        });
       });
     },
     async list(tenantId) {
@@ -997,17 +1015,25 @@ export function createPostgresPolicyLibraryStore(database: Database): PolicyLibr
           })
           .from(policyControls)
           .where(eq(policyControls.tenantId, tenantId));
-        return policies.map((policy) => ({
-          ...policy,
-          controls: controls
-            .filter((control) => control.policyVersionId === policy.id)
-            .map(({ policyVersionId: _policyVersionId, ...control }) =>
-              policyLibraryControlSchema.parse(control),
-            ),
-          createdAt: policy.createdAt.toISOString(),
-          publishedAt: policy.publishedAt.toISOString(),
-          source: toPolicySource(policy),
-        })) satisfies PolicyVersion[];
+        return policies.map((policy) => {
+          const {
+            sourceFileName: _sourceFileName,
+            sourceMediaType: _sourceMediaType,
+            sourceSizeBytes: _sourceSizeBytes,
+            ...policyRecord
+          } = policy;
+          return policyVersionSchema.parse({
+            ...policyRecord,
+            controls: controls
+              .filter((control) => control.policyVersionId === policy.id)
+              .map(({ policyVersionId: _policyVersionId, ...control }) =>
+                policyLibraryControlSchema.parse(control),
+              ),
+            createdAt: policy.createdAt.toISOString(),
+            publishedAt: policy.publishedAt.toISOString(),
+            source: toPolicySource(policy),
+          });
+        });
       });
     },
   };
