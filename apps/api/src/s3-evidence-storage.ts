@@ -17,16 +17,21 @@ export function createS3EvidenceStorage(
   region: string,
   bucketName: string,
   client = new S3Client({ region }),
+  supportsVersionedReads = true,
 ): EvidenceStorage {
   return {
     async createDownloadUrl(tenantId, objectName, providerVersion) {
       const key = assertTenantObject(tenantId, objectName);
+      const versionId =
+        supportsVersionedReads && providerVersion && providerVersion !== "null"
+          ? providerVersion
+          : undefined;
       return getSignedUrl(
         client,
         new GetObjectCommand({
           Bucket: bucketName,
           Key: key,
-          VersionId: providerVersion ?? undefined,
+          VersionId: versionId,
         }),
         {
           expiresIn: signedUrlLifetimeSeconds,

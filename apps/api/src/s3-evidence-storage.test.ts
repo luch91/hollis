@@ -41,6 +41,20 @@ describe("S3 evidence storage", () => {
     });
   });
 
+  it("does not sign a version identifier when an S3-compatible provider returns its null sentinel", async () => {
+    const storage = createS3EvidenceStorage("eu-west-1", "hollis-evidence-test", {
+      send: vi.fn(),
+    } as unknown as S3Client);
+
+    await storage.createDownloadUrl(tenantId, objectName, "null");
+
+    expect(signedDownload.command?.input).toMatchObject({
+      Bucket: "hollis-evidence-test",
+      Key: objectName,
+      VersionId: undefined,
+    });
+  });
+
   it("stores evidence under the tenant path", async () => {
     const send = vi.fn().mockResolvedValue({});
     const storage = createS3EvidenceStorage("eu-west-1", "hollis-evidence-test", {

@@ -22,5 +22,6 @@ export function createR2EvidenceStorage(
       forcePathStyle: true,
       region: "auto",
     }),
+    false,
   );
 }

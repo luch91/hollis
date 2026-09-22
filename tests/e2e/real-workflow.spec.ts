@@ -45,7 +45,16 @@ test("approved environment identity and primary application workflow", async ({ 
     throw new Error("Real workflow credentials and isolated test identifiers are required.");
   }
 
-  const authorization = { authorization: `Bearer ${identityToken}` };
+  const sessionResponse = await page.request.post(
+    `${process.env.HOLLIS_E2E_REAL_WEB_ORIGIN}/api/auth/session`,
+    { data: { identityToken } },
+  );
+  expect(sessionResponse.ok(), await sessionResponse.text()).toBeTruthy();
+  const sessionCookie = sessionResponse
+    .headers()
+    ["set-cookie"]?.match(/(?:^|,\\s*)hollis_session=([^;]+)/)?.[1];
+  if (!sessionCookie) throw new Error("The isolated reviewer session cookie was not issued.");
+  const authorization = { authorization: `Bearer ${sessionCookie}` };
   const original = Buffer.from("real-provider evidence lifecycle\n", "utf8");
   const uploadResponse = await page.request.post(
     `${apiOrigin}/v1/review-cases/${caseId}/evidence/uploads`,
