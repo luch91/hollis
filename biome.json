@@ -12,7 +12,8 @@
       "!!**/test-results",
       "!!**/node_modules",
       "!!**/.venv",
-      "!!.hollis"
+      "!!.hollis",
+      "!!supabase/.temp"
     ]
   },
   "formatter": {
