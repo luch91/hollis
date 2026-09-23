@@ -27,6 +27,23 @@ test("landing and protected workspaces remain responsive across supported widths
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expectNoPageOverflow(page);
+    const ledgerCards = page.locator(".ledger-card");
+    for (let index = 0; index < (await ledgerCards.count()); index += 1) {
+      const alignment = await ledgerCards.nth(index).evaluate((card) => {
+        const title = card.querySelector("strong")?.getBoundingClientRect();
+        const description = card.querySelector("span")?.getBoundingClientRect();
+        const icon = card.querySelector("i")?.getBoundingClientRect();
+        return {
+          descriptionWidth: description?.width ?? 0,
+          iconLeft: icon?.left ?? 0,
+          textLeftDelta: Math.abs((title?.left ?? 0) - (description?.left ?? 0)),
+          textRight: Math.max(title?.right ?? 0, description?.right ?? 0),
+        };
+      });
+      expect(alignment.textLeftDelta).toBeLessThanOrEqual(1);
+      expect(alignment.descriptionWidth).toBeGreaterThan(80);
+      expect(alignment.textRight).toBeLessThanOrEqual(alignment.iconLeft + 1);
+    }
   }
 
   await establishRoleSession(page, "owner");

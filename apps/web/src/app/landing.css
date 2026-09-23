@@ -296,6 +296,9 @@
     9px 12px 0 rgb(15 43 48 / 8%),
     18px 22px 40px rgb(10 41 47 / 11%);
   color: #122f37;
+  grid-template-areas:
+    "number title icon"
+    "number description icon";
   grid-template-columns: 45px 1fr 44px;
   grid-template-rows: auto auto;
   transition:
@@ -327,29 +330,33 @@
   animation-delay: 330ms, 2s;
 }
 .ledger-card small {
-  grid-row: span 2;
+  grid-area: number;
   color: #3d6870;
   font-family: "Hollis Serif", Georgia, serif;
   font-size: 22px;
 }
 .ledger-card strong {
+  min-width: 0;
   align-self: end;
+  grid-area: title;
   font-family: "Hollis Serif", Georgia, serif;
   font-size: 25px;
   font-weight: 600;
   letter-spacing: -1px;
 }
 .ledger-card span {
+  min-width: 0;
   align-self: start;
   color: #527179;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.15em;
+  grid-area: description;
+  line-height: 1.4;
   text-transform: uppercase;
 }
 .ledger-card i {
   display: grid;
-  grid-row: span 2;
   width: 41px;
   height: 41px;
   align-self: center;
@@ -359,6 +366,7 @@
   color: #0f5c65;
   font-size: 21px;
   font-style: normal;
+  grid-area: icon;
   place-items: center;
 }
 .landing-ledger-caption {
