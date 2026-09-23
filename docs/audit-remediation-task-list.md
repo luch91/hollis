@@ -791,11 +791,11 @@ Populate this table as tasks close. A link must identify immutable or access-con
 | 01 |  |  |  |  |  |
 | 02 |  |  |  |  |  |
 | 03 |  |  |  |  |  |
-| 04 |  |  |  |  |  |
-| 05 |  |  |  |  |  |
-| 06 |  |  |  |  |  |
-| 07 |  |  |  |  |  |
-| 08 |  |  |  |  |  |
+| 04 | `50cc20f`, `7c793ba`, `e2374d0` | `pnpm verify`; Playwright 36/36 | [2026-09-23 record](qa-records/2026-09-23-task-04-08.md) | Evidence-complete decision and immutable export verified | Codex / 2026-09-23 |
+| 05 | `7c793ba`, `e2374d0` | Contract 23 passed; API 144 passed | [V9 deployment](../contracts/genlayer/DEPLOYMENT_V9.md) | Authorized V9 canonical binding and terminal result recorded | Codex / 2026-09-23 |
+| 06 | `7c793ba`, `e2374d0` | Attestation-authority E2E passed | [2026-09-23 record](qa-records/2026-09-23-task-04-08.md) | Server-authoritative case file and deployment-scoped submission verified | Codex / 2026-09-23 |
+| 07 | `50cc20f` plus migrations `0056`, `0060`, `0062`, `0063` | Audit concurrency and canonical export E2E passed | [2026-09-23 record](qa-records/2026-09-23-task-04-08.md) | Signed checkpoint present in production export | Codex / 2026-09-23 |
+| 08 | Migrations `0054`, `0058`, `0059`, `0061` | Retention/legal-hold E2E passed | [2026-09-23 record](qa-records/2026-09-23-task-04-08.md) | Production evidence verification and retention metadata verified | Codex / 2026-09-23 |
 | 09 |  |  |  |  |  |
 | 10 |  |  |  |  |  |
 | 11 |  |  |  |  |  |
