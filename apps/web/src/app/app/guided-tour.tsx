@@ -56,13 +56,18 @@ export function GuidedTour() {
   const router = useRouter();
 
   useEffect(() => {
-    if (window.localStorage.getItem(tourCompleteKey) !== "1") setStep(0);
-  }, []);
+    if (pathname === "/app" && window.localStorage.getItem(tourCompleteKey) !== "1") setStep(0);
+  }, [pathname]);
 
   const current = step === null ? null : (steps[step] ?? steps[0]);
+  const isCurrentPath = current
+    ? current.path === "/app"
+      ? pathname === current.path
+      : pathname.startsWith(current.path)
+    : false;
 
   useEffect(() => {
-    if (!current || !pathname.startsWith(current.path)) return;
+    if (!current || !isCurrentPath) return;
     const target = document.querySelector(current.selector);
     target?.classList.add("guided-tour-focus");
     const advance = (event: MouseEvent) => {
@@ -74,7 +79,7 @@ export function GuidedTour() {
       target?.classList.remove("guided-tour-focus");
       document.removeEventListener("click", advance, true);
     };
-  }, [current, pathname]);
+  }, [current, isCurrentPath]);
 
   if (step === null || !current) return null;
   const finish = () => {
@@ -93,7 +98,7 @@ export function GuidedTour() {
       <p className="eyebrow">Hollis guided tour</p>
       <h2>{current.title}</h2>
       <p>{current.body}</p>
-      {!pathname.startsWith(current.path) ? (
+      {!isCurrentPath ? (
         <button
           className="guided-tour-primary guided-tour-open"
           onClick={() => router.push(current.path)}
