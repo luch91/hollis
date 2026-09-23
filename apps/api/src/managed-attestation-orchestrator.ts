@@ -177,11 +177,19 @@ export async function reconcileManagedAttestationForCase(input: {
     input.caseId,
   );
   if (existingSubmission) {
+    const existingDeployment = await input.dependencies.deploymentStore.find(
+      input.tenantId,
+      existingSubmission.deploymentId,
+    );
+    if (
+      (existingSubmission.status === "failed" ||
+        existingSubmission.status === "reconciliation_required") &&
+      existingDeployment?.sourceVersion !== "v9"
+    ) {
+      return startManagedAttestationForCase(input);
+    }
     return {
-      deployment: await input.dependencies.deploymentStore.find(
-        input.tenantId,
-        existingSubmission.deploymentId,
-      ),
+      deployment: existingDeployment,
       submission: await reconcileManagedAttestationSubmission({
         client: input.dependencies.attestationClient,
         store: input.dependencies.submissionStore,
