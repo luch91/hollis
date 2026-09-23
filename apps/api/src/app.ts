@@ -273,7 +273,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const policyContractSource =
     dependencies.policyContractSource ??
     readFileSync(
-      new URL("../../../contracts/genlayer/policy_process_attestation_v8.py", import.meta.url),
+      new URL("../../../contracts/genlayer/policy_process_attestation_v9.py", import.meta.url),
       "utf8",
     );
   const tenantResolver =
@@ -1773,7 +1773,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
               policyControlRecordId: record.controlRecordId,
               runtimeAddress: managedAttestationDependencies.runtimeAddress,
               source: managedAttestationDependencies.source,
-              sourceVersion: "v8",
+              sourceVersion: "v9",
               store: managedAttestationDependencies.deploymentStore,
               tenantId: tenant.id,
             });
@@ -1833,7 +1833,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           policyControlRecordId: control.controlRecordId,
           runtimeAddress: environment.GENLAYER_RUNTIME_ADDRESS,
           source: policyContractSource,
-          sourceVersion: "v8",
+          sourceVersion: "v9",
           store: policyContractDeploymentStore,
           tenantId: tenant.id,
         }),

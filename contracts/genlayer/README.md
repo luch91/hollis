@@ -1,11 +1,11 @@
 # GenLayer policy-process attestation
 
-`policy_process_attestation_v8.py` is the only source eligible for a new managed GenLayer
-deployment. It preserves the V7 read-only binding view and adds runtime-caller authorization,
+`policy_process_attestation_v9.py` is the only source eligible for a new managed GenLayer
+deployment. It preserves the earlier read-only binding view and enforces runtime-caller authorization,
 canonical-case-commitment recomputation, strict fetched-document validation, and one terminal write
-per case commitment. It is not a deployment record: do not represent V8 as active until the approved
-Studio Next workflow has recorded its deployment and negative authorization tests. V7 and earlier
-sources are read-only historical verification records and never satisfy the V8 guarantee.
+per case commitment. It is not a deployment record: do not represent V9 as active until the approved
+Studio Next workflow has recorded its deployment and negative authorization tests. V8 and earlier
+sources are read-only historical verification records and never satisfy the V9 guarantee.
 
 It fetches a public, privacy-reviewed adjudication case file and uses GenLayer exact-match consensus
 to verify deterministic process conditions:
@@ -22,7 +22,7 @@ privacy-safe source and reviewable contract behavior.
 Validate the contract with the GenLayer linter before deployment:
 
 ```text
-genvm-lint check contracts/genlayer/policy_process_attestation_v8.py
+genvm-lint check contracts/genlayer/policy_process_attestation_v9.py
 ```
 
 The contract follows the Studio Next v0.3 source format: `gl.contract.Contract`,
@@ -42,7 +42,7 @@ deployment is recorded in `DEPLOYMENT_V7.md` and must not be activated because i
 representative results fail the policy-digest check. Studio Next execution results must not be
 treated as Clarke or Mainnet pricing.
 
-Follow [DEPLOYMENT_V8.md](DEPLOYMENT_V8.md) before activating a new managed policy-control
+Use [DEPLOYMENT_V8.md](DEPLOYMENT_V8.md) as the historical evidence template before activating a new managed policy-control
 deployment. Rerun Studio Next schema extraction from the exact source revision and record the
 source digest, runtime address, policy binding, chain ID, transaction identifiers, and negative
 authorization/replay/overwrite results with the deployment evidence.

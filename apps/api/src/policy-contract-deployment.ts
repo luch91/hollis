@@ -205,7 +205,7 @@ export async function reconcilePolicyContractDeployment(input: {
         "policy_binding_mismatch",
       );
     }
-    if (deployment.sourceVersion === "v8") {
+    if (deployment.sourceVersion === "v8" || deployment.sourceVersion === "v9") {
       if (!input.client.readRuntimeAddress) {
         return input.store.markFailed(
           input.tenantId,
@@ -422,7 +422,7 @@ export async function ensurePolicyContractDeployment(input: {
         "policy_binding_mismatch",
       );
     }
-    if (deployment.sourceVersion === "v8") {
+    if (deployment.sourceVersion === "v8" || deployment.sourceVersion === "v9") {
       if (!input.client.readRuntimeAddress) {
         await input.store.markFailed(
           input.tenantId,

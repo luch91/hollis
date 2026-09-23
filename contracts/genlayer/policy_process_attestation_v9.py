@@ -1,9 +1,9 @@
 # v0.3.0
 # { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
 
-"""V8: authorized, canonical-record-bound, single-finality policy attestation.
+"""V9: authorized, canonical-record-bound, single-finality policy attestation.
 
-V7 is retained only for historical reads.  New deployments must use this
+V8 and earlier versions are retained only for historical reads. New deployments must use this
 contract: it accepts writes only from the configured Hollis runtime account,
 computes the canonical V1 commitment itself, and never overwrites a result.
 """
@@ -47,7 +47,7 @@ def canonical_json(value):
     raise ValueError("unsupported_canonical_value")
 
 
-class PolicyProcessAttestationV8(gl.contract.Contract):
+class PolicyProcessAttestationV9(gl.contract.Contract):
     attestation_criterion: str
     authorized_runtime_address: str
     evaluation_reasons: TreeMap[str, str]
@@ -88,7 +88,7 @@ class PolicyProcessAttestationV8(gl.contract.Contract):
 
     @gl.public.view
     def get_contract_version(self) -> str:
-        return "hollis.policy-process-attestation.v8"
+        return "hollis.policy-process-attestation.v9"
 
     @gl.public.view
     def get_authorized_runtime_address(self) -> str:
@@ -107,7 +107,7 @@ class PolicyProcessAttestationV8(gl.contract.Contract):
                 "policyDocumentDigest": self.policy_document_digest,
                 "policyId": self.policy_id,
                 "policyVersion": self.policy_version,
-                "sourceVersion": "v8",
+                "sourceVersion": "v9",
             },
             sort_keys=True,
         )
@@ -163,10 +163,11 @@ class PolicyProcessAttestationV8(gl.contract.Contract):
                 {
                     "caseCommitment": document["caseCommitment"],
                     "canonicalCommitment": commitment,
+                    "canonicalPolicy": canonical["policy"],
                     "canonicalSchemaVersion": canonical["schemaVersion"],
                     "decisionRecorded": canonical["review"]["decisionRecorded"],
                     "evidence": canonical["evidence"],
-                    "policy": canonical["policy"],
+                    "policy": document["policy"],
                 },
                 sort_keys=True,
             )
@@ -184,6 +185,7 @@ class PolicyProcessAttestationV8(gl.contract.Contract):
             self._record_once(case_commitment, "undetermined", "undetermined", "schema_version_mismatch")
             return
         policy = facts["policy"]
+        canonical_policy = facts["canonicalPolicy"]
         control = policy["control"]
         if (
             policy["policyId"] != self.policy_id
@@ -194,6 +196,11 @@ class PolicyProcessAttestationV8(gl.contract.Contract):
             or control["attestationCriterion"] != self.attestation_criterion
             or control["evidenceRequirement"] != self.evidence_requirement
             or control["interpretation"] != self.interpretation
+            or canonical_policy["policyId"] != policy["policyId"]
+            or canonical_policy["policyVersion"] != policy["policyVersion"]
+            or canonical_policy["controlId"] != control["controlId"]
+            or canonical_policy["controlVersion"] != control["controlVersion"]
+            or canonical_policy["policyDocumentDigest"] != control["policyDocumentDigest"]
         ):
             self._record_once(case_commitment, "undetermined", "undetermined", "policy_binding_mismatch")
             return

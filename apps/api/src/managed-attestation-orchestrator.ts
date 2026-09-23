@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { ManagedAttestationSubmission, PolicyContractDeployment } from "@hollis/contracts";
 import type { PublicAttestationCaseFileStore } from "./attestation.js";
 import {
@@ -89,9 +89,9 @@ export async function startManagedAttestationForCase(input: {
     input.tenantId,
     control.controlRecordId,
   );
-  // V7 is retained strictly for historical reads. A new submission must bind
-  // the V8 authorization and canonical-record guarantees.
-  if (deployment && deployment.sourceVersion !== "v8") deployment = null;
+  // Earlier versions are retained strictly for historical reads. A new submission must bind
+  // the V9 authorization and canonical-record guarantees.
+  if (deployment && deployment.sourceVersion !== "v9") deployment = null;
   if (!deployment) {
     deployment = await beginPolicyContractDeployment({
       binding: control.binding,
@@ -100,7 +100,7 @@ export async function startManagedAttestationForCase(input: {
       policyControlRecordId: control.controlRecordId,
       runtimeAddress: input.dependencies.runtimeAddress,
       source: input.dependencies.source,
-      sourceVersion: "v8",
+      sourceVersion: "v9",
       store: input.dependencies.deploymentStore,
       tenantId: input.tenantId,
     });
@@ -148,11 +148,17 @@ export async function startManagedAttestationForCase(input: {
     policy: control.binding,
     publicCaseFileUrl: publicCaseFile.publicCaseFileUrl,
   });
+  const deploymentScopedRequest = {
+    ...request,
+    idempotencyKey: `sha256:${createHash("sha256")
+      .update(`${request.idempotencyKey}\n${deployment.id}`)
+      .digest("hex")}`,
+  };
   const submission = await beginManagedAttestationSubmission({
     caseId: input.caseId,
     client: input.dependencies.attestationClient,
     deployment,
-    request,
+    request: deploymentScopedRequest,
     store: input.dependencies.submissionStore,
     tenantId: input.tenantId,
   });
