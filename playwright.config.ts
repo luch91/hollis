@@ -48,6 +48,7 @@ export default defineConfig({
         DATABASE_URL:
           process.env.E2E_DATABASE_RUNTIME_URL ??
           "postgres://hollis_app:hollis_app@127.0.0.1:5434/hollis_e2e",
+        HOLLIS_E2E_FORCE_EXPORT_FAILURE_CASE_ID: "00000000-0000-4000-8000-000000000418",
         NODE_ENV: "test",
         PUBLIC_ATTESTATION_ORIGIN: "https://api.hollis.test",
         WEB_ORIGIN: webOrigin,

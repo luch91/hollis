@@ -1,5 +1,5 @@
 import axe from "axe-core";
-import { establishRoleSession, expect, test, type E2ERole } from "./fixtures";
+import { type E2ERole, establishRoleSession, expect, test } from "./fixtures";
 
 const roleActionCaseId = "00000000-0000-4000-8000-000000000418";
 
@@ -79,6 +79,18 @@ for (const role of ["owner", "administrator", "reviewer", "contributor", "audito
     );
   });
 }
+
+test("selected case remains usable when its audit export is unavailable", async ({ page }) => {
+  await establishRoleSession(page, "owner");
+  await page.goto("/app/review-cases?caseId=00000000-0000-4000-8000-000000000418");
+
+  await expect(page.getByText("HL-26-TEST-0019", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "e2e-role-actions" })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Audit export is temporarily unavailable" }),
+  ).toBeVisible();
+  await expect(page.getByText("No cases need your attention.", { exact: true })).toHaveCount(0);
+});
 
 test("tenant identifiers cannot cross the active workspace boundary", async ({ browser, page }) => {
   await establishRoleSession(page, "owner");

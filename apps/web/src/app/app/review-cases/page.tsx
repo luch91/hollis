@@ -274,7 +274,19 @@ function CaseSummaryPanel({
   );
 }
 
-function CaseHistory({ exported }: { exported: ReviewExport }) {
+function CaseHistory({ exported }: { exported: ReviewExport | null }) {
+  if (!exported) {
+    return (
+      <section className="case-tab-panel service-state" role="alert">
+        <p className="eyebrow">Audit history temporarily unavailable</p>
+        <h3>The case remains available for review.</h3>
+        <p>
+          Hollis could not load the verifiable export for this record. Refresh to retry. No case,
+          evidence, or review data has been changed.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="case-history" id="history">
       <div className="case-history-heading">
@@ -750,7 +762,7 @@ function SelectedCaseWorkspace({
   reviewCase: ReviewCaseDetail;
   attestations: AttestationRecord[];
   managedAttestation: ManagedAttestationStatus;
-  exported: ReviewExport;
+  exported: ReviewExport | null;
   reviewer: ReviewerProfile;
   query: WorkspaceQuery;
 }) {
@@ -791,6 +803,13 @@ function SelectedCaseWorkspace({
             </div>
           </dl>
         </header>
+        {!exported ? (
+          <aside className="attestation-notice" role="alert">
+            {reviewCase.status === "completed"
+              ? "Commitment verification is temporarily unavailable. The completed case record remains visible, but Hollis will not present it as verified or submit a new attestation until the export can be validated."
+              : "Audit export is temporarily unavailable. You can continue reviewing this case; Hollis will not present an unverified commitment or submit an attestation."}
+          </aside>
+        ) : null}
         <ReviewProgress attestations={attestations} reviewCase={reviewCase} />
         <nav className="case-tabs" aria-label="Case sections">
           <Link
@@ -1056,26 +1075,6 @@ export default async function ReviewCasesPage({
       ])
     : [[], null, { configured: false, deployment: null, submission: null }];
 
-  if (reviewCase?.status === "completed" && !exported) {
-    return (
-      <>
-        <OperationalPageHeader
-          eyebrow="Review workspace"
-          summary="Investigate consequential decisions with clear evidence, policy context, and accountable human judgment."
-          title="Review cases with confidence."
-        />
-        <section className="content-panel service-state" role="alert">
-          <p className="eyebrow">Commitment verification blocked</p>
-          <h2>The completed case commitment is unavailable.</h2>
-          <p>
-            Hollis cannot present this completed record until its policy, evidence, and canonical
-            commitment are verified. Refresh to retry or contact an administrator if this persists.
-          </p>
-        </section>
-      </>
-    );
-  }
-
   return (
     <>
       <OperationalPageHeader
@@ -1089,7 +1088,7 @@ export default async function ReviewCasesPage({
           <span>Your workspace role cannot create review cases.</span>
         </aside>
       ) : null}
-      {reviewCase && exported ? (
+      {reviewCase ? (
         <section className="reference-dashboard">
           <CaseQueue
             canCreate={canCreate}

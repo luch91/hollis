@@ -1,6 +1,6 @@
+import { createHash } from "node:crypto";
 import { buildApp } from "../../../apps/api/src/app.ts";
 import { readEnvironment } from "../../../apps/api/src/config.ts";
-import { createHash } from "node:crypto";
 
 const identities = new Map(
   ["owner", "administrator", "reviewer", "contributor", "auditor", "outside-owner", "new-user"].map(
@@ -86,6 +86,18 @@ const app = await buildApp(environment, {
   identityPlatformTokenVerifier,
   rateLimiter,
   transactionalEmailService,
+});
+app.addHook("onRequest", async (request, reply) => {
+  const forcedCaseId = process.env.HOLLIS_E2E_FORCE_EXPORT_FAILURE_CASE_ID;
+  if (
+    forcedCaseId &&
+    request.method === "GET" &&
+    request.url === `/v1/review-cases/${forcedCaseId}/export`
+  ) {
+    return reply
+      .code(503)
+      .send({ code: "export_unavailable", message: "Forced E2E export failure." });
+  }
 });
 app.put("/__e2e/storage", async (request, reply) => {
   const { objectName, tenantId } = request.query;
