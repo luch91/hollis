@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  caseCreatedAuditPayload,
   createReviewIntake,
   type ReviewIntakeRecord,
   type ReviewIntakeStore,
   ReviewIntakeConflictError,
 } from "./review-intake.js";
+import { hashAuditEvent } from "./audit-integrity.js";
 
 const input = {
   automatedSystemVersion: "claims-model-2026-08",
@@ -73,6 +75,18 @@ describe("review intake", () => {
     });
     expect(received?.eventHash).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(received?.fingerprint).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(received?.eventHash).toBe(
+      hashAuditEvent({
+        actorId: context.actorId,
+        caseId,
+        eventType: "case_created",
+        occurredAt,
+        payload: caseCreatedAuditPayload(input),
+        previousHash: null,
+        tenantId: context.tenantId,
+      }),
+    );
+    expect(caseCreatedAuditPayload(input)).toMatchObject({ reviewDueAt: input.reviewDueAt });
   });
 
   it("returns an idempotent replay when validated content matches", async () => {

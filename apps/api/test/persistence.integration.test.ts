@@ -469,6 +469,7 @@ describe("PostgreSQL review intake", () => {
     expect(parsed.events).toHaveLength(1);
     expect(parsed.events[0].eventType).toBe("case_created");
     expect(parsed.events[0].previousHash).toBeNull();
+    expect(exported?.auditIntegrity).toMatchObject({ failure: null, status: "verified" });
     expect(parsed.manifestHash).toMatch(/^sha256:[a-f0-9]{64}$/);
   });
 

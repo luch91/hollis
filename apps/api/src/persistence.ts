@@ -49,7 +49,12 @@ import type { ManagedAttestationSubmissionStore } from "./managed-attestation-su
 import type { PolicyContractDeploymentStore } from "./policy-contract-deployment.js";
 import { type PolicyLibraryStore, PolicyVersionConflictError } from "./policy-library.js";
 import type { RetentionDeletionJob, RetentionDeletionJobStore } from "./retention-worker.js";
-import type { ReviewIntakeRecord, ReviewIntakeStore, TenantResolver } from "./review-intake.js";
+import {
+  caseCreatedAuditPayload,
+  type ReviewIntakeRecord,
+  type ReviewIntakeStore,
+  type TenantResolver,
+} from "./review-intake.js";
 import type { WelcomeEmailDeliveryStore } from "./welcome-email-delivery.js";
 import {
   type ReviewCaseDetail,
@@ -1409,16 +1414,7 @@ export function createPostgresReviewIntakeStore(database: Database): ReviewIntak
             createdAt: record.occurredAt,
             eventHash: record.eventHash,
             eventType: "case_created",
-            payload: {
-              automatedSystemVersion: record.automatedSystemVersion,
-              evidence: record.evidence,
-              externalReference: record.externalReference,
-              policyId: record.policyId,
-              policyVersion: record.policyVersion,
-              recommendation: record.recommendation,
-              riskLevel: record.riskLevel,
-              ruleId: record.ruleId,
-            },
+            payload: caseCreatedAuditPayload(record),
             previousHash: null,
             tenantId: record.tenantId,
           });
