@@ -6,12 +6,24 @@ export type EvidenceObject = {
   digest: string;
   mediaType: string;
   objectName: string;
+  providerEtag?: string | null;
+  providerVersion?: string | null;
   sizeBytes: number;
 };
 
 export interface EvidenceStorage {
-  createDownloadUrl(tenantId: string, objectName: string): Promise<string>;
-  createUploadUrl(tenantId: string, objectName: string, mediaType: string): Promise<string>;
+  createDownloadUrl(
+    tenantId: string,
+    objectName: string,
+    providerVersion?: string | null,
+  ): Promise<string>;
+  createUploadUrl(
+    tenantId: string,
+    objectName: string,
+    mediaType: string,
+    sizeBytes?: number,
+    expiresAt?: Date,
+  ): Promise<string>;
   delete(tenantId: string, objectName: string): Promise<void>;
   verify(
     tenantId: string,
@@ -25,11 +37,16 @@ export interface EvidenceStorage {
     mediaType: string,
     expectedDigest: string,
   ): Promise<EvidenceObject>;
+  promote?(
+    tenantId: string,
+    quarantineObjectName: string,
+    immutableObjectName: string,
+  ): Promise<EvidenceObject>;
 }
 
 export function evidenceObjectName(tenantId: string, digest: string): string {
   if (!/^sha256:[a-f0-9]{64}$/.test(digest)) throw new Error("Invalid evidence digest.");
-  return `tenants/${tenantId}/evidence/${digest.slice("sha256:".length)}`;
+  return `tenants/${tenantId}/evidence/final/${digest.slice("sha256:".length)}`;
 }
 
 export async function createGoogleCloudEvidenceStorage(
@@ -61,18 +78,22 @@ export async function createGoogleCloudEvidenceStorage(
   });
 
   return {
-    async createDownloadUrl(tenantId, objectName) {
+    async createDownloadUrl(tenantId, objectName, providerVersion) {
       const [url] = await (await resolveBucket())
-        .file(assertTenantObject(tenantId, objectName))
+        .file(
+          assertTenantObject(tenantId, objectName),
+          providerVersion ? { generation: providerVersion } : undefined,
+        )
         .getSignedUrl({ ...signedUrlOptions(), action: "read" });
       return url;
     },
-    async createUploadUrl(tenantId, objectName, mediaType) {
+    async createUploadUrl(tenantId, objectName, mediaType, _sizeBytes, expiresAt) {
       const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       const [exists] = await file.exists();
       if (exists) return "";
       const [url] = await file.getSignedUrl({
         ...signedUrlOptions(),
+        expires: expiresAt?.valueOf() ?? Date.now() + 15 * 60 * 1000,
         action: "write",
         contentType: mediaType,
       });
@@ -86,16 +107,39 @@ export async function createGoogleCloudEvidenceStorage(
     async verify(tenantId, objectName, expected) {
       const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       const [metadata] = await file.getMetadata();
-      const [content] = await file.download();
-      const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
+      if (Number(metadata.size) > expected.sizeBytes)
+        throw new Error("Evidence object is oversized.");
+      const hash = createHash("sha256");
+      let received = 0;
+      await new Promise<void>((resolve, reject) => {
+        const stream = file.createReadStream();
+        stream.on("data", (chunk: Buffer) => {
+          received += chunk.byteLength;
+          if (received > expected.sizeBytes) {
+            stream.destroy(new Error("Evidence object is oversized."));
+            return;
+          }
+          hash.update(chunk);
+        });
+        stream.on("end", resolve);
+        stream.on("error", reject);
+      });
+      const digest = `sha256:${hash.digest("hex")}`;
       if (
         digest !== expected.digest ||
-        Number(metadata.size) !== expected.sizeBytes ||
+        received !== expected.sizeBytes ||
         metadata.contentType !== expected.mediaType
       ) {
         throw new Error("Evidence object does not match its declared metadata.");
       }
-      return { digest, mediaType: expected.mediaType, objectName, sizeBytes: content.byteLength };
+      return {
+        digest,
+        mediaType: expected.mediaType,
+        objectName,
+        providerEtag: metadata.etag ?? null,
+        providerVersion: metadata.generation?.toString() ?? null,
+        sizeBytes: received,
+      };
     },
     async put(tenantId, objectName, content, mediaType, expectedDigest) {
       const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -103,6 +147,24 @@ export async function createGoogleCloudEvidenceStorage(
       const file = (await resolveBucket()).file(assertTenantObject(tenantId, objectName));
       await file.save(content, { contentType: mediaType, resumable: false, validation: "md5" });
       return { digest, mediaType, objectName, sizeBytes: content.byteLength };
+    },
+    async promote(tenantId, quarantineObjectName, immutableObjectName) {
+      const bucket = await resolveBucket();
+      const source = bucket.file(assertTenantObject(tenantId, quarantineObjectName));
+      const destination = bucket.file(assertTenantObject(tenantId, immutableObjectName));
+      const [exists] = await destination.exists();
+      if (!exists) {
+        await source.copy(destination, { preconditionOpts: { ifGenerationMatch: 0 } });
+      }
+      const [metadata] = await destination.getMetadata();
+      return {
+        digest: `sha256:${immutableObjectName.split("/").at(-1)}`,
+        mediaType: metadata.contentType ?? "application/octet-stream",
+        objectName: immutableObjectName,
+        providerEtag: metadata.etag ?? null,
+        providerVersion: metadata.generation?.toString() ?? null,
+        sizeBytes: Number(metadata.size),
+      };
     },
   };
 }

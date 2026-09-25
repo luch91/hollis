@@ -1,5 +1,6 @@
 import type { CreateReviewCase, ReviewCase } from "@hollis/contracts";
 import { createHash, randomUUID } from "node:crypto";
+import { hashAuditEvent } from "./audit-integrity.js";
 
 export type TenantContext = {
   id: string;
@@ -25,7 +26,7 @@ export type StoredReviewCase = {
   hollisCaseReference: string;
   id: string;
   reviewDueAt: Date | null;
-  status: "pending" | "in_review" | "completed" | "escalated";
+  status: "draft" | "pending" | "in_review" | "completed" | "escalated";
 };
 
 export interface ReviewIntakeStore {
@@ -43,6 +44,25 @@ function digest(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
 
+/**
+ * This is the exact event body that is both signed and persisted for a new
+ * case. Keeping it in one place prevents the stored genesis event from ever
+ * differing from the event that its hash commits to.
+ */
+export function caseCreatedAuditPayload(input: CreateReviewCase) {
+  return {
+    automatedSystemVersion: input.automatedSystemVersion,
+    evidence: input.evidence,
+    externalReference: input.externalReference,
+    ...(input.policyId ? { policyId: input.policyId } : {}),
+    policyVersion: input.policyVersion,
+    recommendation: input.recommendation,
+    riskLevel: input.riskLevel,
+    reviewDueAt: input.reviewDueAt,
+    ruleId: input.ruleId,
+  };
+}
+
 export async function createReviewIntake(
   input: CreateReviewCase,
   context: { actorId: string; tenantId: string },
@@ -52,12 +72,12 @@ export async function createReviewIntake(
   const caseId = options.caseId ?? randomUUID();
   const occurredAt = options.occurredAt ?? new Date();
   const fingerprint = digest(input);
-  const eventHash = digest({
+  const eventHash = hashAuditEvent({
     actorId: context.actorId,
     caseId,
     eventType: "case_created",
     occurredAt: occurredAt.toISOString(),
-    payload: input,
+    payload: caseCreatedAuditPayload(input),
     previousHash: null,
     tenantId: context.tenantId,
   });

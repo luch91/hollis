@@ -5,11 +5,16 @@ import { canCreateReviewCases } from "../../workspace-capabilities";
 import { createReviewCaseAction } from "../actions";
 import { listWorkspacePolicies } from "../data";
 
-export default async function NewReviewCasePage() {
+export default async function NewReviewCasePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
   const session = await readHollisSession();
   if (!canCreateReviewCases(session?.session.activeWorkspace?.role ?? "")) {
     redirect("/app/review-cases?access=case-create-restricted");
   }
+  const error = searchParams ? (await searchParams).error : undefined;
   const policies = await listWorkspacePolicies();
   return (
     <section className="new-review-case" aria-labelledby="new-review-case-title">
@@ -22,6 +27,19 @@ export default async function NewReviewCasePage() {
           reviewer can make a final decision.
         </p>
       </header>
+      {error ? (
+        <div className="service-state" role="alert">
+          <p className="eyebrow">Case intake needs attention</p>
+          <p>
+            Hollis could not create this case. No case or evidence record was opened. Review the
+            form and submit again. If this persists, use the reference shown below when contacting
+            your workspace administrator.
+          </p>
+          <p>
+            <code>{error}</code>
+          </p>
+        </div>
+      ) : null}
       <form action={createReviewCaseAction} className="new-review-case-form">
         <fieldset>
           <legend>Decision context</legend>

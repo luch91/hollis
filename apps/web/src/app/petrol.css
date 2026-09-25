@@ -53,18 +53,18 @@
   --petrol-surface-raised: #ffffff;
   --petrol-ink: #082e3d;
   --petrol-muted: #456675;
-  --petrol-faint: #718a94;
+  --petrol-faint: #526d77;
   --petrol-line: #d3e4e7;
   --petrol-line-strong: #b9d0d4;
   --petrol-brand: #004e59;
   --petrol-brand-deep: #003d47;
-  --petrol-accent: #008899;
+  --petrol-accent: #006978;
   --petrol-accent-soft: #e0f4f4;
-  --petrol-coral: #ed846d;
+  --petrol-coral: #a94335;
   --petrol-coral-soft: #fff0e9;
   --petrol-positive: #237460;
   --petrol-positive-soft: #e3f2eb;
-  --petrol-warning: #9a691e;
+  --petrol-warning: #725018;
   --petrol-warning-soft: #fff1d6;
   --petrol-shadow: 0 16px 48px rgb(7 55 64 / 8%);
   --petrol-shadow-soft: 0 4px 18px rgb(7 55 64 / 6%);
@@ -115,6 +115,19 @@ textarea {
 }
 
 .application-frame {
+  --ink: var(--petrol-ink);
+  --muted: var(--petrol-muted);
+  --quiet: var(--petrol-faint);
+  --canvas: var(--petrol-bg);
+  --canvas-deep: var(--petrol-bg);
+  --panel: var(--petrol-surface);
+  --line: var(--petrol-line);
+  --line-strong: var(--petrol-line-strong);
+  --lime: var(--petrol-accent);
+  --lime-soft: var(--petrol-accent);
+  --lime-glow: var(--petrol-accent-soft);
+  --amber: var(--petrol-warning);
+  --danger: var(--petrol-coral);
   display: flex;
   min-height: 100dvh;
   flex-direction: column;
@@ -684,30 +697,11 @@ textarea {
   box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.32);
 }
 
-html.demo-content-hidden [data-demo-content="true"] {
-  display: none;
-}
-
-.demo-empty-next-action {
-  display: none;
-}
-
-.demo-empty-overview-state {
-  display: none;
-}
-
-html.demo-content-hidden .demo-empty-next-action {
-  display: block;
-}
-
-html.demo-content-hidden .demo-empty-overview-state {
-  display: block;
-}
-
 .guided-tour h2 {
   margin: 0.25rem 0 0.35rem;
   font-size: 1rem;
 }
+
 .guided-tour p:not(.eyebrow) {
   margin: 0;
   font-size: 0.78rem;
@@ -763,24 +757,6 @@ html.demo-content-hidden .demo-empty-overview-state {
   outline: 2px solid #b7e53a;
   outline-offset: 4px;
   box-shadow: 0 0 0 5px rgb(183 229 58 / 12%);
-}
-
-.overview-demo-seed {
-  display: grid;
-  gap: 0.6rem;
-  margin-top: 1.5rem;
-  padding: 1.5rem;
-  border: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.overview-demo-seed h2,
-.overview-demo-seed p {
-  margin: 0;
-}
-.overview-demo-seed .primary-action {
-  justify-self: start;
-  margin-top: 0.5rem;
 }
 
 @media (max-width: 720px) {
@@ -844,6 +820,10 @@ html.demo-content-hidden .demo-empty-overview-state {
 
 .eyebrow {
   color: var(--petrol-accent);
+}
+
+.guided-tour .eyebrow {
+  color: #004e59;
 }
 
 .petrol-page-intro {
@@ -1234,8 +1214,7 @@ html.demo-content-hidden .demo-empty-overview-state {
 .horizon-case-completed {
   border-color: rgb(15 75 82 / 22%);
   background: #bdd7d4;
-  color: #245159;
-  opacity: 0.8;
+  color: #153e46;
 }
 
 .overview-horizon > footer {
@@ -1619,6 +1598,11 @@ html.demo-content-hidden .demo-empty-overview-state {
 .queue-state-escalated {
   background: var(--petrol-coral-soft);
   color: var(--petrol-coral);
+}
+
+.risk-low,
+.risk-medium {
+  color: var(--petrol-positive);
 }
 
 .queue-state-in_review,
@@ -3287,5 +3271,386 @@ main.auth-shell::after {
   .petrol-brand-art img,
   .product-nav-item::after {
     transition: none;
+  }
+}
+
+/* Responsive and legibility guardrails shared by every product surface. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.application-frame :where(code, dd, p, strong, small, span, a) {
+  min-width: 0;
+}
+
+.application-frame :where(code, dd, .case-reference-label) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.reference-primary,
+.primary-action,
+.download-receipt,
+.new-review-case-link + button,
+.detail-evidence-upload button,
+.action-card button {
+  min-height: 44px;
+  border: 1px solid var(--petrol-brand);
+  background: var(--petrol-brand);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.reference-primary:hover,
+.primary-action:hover,
+.download-receipt:hover,
+.detail-evidence-upload button:hover,
+.action-card button:hover {
+  border-color: var(--petrol-brand-deep);
+  background: var(--petrol-brand-deep);
+  color: #ffffff;
+}
+
+.reference-secondary,
+.secondary-action {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 14px;
+  border: 1px solid var(--petrol-accent);
+  border-radius: 5px;
+  background: var(--petrol-surface);
+  color: var(--petrol-brand);
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.attestation-success .secondary-action {
+  max-width: 280px;
+  flex: 0 0 auto;
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #004e59;
+}
+
+.attestation-success .secondary-action span {
+  color: inherit;
+}
+
+.workspace-section-page,
+.policy-library,
+.new-review-case,
+.admin-workspace,
+.case-detail {
+  padding-right: clamp(16px, 3vw, 42px);
+  padding-left: clamp(16px, 3vw, 42px);
+}
+
+.case-detail {
+  max-width: 1480px;
+}
+
+.detail-hero {
+  width: 100%;
+  max-width: none;
+  padding: clamp(28px, 4vw, 52px);
+  border: 1px solid #5e969b;
+  border-radius: var(--petrol-radius) var(--petrol-radius) 0 0;
+}
+
+.detail-hero h1 {
+  max-width: 100%;
+  font-size: clamp(34px, 5vw, 64px);
+  overflow-wrap: anywhere;
+}
+
+.case-summary {
+  padding: 16px clamp(16px, 3vw, 34px);
+  border: 1px solid var(--petrol-line);
+  border-top: 0;
+  background: var(--petrol-surface);
+}
+
+.case-commitment-summary {
+  display: grid;
+  min-width: 0;
+  padding: 14px clamp(16px, 3vw, 34px);
+  border-right: 1px solid var(--petrol-line);
+  border-bottom: 1px solid var(--petrol-line);
+  border-left: 1px solid var(--petrol-line);
+  background: var(--petrol-surface-soft);
+  gap: 5px;
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.case-commitment-summary span {
+  color: var(--petrol-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.case-commitment-summary code {
+  color: var(--petrol-ink);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.case-detail > .case-reference-label {
+  display: block;
+  margin: 10px 0 18px;
+  line-height: 1.5;
+}
+
+.case-workspace-grid {
+  margin-top: 24px;
+}
+
+.evidence-panel > div {
+  min-width: 0;
+}
+
+.evidence-panel form {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.evidence-panel form label {
+  display: flex;
+  min-width: min(100%, 340px);
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--petrol-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.evidence-panel form label input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.evidence-panel form button {
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 1px solid var(--petrol-line-strong);
+  border-radius: 5px;
+  background: var(--petrol-surface);
+  color: var(--petrol-brand);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.readiness-list > div,
+.attestation-record dl > div {
+  min-width: 0;
+}
+
+.readiness-list dd,
+.attestation-record dd,
+.attestation-success span,
+.genlayer-result dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.landing-page,
+.landing-page section,
+.landing-page header,
+.landing-page footer {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.landing-page :where(h1, h2, h3, p, a, strong, span) {
+  overflow-wrap: anywhere;
+}
+
+.landing-screen-frame,
+.landing-screen-frame img,
+.landing-ledger {
+  max-width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .case-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .case-workspace-side {
+    position: static;
+    padding-top: 0;
+  }
+
+  .landing-hero,
+  .landing-workflow,
+  .landing-product-section,
+  .landing-overview-section,
+  .landing-attestation {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace-canvas {
+    overflow-x: clip;
+  }
+
+  .reference-dashboard {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .reference-right-rail {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .landing-hero,
+  .landing-workflow,
+  .landing-product-section,
+  .landing-overview-section,
+  .landing-attestation {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-hero {
+    padding-right: clamp(18px, 5vw, 42px);
+    padding-left: clamp(18px, 5vw, 42px);
+  }
+}
+
+@media (max-width: 700px) {
+  .detail-toolbar,
+  .section-heading,
+  .case-record-overview-heading,
+  .attestation-success,
+  .admin-media-boundary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detail-export-links {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .detail-export-links a {
+    min-width: 58px;
+    flex: 0 0 auto;
+  }
+
+  .detail-hero {
+    padding: 26px 20px;
+  }
+
+  .case-commitment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .case-record-overview-grid,
+  .attestation-record-summary,
+  .action-grid,
+  .detail-evidence-upload {
+    grid-template-columns: 1fr;
+  }
+
+  .case-record-overview-grid article {
+    min-height: 74px;
+  }
+
+  .case-detail dl > div {
+    gap: 6px;
+    grid-template-columns: 1fr;
+  }
+
+  .attestation-success .secondary-action {
+    width: 100%;
+    max-width: none;
+  }
+
+  .case-detail .horizon-stage,
+  .case-detail .horizon-receipt,
+  .reference-right-rail .horizon-receipt {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .case-detail .horizon-stage > .stage-state,
+  .case-detail .horizon-receipt > .receipt-state,
+  .reference-right-rail .horizon-receipt > .receipt-state {
+    grid-column: 2;
+    min-height: 28px;
+    justify-content: flex-start;
+    padding: 6px 0;
+    border-left: 0;
+    text-align: left;
+  }
+
+  .evidence-panel form,
+  .evidence-panel form label,
+  .evidence-panel form button {
+    width: 100%;
+  }
+
+  .landing-hero h1 {
+    font-size: clamp(42px, 13vw, 64px);
+  }
+}
+
+@media (max-width: 480px) {
+  .workspace-canvas {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .workspace-section-page,
+  .policy-library,
+  .new-review-case,
+  .admin-workspace,
+  .case-detail {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .reference-case-header,
+  .reference-right-rail,
+  .case-record-overview,
+  .human-review-card,
+  .case-tab-panel,
+  .case-history,
+  .evidence-panel,
+  .attestation-panel,
+  .action-card,
+  .detail-evidence-upload {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .case-summary {
+    gap: 9px 14px;
+  }
+
+  .landing-nav,
+  .landing-hero,
+  .landing-workflow,
+  .landing-product-section,
+  .landing-overview-section,
+  .landing-attestation,
+  .landing-proof,
+  .landing-closing,
+  .landing-footer {
+    padding-right: 16px;
+    padding-left: 16px;
   }
 }

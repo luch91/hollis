@@ -19,12 +19,18 @@
 }
 .landing-nav {
   display: grid;
+  position: sticky;
+  z-index: 10;
+  top: 0;
   min-height: 82px;
   align-items: center;
   grid-template-columns: 1fr auto 1fr;
   width: min(100%, 1520px);
   padding: 0 52px;
   margin: 0 auto;
+  background: rgb(246 242 233 / 88%);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgb(10 38 48 / 8%);
   gap: 30px;
 }
 .landing-brand {
@@ -91,13 +97,16 @@
 }
 .landing-nav-cta,
 .landing-primary {
+  box-shadow: 0 8px 18px rgb(4 36 43 / 14%);
   transition:
     transform 180ms ease,
-    background 180ms ease;
+    background 180ms ease,
+    box-shadow 180ms ease;
 }
 .landing-nav-cta:hover,
 .landing-primary:hover {
   background: #0a616c;
+  box-shadow: 0 13px 28px rgb(4 36 43 / 20%);
   transform: translateY(-2px);
 }
 .landing-hero {
@@ -107,7 +116,9 @@
   grid-template-columns: minmax(350px, 0.92fr) minmax(550px, 1.08fr);
   overflow: hidden;
   padding-left: max(52px, calc((100vw - 1520px) / 2 + 52px));
-  background: linear-gradient(110deg, #f8f5ee 0 46%, #edf3f1 73%, #e9efed 100%);
+  background:
+    radial-gradient(circle at 72% 28%, rgb(90 199 200 / 13%), transparent 25%),
+    linear-gradient(110deg, #f8f5ee 0 46%, #edf3f1 73%, #e9efed 100%);
 }
 .landing-hero::after {
   position: absolute;
@@ -296,6 +307,9 @@
     9px 12px 0 rgb(15 43 48 / 8%),
     18px 22px 40px rgb(10 41 47 / 11%);
   color: #122f37;
+  grid-template-areas:
+    "number title icon"
+    "number description icon";
   grid-template-columns: 45px 1fr 44px;
   grid-template-rows: auto auto;
   transition:
@@ -327,29 +341,33 @@
   animation-delay: 330ms, 2s;
 }
 .ledger-card small {
-  grid-row: span 2;
+  grid-area: number;
   color: #3d6870;
   font-family: "Hollis Serif", Georgia, serif;
   font-size: 22px;
 }
 .ledger-card strong {
+  min-width: 0;
   align-self: end;
+  grid-area: title;
   font-family: "Hollis Serif", Georgia, serif;
   font-size: 25px;
   font-weight: 600;
   letter-spacing: -1px;
 }
 .ledger-card span {
+  min-width: 0;
   align-self: start;
   color: #527179;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.15em;
+  grid-area: description;
+  line-height: 1.4;
   text-transform: uppercase;
 }
 .ledger-card i {
   display: grid;
-  grid-row: span 2;
   width: 41px;
   height: 41px;
   align-self: center;
@@ -359,6 +377,7 @@
   color: #0f5c65;
   font-size: 21px;
   font-style: normal;
+  grid-area: icon;
   place-items: center;
 }
 .landing-ledger-caption {
@@ -433,7 +452,7 @@
 }
 .landing-workflow-step > span,
 .landing-proof-card > span {
-  color: #5d8a8d;
+  color: #3d6669;
   font-family: ui-monospace, monospace;
   font-size: 11px;
 }
@@ -493,6 +512,13 @@
   border: 1px solid #aec9ca;
   background: #07323a;
   box-shadow: 0 25px 60px rgb(5 36 41 / 17%);
+  transition:
+    box-shadow 260ms ease,
+    filter 260ms ease;
+}
+.landing-screen-frame:hover {
+  box-shadow: 0 31px 72px rgb(5 36 41 / 23%);
+  filter: saturate(1.04);
 }
 .landing-screen-frame::before {
   position: absolute;
@@ -685,6 +711,19 @@
   color: #fff;
   font-weight: 700;
   text-decoration: none;
+}
+.landing-page a:focus-visible {
+  outline: 3px solid rgb(90 199 200 / 84%);
+  outline-offset: 4px;
+}
+.landing-workflow-step h3 {
+  transition: color 180ms ease;
+}
+.landing-workflow-step:hover h3 {
+  color: var(--landing-petrol);
+}
+.landing-workflow-step:hover > span {
+  color: var(--landing-aqua);
 }
 @keyframes rise-in {
   from {
@@ -922,6 +961,14 @@
     align-items: flex-start;
     padding: 25px 22px;
     flex-direction: column;
+  }
+  .landing-hero-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 17px;
+  }
+  .landing-primary {
+    justify-content: center;
   }
   .landing-hero-notes {
     margin-top: 36px;

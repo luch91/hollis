@@ -19,7 +19,9 @@ export function createR2EvidenceStorage(
     new S3Client({
       credentials: { accessKeyId, secretAccessKey },
       endpoint: `https://${host}`,
+      forcePathStyle: true,
       region: "auto",
     }),
+    false,
   );
 }

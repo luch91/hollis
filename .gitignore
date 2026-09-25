@@ -17,6 +17,7 @@ apps/web/CLAUDE.md
 .hollis/
 .vercel/
 **/.vercel/
+supabase/.temp/
 
 # Logs
 *.log

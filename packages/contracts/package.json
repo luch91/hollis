@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./canonical-case": "./src/canonical-case.ts",
+    "./canonical-case-node": "./src/canonical-case-node.ts",
     "./review-case": "./src/review-case.ts"
   },
   "scripts": {

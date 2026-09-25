@@ -13,13 +13,18 @@
     "cloud:preflight": "node scripts/cloud-run-preflight.mjs",
     "db:migrate": "dotenv -e .env -- pnpm --filter @hollis/database db:migrate",
     "dev": "dotenv -e .env -- pnpm --parallel --filter @hollis/api --filter @hollis/web dev",
+    "e2e": "node scripts/e2e-prepare.mjs && playwright test",
+    "e2e:real": "playwright test --config playwright.real.config.ts",
+    "e2e:typecheck": "tsc -p tsconfig.e2e.json --noEmit",
+    "e2e:ui": "node scripts/e2e-prepare.mjs && playwright test --ui",
     "format": "biome format .",
     "format:write": "biome format --write .",
     "genlayer:check-studio": "node scripts/check-genlayer-studio-next.mjs",
     "lint": "biome lint .",
     "policy": "node scripts/repository-policy.mjs repository",
     "test": "pnpm --recursive test",
-    "typecheck": "pnpm --recursive typecheck",
+    "test:contracts": "node scripts/run-python-contract-tests.mjs",
+    "typecheck": "pnpm --recursive typecheck && pnpm e2e:typecheck",
     "verify": "pnpm policy && pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "pnpm": {
@@ -29,7 +34,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",
+    "@playwright/test": "1.63.0",
     "@types/node": "26.4.0",
+    "axe-core": "4.13.0",
     "dotenv-cli": "11.0.0",
     "typescript": "7.0.2",
     "vitest": "4.1.11"

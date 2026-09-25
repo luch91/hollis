@@ -3,31 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  acknowledgeDecisionPacket,
+  claimReviewCase,
+  createEvidenceUpload,
+  createPublicAttestationCaseFile,
   createReviewCase,
   createWorkspacePolicy,
-  deployPolicyContract,
-  createPublicAttestationCaseFile,
-  createEvidenceUpload,
-  claimReviewCase,
   decideReviewCase,
+  deployPolicyContract,
   escalateReviewCase,
-  refreshAttestation,
   importFinalizedAttestation,
-  recoverWorkspace,
   ReviewServiceError,
+  recoverWorkspace,
+  refreshAttestation,
+  removeEvidence,
   uploadWorkspacePolicySource,
   verifyEvidence,
-  seedDemoWorkspace,
+  setEvidenceLegalHold,
+  getEvidenceDownload,
 } from "./data";
-
-export async function seedDemoWorkspaceAction() {
-  await seedDemoWorkspace();
-  revalidatePath("/app");
-  revalidatePath("/app/review-cases");
-  revalidatePath("/app/evidence");
-  revalidatePath("/app/policy");
-  redirect("/app");
-}
 
 function requiredValue(formData: FormData, name: string): string {
   const value = String(formData.get(name) ?? "").trim();
@@ -192,38 +186,45 @@ export async function createReviewCaseAction(formData: FormData) {
   const digestBuffer = await crypto.subtle.digest("SHA-256", bytes);
   const digest = `sha256:${Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
   const policyBinding = selectedPolicyBinding(requiredValue(formData, "policyBinding"));
-  const reviewCase = await createReviewCase({
-    automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
-    evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
-    externalReference: requiredValue(formData, "externalReference"),
-    policyId: policyBinding.policyId,
-    policyVersion: policyBinding.policyVersion,
-    recommendation: requiredValue(formData, "recommendation") as Parameters<
-      typeof createReviewCase
-    >[0]["recommendation"],
-    riskLevel: requiredValue(formData, "riskLevel") as Parameters<
-      typeof createReviewCase
-    >[0]["riskLevel"],
-    reviewDueAt: dueAtUtc(requiredValue(formData, "reviewDueAt")),
-    ruleId: policyBinding.ruleId,
-  });
-
-  const upload = await createEvidenceUpload(reviewCase.id, {
-    digest,
-    mediaType: file.type || "application/octet-stream",
-    sizeBytes: file.size,
-  });
-  if (upload.uploadUrl) {
-    const stored = await fetch(upload.uploadUrl, {
-      body: bytes,
-      headers: { "content-type": file.type || "application/octet-stream" },
-      method: "PUT",
+  try {
+    const reviewCase = await createReviewCase({
+      automatedSystemVersion: requiredValue(formData, "automatedSystemVersion"),
+      evidence: [{ digest, id: evidenceId, mediaType: file.type || "application/octet-stream" }],
+      externalReference: requiredValue(formData, "externalReference"),
+      policyId: policyBinding.policyId,
+      policyVersion: policyBinding.policyVersion,
+      recommendation: requiredValue(formData, "recommendation") as Parameters<
+        typeof createReviewCase
+      >[0]["recommendation"],
+      riskLevel: requiredValue(formData, "riskLevel") as Parameters<
+        typeof createReviewCase
+      >[0]["riskLevel"],
+      reviewDueAt: dueAtUtc(requiredValue(formData, "reviewDueAt")),
+      ruleId: policyBinding.ruleId,
     });
-    if (!stored.ok) throw new Error("Evidence storage upload failed.");
+
+    const upload = await createEvidenceUpload(reviewCase.id, {
+      digest,
+      mediaType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+    });
+    if (upload.uploadUrl) {
+      const stored = await fetch(upload.uploadUrl, {
+        body: bytes,
+        headers: { "content-type": file.type || "application/octet-stream" },
+        method: "PUT",
+      });
+      if (!stored.ok) throw new Error("Evidence storage upload failed.");
+    }
+    await verifyEvidence(reviewCase.id, upload.evidenceId);
+    revalidateWorkspace(reviewCase.id);
+    redirect(`/app/review-cases?caseId=${encodeURIComponent(reviewCase.id)}`);
+  } catch (error) {
+    if (error instanceof ReviewServiceError) {
+      redirect(`/app/review-cases/new?error=${encodeURIComponent(error.code ?? "review_service")}`);
+    }
+    throw error;
   }
-  await verifyEvidence(reviewCase.id, upload.evidenceId);
-  revalidateWorkspace(reviewCase.id);
-  redirect(`/app/review-cases?caseId=${encodeURIComponent(reviewCase.id)}`);
 }
 
 export async function uploadEvidenceAction(formData: FormData) {
@@ -254,10 +255,86 @@ export async function uploadEvidenceAction(formData: FormData) {
   revalidateWorkspace(caseId);
 }
 
+/**
+ * Starts a browser-to-provider evidence upload.  Keeping the authorization
+ * request in a Server Action retains the user's Hollis session while letting
+ * the browser show the actual storage and verification lifecycle.
+ */
+export async function beginEvidenceUploadAction(input: {
+  caseId: string;
+  digest: string;
+  mediaType: string;
+  sizeBytes: number;
+}) {
+  if (!input.caseId || !/^sha256:[a-f0-9]{64}$/.test(input.digest)) {
+    throw new Error("Evidence upload metadata is invalid.");
+  }
+  if (
+    !input.mediaType ||
+    input.mediaType.length > 128 ||
+    input.sizeBytes <= 0 ||
+    input.sizeBytes > 524_288_000
+  ) {
+    throw new Error("Evidence must be a non-empty file no larger than 500 MB.");
+  }
+  try {
+    const upload = await createEvidenceUpload(input.caseId, {
+      digest: input.digest,
+      mediaType: input.mediaType,
+      sizeBytes: input.sizeBytes,
+    });
+    return { ok: true as const, upload };
+  } catch (error) {
+    if (error instanceof ReviewServiceError) return { code: error.code, ok: false as const };
+    throw error;
+  }
+}
+
+export async function completeEvidenceVerificationAction(caseId: string, evidenceId: string) {
+  try {
+    await verifyEvidence(caseId, evidenceId);
+    revalidateWorkspace(caseId);
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof ReviewServiceError) return { code: error.code, ok: false as const };
+    throw error;
+  }
+}
+
+export async function removeEvidenceAction(formData: FormData) {
+  const caseId = String(formData.get("caseId") ?? "");
+  const evidenceId = String(formData.get("evidenceId") ?? "");
+  if (!caseId || !evidenceId)
+    throw new Error("Evidence removal requires a case and evidence reference.");
+  await removeEvidence(caseId, evidenceId);
+  revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
+}
+
+export async function setEvidenceLegalHoldAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  const evidenceId = requiredValue(formData, "evidenceId");
+  const active = requiredValue(formData, "active") === "true";
+  if (formData.get("confirmation") !== "on") {
+    throw new Error("Confirm the legal-hold change before submitting it.");
+  }
+  await setEvidenceLegalHold(caseId, evidenceId, active);
+  revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}#evidence-lifecycle`);
+}
+
+export async function downloadEvidenceAction(formData: FormData) {
+  const caseId = requiredValue(formData, "caseId");
+  const evidenceId = requiredValue(formData, "evidenceId");
+  const { downloadUrl } = await getEvidenceDownload(caseId, evidenceId);
+  redirect(downloadUrl);
+}
+
 export async function claimAction(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   await claimReviewCase(caseId);
   revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 export async function recoverWorkspaceAction() {
@@ -270,6 +347,7 @@ export async function escalateAction(formData: FormData) {
   const reason = String(formData.get("reason") ?? "");
   await escalateReviewCase(caseId, reason);
   revalidateWorkspace(caseId);
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 export async function decideAction(formData: FormData) {
@@ -281,33 +359,19 @@ export async function decideAction(formData: FormData) {
     typeof decideReviewCase
   >[1]["outcome"];
   const rationale = String(formData.get("rationale") ?? "");
-  await decideReviewCase(caseId, { finalRecommendation, outcome, rationale });
+  const knownLimitations = String(formData.get("knownLimitations") ?? "");
+  if (formData.get("packetAcknowledged") !== "on") {
+    throw new Error("You must acknowledge the decision packet before recording a decision.");
+  }
+  await acknowledgeDecisionPacket(caseId, knownLimitations);
+  await decideReviewCase(caseId, { finalRecommendation, knownLimitations, outcome, rationale });
   revalidateWorkspace(caseId);
-}
-
-function policyFromForm(formData: FormData) {
-  return {
-    control: {
-      attestationCriterion: requiredValue(formData, "attestationCriterion"),
-      controlId: requiredValue(formData, "controlId"),
-      controlVersion: requiredValue(formData, "controlVersion"),
-      evidenceRequirement: requiredValue(formData, "evidenceRequirement") as
-        | "none"
-        | "reference_required"
-        | "verified_reference_required",
-      interpretation: requiredValue(formData, "interpretation") as
-        | "deterministic"
-        | "judgment_required",
-      policyDocumentDigest: requiredValue(formData, "policyDocumentDigest"),
-    },
-    policyId: requiredValue(formData, "policyId"),
-    policyVersion: requiredValue(formData, "policyVersion"),
-  };
+  redirect(`/app/review-cases/${caseId}`);
 }
 
 export async function createPublicAttestationCaseFileAction(formData: FormData) {
   const caseId = requiredValue(formData, "caseId");
-  const caseFile = await createPublicAttestationCaseFile(caseId, policyFromForm(formData));
+  const caseFile = await createPublicAttestationCaseFile(caseId);
   revalidateWorkspace(caseId);
   redirect(`/app/review-cases/${caseId}?caseFile=${caseFile.publicId}#attestation`);
 }

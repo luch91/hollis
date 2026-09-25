@@ -1,3 +1,7 @@
+import {
+  canonicalCaseRecordSchema,
+  caseCommitmentVersionSchema,
+} from "@hollis/contracts/canonical-case";
 import { z } from "zod";
 
 const sha256DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
@@ -57,7 +61,9 @@ export const adjudicationEvidenceReferenceSchema = z
 export const adjudicationCaseFileSchema = z
   .object({
     auditManifestHash: sha256DigestSchema,
+    canonicalRecord: canonicalCaseRecordSchema.optional(),
     caseCommitment: sha256DigestSchema,
+    commitmentVersion: caseCommitmentVersionSchema.optional(),
     evidence: z.array(adjudicationEvidenceReferenceSchema).min(1).max(100),
     policy: z
       .object({
@@ -76,7 +82,16 @@ export const adjudicationCaseFileSchema = z
       .strict(),
     schemaVersion: z.literal("hollis.adjudication-case.v1"),
   })
-  .strict();
+  .strict()
+  .superRefine((caseFile, context) => {
+    if (Boolean(caseFile.canonicalRecord) !== Boolean(caseFile.commitmentVersion)) {
+      context.addIssue({
+        code: "custom",
+        message: "Canonical records and commitment versions must be present together.",
+        path: [caseFile.canonicalRecord ? "commitmentVersion" : "canonicalRecord"],
+      });
+    }
+  });
 
 export const genLayerAttestationRequestSchema = z
   .object({
@@ -103,17 +118,7 @@ export const createAttestationRequestSchema = z
   })
   .strict();
 
-export const createPublicAttestationCaseFileRequestSchema = z
-  .object({
-    policy: z
-      .object({
-        control: policyControlSchema,
-        policyId: identifierSchema,
-        policyVersion: z.string().trim().min(1).max(128),
-      })
-      .strict(),
-  })
-  .strict();
+export const createPublicAttestationCaseFileRequestSchema = z.object({}).strict();
 
 export const importFinalizedAttestationRequestSchema = z
   .object({

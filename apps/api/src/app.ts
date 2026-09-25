@@ -1,9 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import {
-  createAttestationRequestSchema,
   createPolicyVersionSchema,
   createPublicAttestationCaseFileRequestSchema,
   createReviewCaseSchema,
@@ -14,8 +13,8 @@ import {
   reviewCaseStatusSchema,
 } from "@hollis/contracts";
 import { createDatabase } from "@hollis/database";
-import Fastify, { LogController } from "fastify";
 import { sql } from "drizzle-orm";
+import Fastify, { LogController } from "fastify";
 import { z } from "zod";
 import type {
   AttestationProvider,
@@ -26,7 +25,8 @@ import type {
 import {
   AttestationPreconditionError,
   buildAdjudicationCaseFile,
-  buildGenLayerAttestationRequest,
+  buildCanonicalReviewMetadata,
+  verifyAdjudicationCaseFileIntegrity,
 } from "./attestation-workflow.js";
 import {
   type AccessTokenVerifier,
@@ -41,7 +41,11 @@ import {
 } from "./auth.js";
 import { databaseConnectionFromEnvironment, type Environment } from "./config.js";
 import { createConfiguredEvidenceStorage } from "./configured-evidence-storage.js";
-import { EvidenceVerificationError, evidenceUploadSchema } from "./evidence.js";
+import {
+  EvidenceUploadExpiredError,
+  EvidenceVerificationError,
+  evidenceUploadSchema,
+} from "./evidence.js";
 import {
   createApplicationSessionToken,
   createIdentityPlatformTokenVerifier,
@@ -49,6 +53,15 @@ import {
   type IdentityPlatformTokenVerifier,
   type VerifiedIdentityPlatformIdentity,
 } from "./identity-platform.js";
+import {
+  type ManagedAttestationProgress,
+  reconcileManagedAttestationForCase,
+  startManagedAttestationForCase,
+} from "./managed-attestation-orchestrator.js";
+import type {
+  ManagedAttestationClient,
+  ManagedAttestationSubmissionStore,
+} from "./managed-attestation-submission.js";
 import {
   createOrganizationLogoService,
   OrganizationLogoError,
@@ -59,8 +72,8 @@ import {
   createPostgresAttestationStore,
   createPostgresEvidenceMetadataStore,
   createPostgresManagedAttestationSubmissionStore,
-  createPostgresPolicyLibraryStore,
   createPostgresPolicyContractDeploymentStore,
+  createPostgresPolicyLibraryStore,
   createPostgresPublicAttestationCaseFileStore,
   createPostgresReviewIntakeStore,
   createPostgresReviewWorkflowStore,
@@ -71,41 +84,35 @@ import {
   createPostgresWorkspaceProvisioningStore,
   setEvidenceLegalHold,
 } from "./persistence.js";
-import {
-  reconcileManagedAttestationForCase,
-  startManagedAttestationForCase,
-  type ManagedAttestationProgress,
-} from "./managed-attestation-orchestrator.js";
-import type {
-  ManagedAttestationClient,
-  ManagedAttestationSubmissionStore,
-} from "./managed-attestation-submission.js";
+import { createAuditCheckpointSigner } from "./audit-checkpoint.js";
+import { runAuditCheckpointScheduler } from "./audit-checkpoint-scheduler.js";
 import {
   beginPolicyContractDeployment,
   ensurePolicyContractDeployment,
-  PolicyContractDeploymentError,
-  reconcilePolicyContractDeployment,
   type PolicyContractDeploymentClient,
+  PolicyContractDeploymentError,
   type PolicyContractDeploymentStore,
+  reconcilePolicyContractDeployment,
 } from "./policy-contract-deployment.js";
 import {
   assertPublishedCasePolicy,
   createPublishedPolicy,
   PolicyBindingError,
-  PolicyVersionConflictError,
   type PolicyLibraryStore,
+  PolicyVersionConflictError,
 } from "./policy-library.js";
 import {
   assertStoredPolicySource,
   createPolicySource,
-  policySourceObjectName,
   PolicySourceError,
+  policySourceObjectName,
 } from "./policy-source.js";
 import {
   createInMemoryRateLimiter,
   createRateLimitPreHandler,
   type RateLimiter,
 } from "./rate-limit.js";
+import { runRetentionScheduler } from "./retention-scheduler.js";
 import {
   createReviewIntake,
   ReviewIntakeConflictError,
@@ -123,6 +130,12 @@ import {
   createResendTransactionalEmailService,
   type TransactionalEmailService,
 } from "./transactional-email.js";
+import {
+  createProfileAvatar,
+  ProfileAvatarError,
+  serializeProfileTimestamp,
+  updateUserProfileSchema,
+} from "./user-profile.js";
 import { claimsWebhookSchema, InvalidWebhookError, verifyClaimsWebhook } from "./webhook.js";
 import type {
   PendingWelcomeEmailDelivery,
@@ -150,12 +163,6 @@ import {
   type WorkspaceProvisioner,
   WorkspaceProvisioningError,
 } from "./workspace-provisioning.js";
-import {
-  createProfileAvatar,
-  ProfileAvatarError,
-  serializeProfileTimestamp,
-  updateUserProfileSchema,
-} from "./user-profile.js";
 
 type AppDependencies = {
   accessTokenVerifier?: AccessTokenVerifier;
@@ -182,7 +189,6 @@ type AppDependencies = {
     actorId: string,
   ) => Promise<boolean>;
   workspaceProvisioner?: WorkspaceProvisioner;
-  demoWorkspaceSeeder?: (tenantId: string, actorId: string) => Promise<void>;
   unscopedAccessTokenVerifier?: UnscopedAccessTokenVerifier;
   applicationSessionStore?: ApplicationSessionStore;
   identityPlatformTokenVerifier?: IdentityPlatformTokenVerifier;
@@ -192,6 +198,10 @@ type AppDependencies = {
   welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
   rateLimiter?: RateLimiter;
   organizationLogoService?: OrganizationLogoService;
+  scheduledMaintenanceRunner?: () => Promise<{
+    checkpoints: number;
+    retention: { completed: number; failed: number };
+  }>;
 };
 
 const rateLimitPolicies = {
@@ -207,6 +217,22 @@ const rateLimitPolicies = {
   sessionExchange: { maxRequests: 10, windowMs: 15 * 60 * 1000 },
   workspaceSetup: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
 } as const;
+
+/**
+ * The intake form used these fields before policy source documents were moved
+ * to their own controlled upload endpoint. Keep a narrowly-scoped wire
+ * compatibility boundary for already-cached web clients: discard only these
+ * inert legacy values, then leave the strict request contract in force.
+ */
+function normalizeLegacyReviewCaseInput(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const legacyKeys = new Set(["sourceFileName", "sourceMediaType", "sourceSizeBytes"]);
+  const reviewCaseInput: Record<string, unknown> = Object.create(null);
+  for (const key of Object.getOwnPropertyNames(input)) {
+    if (!legacyKeys.has(key)) reviewCaseInput[key] = (input as Record<string, unknown>)[key];
+  }
+  return reviewCaseInput;
+}
 
 export async function buildApp(environment: Environment, dependencies: AppDependencies = {}) {
   const rateLimiter = dependencies.rateLimiter ?? createInMemoryRateLimiter();
@@ -247,15 +273,30 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const policyContractSource =
     dependencies.policyContractSource ??
     readFileSync(
-      new URL("../../../contracts/genlayer/policy_process_attestation_v7.py", import.meta.url),
+      new URL("../../../contracts/genlayer/policy_process_attestation_v9.py", import.meta.url),
       "utf8",
     );
   const tenantResolver =
     dependencies.tenantResolver ?? createPostgresTenantResolver(requireDatabase());
+  const auditCheckpointSigner =
+    environment.AUDIT_CHECKPOINT_KEY_ID &&
+    environment.AUDIT_CHECKPOINT_PRIVATE_KEY_BASE64 &&
+    environment.AUDIT_CHECKPOINT_PUBLIC_KEY_BASE64
+      ? createAuditCheckpointSigner({
+          keyId: environment.AUDIT_CHECKPOINT_KEY_ID,
+          privateKeyBase64: environment.AUDIT_CHECKPOINT_PRIVATE_KEY_BASE64,
+          publicKeyBase64: environment.AUDIT_CHECKPOINT_PUBLIC_KEY_BASE64,
+        })
+      : undefined;
   const workflowStore =
-    dependencies.workflowStore ?? createPostgresReviewWorkflowStore(requireDatabase());
+    dependencies.workflowStore ??
+    createPostgresReviewWorkflowStore(requireDatabase(), auditCheckpointSigner);
   const evidenceMetadataStore =
-    dependencies.evidenceMetadataStore ?? createPostgresEvidenceMetadataStore(requireDatabase());
+    dependencies.evidenceMetadataStore ??
+    createPostgresEvidenceMetadataStore(
+      requireDatabase(),
+      environment.EVIDENCE_RETENTION_DAYS ?? 365,
+    );
   const attestationStore =
     dependencies.attestationStore ??
     (databaseResource ? createPostgresAttestationStore(databaseResource.database) : null);
@@ -271,18 +312,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   const workspaceProvisioner =
     dependencies.workspaceProvisioner ??
     createHollisWorkspaceProvisioner(createPostgresWorkspaceProvisioningStore(requireDatabase()));
-  const demoWorkspaceSeeder =
-    dependencies.demoWorkspaceSeeder ??
-    (databaseResource
-      ? async (tenantId: string, actorId: string) => {
-          await requireDatabase().execute(
-            sql`select public.cleanup_expired_hollis_demo_workspace(${tenantId}::uuid)`,
-          );
-          await requireDatabase().execute(
-            sql`select public.seed_hollis_demo_workspace(${tenantId}::uuid, ${actorId}::uuid)`,
-          );
-        }
-      : null);
   const applicationSessionStore =
     dependencies.applicationSessionStore ??
     createPostgresApplicationSessionStore(requireDatabase());
@@ -383,6 +412,19 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           workflowStore,
         }
       : null;
+  const scheduledMaintenanceRunner =
+    dependencies.scheduledMaintenanceRunner ??
+    (async () => ({
+      checkpoints: (await runAuditCheckpointScheduler()).checked,
+      retention: await runRetentionScheduler(),
+    }));
+
+  function hasScheduledMaintenanceAuthorization(value: unknown): boolean {
+    if (!environment.CRON_SECRET || typeof value !== "string") return false;
+    const actual = Buffer.from(value);
+    const expected = Buffer.from(`Bearer ${environment.CRON_SECRET}`);
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
 
   async function recordManagedReceipt(
     tenantId: string,
@@ -408,6 +450,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       submission.publicCaseFileUrl,
     );
     if (!caseFile) return;
+    verifyAdjudicationCaseFileIntegrity(caseFile.caseFile);
     await attestationStore.create(
       tenantId,
       caseId,
@@ -423,6 +466,39 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         verdict: submission.verdict,
       },
     );
+  }
+
+  async function resolveCanonicalPolicy(
+    tenantId: string,
+    exported: NonNullable<Awaited<ReturnType<typeof workflowStore.exportCase>>>,
+  ) {
+    if (!exported.case.policyId) {
+      throw new AttestationPreconditionError("The completed case has no published policy binding.");
+    }
+    const policy = await policyLibraryStore.findControl(
+      tenantId,
+      exported.case.policyId,
+      exported.case.policyVersion,
+      exported.case.ruleId,
+    );
+    const control = policy?.controls.find((item) => item.controlId === exported.case.ruleId);
+    if (!policy || !control) {
+      throw new AttestationPreconditionError(
+        "The completed case policy binding is unavailable for a canonical commitment.",
+      );
+    }
+    return {
+      control: {
+        attestationCriterion: control.attestationCriterion,
+        controlId: control.controlId,
+        controlVersion: control.controlVersion,
+        evidenceRequirement: control.evidenceRequirement,
+        interpretation: control.interpretation,
+        policyDocumentDigest: policy.documentDigest,
+      },
+      policyId: policy.policyId,
+      policyVersion: policy.version,
+    };
   }
 
   async function reconcileManagedAttestation(
@@ -674,10 +750,20 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         .send({ code: "invalid_transition", message: "Review case transition is not allowed." });
     }
 
-    if (error instanceof EvidenceVerificationError) {
+    if (
+      error instanceof EvidenceVerificationError ||
+      (error instanceof Error && error.name === "EvidenceVerificationError")
+    ) {
       return reply.code(422).send({
         code: "evidence_verification_failed",
         message: "Evidence object does not match its declared metadata.",
+      });
+    }
+
+    if (error instanceof EvidenceUploadExpiredError) {
+      return reply.code(410).send({
+        code: "evidence_upload_expired",
+        message: "Evidence upload authorization has expired. Start a new upload.",
       });
     }
 
@@ -781,7 +867,44 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
-
+  app.get("/v1/internal/scheduled/maintenance", async (request, reply) => {
+    if (!environment.CRON_SECRET) {
+      return reply.code(404).send({ code: "not_found", message: "Not found." });
+    }
+    if (!hasScheduledMaintenanceAuthorization(request.headers.authorization)) {
+      return reply.code(401).send({ code: "unauthorized", message: "Authentication required." });
+    }
+    try {
+      return await scheduledMaintenanceRunner();
+    } catch {
+      return reply
+        .code(500)
+        .send({ code: "internal_error", message: "Scheduled maintenance failed." });
+    }
+  });
+  app.post("/v1/internal/e2e/migrate", async (request, reply) => {
+    const secret = process.env.HOLLIS_E2E_RUNNER_SECRET;
+    const supplied = request.headers["x-hollis-e2e-runner-secret"];
+    if (
+      process.env.VERCEL_ENV !== "preview" ||
+      !secret ||
+      typeof supplied !== "string" ||
+      supplied !== secret
+    ) {
+      return reply.code(404).send();
+    }
+    const body = request.body as { statements?: unknown };
+    if (
+      !Array.isArray(body?.statements) ||
+      !body.statements.every((statement) => typeof statement === "string")
+    ) {
+      return reply.code(400).send({ code: "invalid_request" });
+    }
+    for (const statement of body.statements) {
+      await requireDatabase().execute(sql.raw(statement));
+    }
+    return reply.code(204).send();
+  });
   app.post(
     "/v1/auth/sessions",
     { preHandler: rateLimit("sessionExchange") },
@@ -898,24 +1021,6 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
   });
 
   app.post(
-    "/v1/workspace/demo",
-    {
-      preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "workspace:manage"),
-    },
-    async (request, reply) => {
-      if (!demoWorkspaceSeeder) {
-        return reply.code(503).send({
-          code: "demo_fixture_unconfigured",
-          message: "Demo workspace fixtures are not configured.",
-        });
-      }
-      const { principal, tenant } = requireRequestContext(request);
-      await demoWorkspaceSeeder(tenant.id, principal.userId);
-      return reply.code(204).send();
-    },
-  );
-
-  app.post(
     "/v1/workspace-invitations/accept",
     { preHandler: rateLimit("workspaceSetup") },
     async (request, reply) => {
@@ -953,6 +1058,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       publicCaseFileUrl,
     );
     if (!record) return reply.code(404).send({ code: "not_found", message: "Not found." });
+    verifyAdjudicationCaseFileIntegrity(record.caseFile);
 
     return reply.header("cache-control", "no-store").type("application/json").send(record.caseFile);
   });
@@ -1369,46 +1475,27 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       }
       const { caseId } = caseParamsSchema.parse(request.params);
       const { tenant } = requireRequestContext(request);
-      return publicAttestationCaseFileStore.list(
+      const records = await publicAttestationCaseFileStore.list(
         tenant.id,
         caseId,
         environment.PUBLIC_ATTESTATION_ORIGIN,
       );
+      for (const record of records) verifyAdjudicationCaseFileIntegrity(record.caseFile);
+      return records;
     },
   );
 
   app.post(
     "/v1/review-cases/:caseId/attestations",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:attest") },
-    async (request, reply) => {
-      if (!dependencies.attestationProvider || !attestationStore)
-        return reply.code(503).send({
-          code: "attestation_unconfigured",
-          message: "GenLayer attestation is not activated.",
-        });
-      const { caseId } = caseParamsSchema.parse(request.params);
-      const input = createAttestationRequestSchema.parse(request.body);
-      const { principal, tenant } = requireRequestContext(request);
-      const exported = await workflowStore.exportCase(tenant.id, caseId);
-      if (!exported) throw new ReviewCaseNotFoundError();
-      const caseFile = buildGenLayerAttestationRequest(
-        exported,
-        await evidenceMetadataStore.list(tenant.id, caseId),
-        input,
-      );
-      const receipt = await dependencies.attestationProvider.submit(caseFile);
-      return reply
-        .code(201)
-        .send(
-          await attestationStore.create(
-            tenant.id,
-            caseId,
-            principal.userId,
-            caseFile.caseFile,
-            caseFile.publicCaseFileUrl,
-            receipt,
-          ),
-        );
+    async (_request, reply) => {
+      // Direct provider submission accepted caller-controlled public URLs and
+      // is intentionally retired. The managed runtime is the only supported
+      // path and derives every attestation fact from persisted records.
+      return reply.code(410).send({
+        code: "manual_attestation_retired",
+        message: "Use the managed attestation workflow for this case.",
+      });
     },
   );
 
@@ -1428,19 +1515,33 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         });
       }
       const { caseId } = caseParamsSchema.parse(request.params);
-      const input = createPublicAttestationCaseFileRequestSchema.parse(request.body);
+      createPublicAttestationCaseFileRequestSchema.parse(request.body);
       const { principal, tenant } = requireRequestContext(request);
       const exported = await workflowStore.exportCase(tenant.id, caseId);
       if (!exported) throw new ReviewCaseNotFoundError();
+      const canonicalPolicy = await resolveCanonicalPolicy(tenant.id, exported);
+      const caseFile = buildAdjudicationCaseFile(
+        exported,
+        await evidenceMetadataStore.list(tenant.id, caseId),
+        { policy: canonicalPolicy },
+      );
+      verifyAdjudicationCaseFileIntegrity(caseFile);
+      const existing = (
+        await publicAttestationCaseFileStore.list(
+          tenant.id,
+          caseId,
+          environment.PUBLIC_ATTESTATION_ORIGIN,
+        )
+      ).find(
+        (record) =>
+          record.caseFile.caseCommitment === caseFile.caseCommitment &&
+          record.caseFile.schemaVersion === caseFile.schemaVersion,
+      );
+      if (existing) return reply.code(200).send(existing);
       const publicId = randomUUID();
       const publicCaseFileUrl = publicAttestationCaseFileUrl(
         environment.PUBLIC_ATTESTATION_ORIGIN,
         publicId,
-      );
-      const caseFile = buildAdjudicationCaseFile(
-        exported,
-        await evidenceMetadataStore.list(tenant.id, caseId),
-        input,
       );
       return reply
         .code(201)
@@ -1497,6 +1598,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           message: "Public attestation case file not found.",
         });
       }
+      verifyAdjudicationCaseFileIntegrity(publicCaseFile.caseFile);
       const receipt = await dependencies.finalizedAttestationImporter.importFinalized({
         caseFile: publicCaseFile.caseFile,
         publicCaseFileUrl: publicCaseFile.publicCaseFileUrl,
@@ -1531,7 +1633,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           .code(503)
           .send({ code: "storage_unconfigured", message: "Evidence storage is not configured." });
       const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
-      const { tenant } = requireRequestContext(request);
+      const { principal, tenant } = requireRequestContext(request);
       const { verifyEvidenceUpload } = await import("./evidence.js");
       const verified = await verifyEvidenceUpload(
         tenant.id,
@@ -1539,6 +1641,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
         evidenceId,
         evidenceStorage,
         evidenceMetadataStore,
+        principal.userId,
       );
       if (!verified)
         return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
@@ -1550,7 +1653,11 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     "/v1/review-cases",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
     async (request, reply) => {
-      const input = createReviewCaseSchema.parse(request.body);
+      app.log.info(
+        { caseInputKeys: Object.keys(request.body as object) },
+        "review case intake shape",
+      );
+      const input = createReviewCaseSchema.parse(normalizeLegacyReviewCaseInput(request.body));
       const { principal, tenant } = requireRequestContext(request);
       if (!input.policyId) {
         return reply.code(400).send({
@@ -1666,7 +1773,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
               policyControlRecordId: record.controlRecordId,
               runtimeAddress: managedAttestationDependencies.runtimeAddress,
               source: managedAttestationDependencies.source,
-              sourceVersion: "v7",
+              sourceVersion: "v9",
               store: managedAttestationDependencies.deploymentStore,
               tenantId: tenant.id,
             });
@@ -1726,7 +1833,7 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
           policyControlRecordId: control.controlRecordId,
           runtimeAddress: environment.GENLAYER_RUNTIME_ADDRESS,
           source: policyContractSource,
-          sourceVersion: "v7",
+          sourceVersion: "v9",
           store: policyContractDeploymentStore,
           tenantId: tenant.id,
         }),
@@ -1775,6 +1882,22 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       if (!updated)
         return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
       return reply.code(204).send();
+    },
+  );
+
+  app.get(
+    "/v1/review-cases/:caseId/evidence",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
+    async (request) => {
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const { tenant } = requireRequestContext(request);
+      if (!evidenceMetadataStore.listLifecycle) return [];
+      const records = await evidenceMetadataStore.listLifecycle(tenant.id, caseId);
+      return records.map((record) => ({
+        ...record,
+        deletedAt: record.deletedAt?.toISOString() ?? null,
+        retentionUntil: record.retentionUntil?.toISOString() ?? null,
+      }));
     },
   );
 
@@ -1891,6 +2014,26 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
     },
   );
 
+  app.delete(
+    "/v1/review-cases/:caseId/evidence/:evidenceId",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:create") },
+    async (request, reply) => {
+      const { caseId, evidenceId } = evidenceParamsSchema.parse(request.params);
+      const { principal, tenant } = requireRequestContext(request);
+      const { removeEvidenceAttachment } = await import("./evidence.js");
+      const removed = await removeEvidenceAttachment(
+        tenant.id,
+        caseId,
+        evidenceId,
+        principal.userId,
+        evidenceMetadataStore,
+      );
+      if (!removed)
+        return reply.code(404).send({ code: "evidence_not_found", message: "Evidence not found." });
+      return reply.code(204).send();
+    },
+  );
+
   app.get(
     "/v1/review-cases/:caseId",
     { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:read") },
@@ -1929,8 +2072,18 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       if (!exported) {
         throw new ReviewCaseNotFoundError();
       }
+      if (
+        exported.case.status !== "completed" ||
+        !exported.case.policyId ||
+        !exported.case.decisionOutcome
+      ) {
+        return toExportResponse(exported);
+      }
+      const canonicalPolicy = await resolveCanonicalPolicy(tenant.id, exported);
+      const evidence = await evidenceMetadataStore.list(tenant.id, caseId);
+      const canonical = buildCanonicalReviewMetadata(exported, evidence, canonicalPolicy);
 
-      return toExportResponse(exported);
+      return toExportResponse({ ...exported, canonical });
     },
   );
 
@@ -2007,6 +2160,31 @@ export async function buildApp(environment: Environment, dependencies: AppDepend
       const { principal, tenant } = requireRequestContext(request);
       const result = await workflowStore.escalate(tenant.id, principal.userId, caseId, input);
       return toWorkflowResponse(result);
+    },
+  );
+
+  app.post(
+    "/v1/review-cases/:caseId/decision-packet/acknowledgements",
+    { preHandler: createSecurityPreHandler(accessTokenVerifier, tenantResolver, "reviews:decide") },
+    async (request, reply) => {
+      const { caseId } = caseParamsSchema.parse(request.params);
+      const input = z
+        .object({ knownLimitations: z.string().trim().min(1).max(4000) })
+        .strict()
+        .parse(request.body);
+      const { principal, tenant } = requireRequestContext(request);
+      if (!workflowStore.acknowledgeDecisionPacket) {
+        return reply.code(501).send({
+          code: "decision_packet_unavailable",
+          message: "Decision packet acknowledgement is unavailable.",
+        });
+      }
+      return workflowStore.acknowledgeDecisionPacket(
+        tenant.id,
+        principal.userId,
+        caseId,
+        input.knownLimitations,
+      );
     },
   );
 

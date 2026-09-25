@@ -7,7 +7,7 @@ describe("evidence object boundaries", () => {
   it("creates content-addressed tenant paths", () => {
     const digest = `sha256:${"a".repeat(64)}`;
     expect(evidenceObjectName("tenant-1", digest)).toBe(
-      `tenants/tenant-1/evidence/${"a".repeat(64)}`,
+      `tenants/tenant-1/evidence/final/${"a".repeat(64)}`,
     );
   });
 

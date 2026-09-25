@@ -50,11 +50,16 @@ export interface PolicyContractDeploymentStore {
 }
 
 export interface PolicyContractDeploymentClient {
-  deploy(input: { binding: PolicyContractBinding; source: string }): Promise<string>;
+  deploy(input: {
+    binding: PolicyContractBinding;
+    runtimeAddress: string;
+    source: string;
+  }): Promise<string>;
   probeFinalization?(
     transactionHash: string,
   ): Promise<{ contractAddress: string | null; executionSucceeded: boolean } | null>;
   readBinding(contractAddress: string): Promise<unknown>;
+  readRuntimeAddress?(contractAddress: string): Promise<string>;
   waitForFinalization(transactionHash: string): Promise<{
     contractAddress: string | null;
     executionSucceeded: boolean;
@@ -116,7 +121,11 @@ export async function beginPolicyContractDeployment(input: {
     return deployment;
   }
   try {
-    const transactionHash = await input.client.deploy({ binding, source: input.source });
+    const transactionHash = await input.client.deploy({
+      binding,
+      runtimeAddress: input.runtimeAddress,
+      source: input.source,
+    });
     return await input.store.markSubmitted(input.tenantId, deployment.id, transactionHash);
   } catch {
     await input.store.markFailed(
@@ -196,6 +205,25 @@ export async function reconcilePolicyContractDeployment(input: {
         "policy_binding_mismatch",
       );
     }
+    if (deployment.sourceVersion === "v8" || deployment.sourceVersion === "v9") {
+      if (!input.client.readRuntimeAddress) {
+        return input.store.markFailed(
+          input.tenantId,
+          deployment.id,
+          "binding_mismatch",
+          "runtime_authorization_unverifiable",
+        );
+      }
+      const runtimeAddress = await input.client.readRuntimeAddress(deployment.contractAddress);
+      if (runtimeAddress.toLowerCase() !== deployment.runtimeAddress.toLowerCase()) {
+        return input.store.markFailed(
+          input.tenantId,
+          deployment.id,
+          "binding_mismatch",
+          "runtime_authorization_mismatch",
+        );
+      }
+    }
     deployment = await input.store.markVerified(input.tenantId, deployment.id);
   }
   if (deployment.status === "verified") {
@@ -232,7 +260,10 @@ export function digestPolicyContractSource(source: string): string {
   return `sha256:${createHash("sha256").update(source).digest("hex")}`;
 }
 
-export function policyContractConstructorArguments(binding: PolicyContractBinding): string[] {
+export function policyContractConstructorArguments(
+  binding: PolicyContractBinding,
+  runtimeAddress: string,
+): string[] {
   const parsed = policyContractBindingSchema.parse(binding);
   return [
     parsed.policyId,
@@ -243,6 +274,7 @@ export function policyContractConstructorArguments(binding: PolicyContractBindin
     parsed.control.attestationCriterion,
     parsed.control.evidenceRequirement,
     parsed.control.interpretation,
+    runtimeAddress,
   ];
 }
 
@@ -316,7 +348,11 @@ export async function ensurePolicyContractDeployment(input: {
       }
     } else {
       try {
-        const transactionHash = await input.client.deploy({ binding, source: input.source });
+        const transactionHash = await input.client.deploy({
+          binding,
+          runtimeAddress: input.runtimeAddress,
+          source: input.source,
+        });
         deployment = await input.store.markSubmitted(
           input.tenantId,
           deployment.id,
@@ -385,6 +421,33 @@ export async function ensurePolicyContractDeployment(input: {
         "The deployed contract binding does not match the published policy control.",
         "policy_binding_mismatch",
       );
+    }
+    if (deployment.sourceVersion === "v8" || deployment.sourceVersion === "v9") {
+      if (!input.client.readRuntimeAddress) {
+        await input.store.markFailed(
+          input.tenantId,
+          deployment.id,
+          "binding_mismatch",
+          "runtime_authorization_unverifiable",
+        );
+        throw new PolicyContractDeploymentError(
+          "The deployment cannot verify its authorized runtime account.",
+          "runtime_authorization_unverifiable",
+        );
+      }
+      const runtimeAddress = await input.client.readRuntimeAddress(deployment.contractAddress);
+      if (runtimeAddress.toLowerCase() !== deployment.runtimeAddress.toLowerCase()) {
+        await input.store.markFailed(
+          input.tenantId,
+          deployment.id,
+          "binding_mismatch",
+          "runtime_authorization_mismatch",
+        );
+        throw new PolicyContractDeploymentError(
+          "The deployed contract runtime authorization differs from its immutable deployment record.",
+          "runtime_authorization_mismatch",
+        );
+      }
     }
     deployment = await input.store.markVerified(input.tenantId, deployment.id);
   }

@@ -67,10 +67,6 @@ function humanize(value: string) {
   return value.replaceAll("_", " ");
 }
 
-function isDemoCase(reviewCase: Pick<ReviewQueueItem, "externalReference">) {
-  return reviewCase.externalReference.startsWith("DEMO-");
-}
-
 function CaseQueue({
   canCreate,
   cases,
@@ -146,7 +142,6 @@ function CaseQueue({
           cases.map((item, index) => (
             <Link
               className={item.id === selectedId ? "is-selected" : undefined}
-              data-demo-content={isDemoCase(item) ? "true" : undefined}
               href={workspaceHref(query, { caseId: item.id })}
               key={item.id}
               style={{ "--case-index": index } as CSSProperties}
@@ -279,7 +274,19 @@ function CaseSummaryPanel({
   );
 }
 
-function CaseHistory({ exported }: { exported: ReviewExport }) {
+function CaseHistory({ exported }: { exported: ReviewExport | null }) {
+  if (!exported) {
+    return (
+      <section className="case-tab-panel service-state" role="alert">
+        <p className="eyebrow">Audit history temporarily unavailable</p>
+        <h3>The case remains available for review.</h3>
+        <p>
+          Hollis could not load the verifiable export for this record. Refresh to retry. No case,
+          evidence, or review data has been changed.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="case-history" id="history">
       <div className="case-history-heading">
@@ -288,6 +295,14 @@ function CaseHistory({ exported }: { exported: ReviewExport }) {
           <small>Append-only</small>
         </div>
         <strong>{exported.events.length} events</strong>
+      </div>
+      <div className="case-commitment-summary" data-testid="case-commitment-summary">
+        <span>
+          {exported.canonical
+            ? exported.canonical.commitmentVersion
+            : "Legacy: hollis.review-export.v1 manifest"}
+        </span>
+        <code>{exported.canonical?.caseCommitment ?? exported.manifestHash}</code>
       </div>
       <ol>
         {exported.events.map((event) => (
@@ -319,7 +334,7 @@ function CaseEvidencePanel({
           <span>Managed evidence</span>
           <h3 id="evidence-panel-title">Evidence references</h3>
         </div>
-        {canCreate ? (
+        {canCreate && (reviewCase.status === "draft" || reviewCase.status === "pending") ? (
           <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
         ) : null}
       </div>
@@ -747,7 +762,7 @@ function SelectedCaseWorkspace({
   reviewCase: ReviewCaseDetail;
   attestations: AttestationRecord[];
   managedAttestation: ManagedAttestationStatus;
-  exported: ReviewExport;
+  exported: ReviewExport | null;
   reviewer: ReviewerProfile;
   query: WorkspaceQuery;
 }) {
@@ -758,10 +773,7 @@ function SelectedCaseWorkspace({
     managedAttestation.submission?.status === "submitting";
   return (
     <>
-      <section
-        className="reference-case-workspace"
-        data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
-      >
+      <section className="reference-case-workspace">
         <header className="reference-case-header">
           <div className="case-kicker">
             <span>{reviewCase.hollisCaseReference}</span>
@@ -791,6 +803,13 @@ function SelectedCaseWorkspace({
             </div>
           </dl>
         </header>
+        {!exported ? (
+          <aside className="attestation-notice" role="alert">
+            {reviewCase.status === "completed"
+              ? "Commitment verification is temporarily unavailable. The completed case record remains visible, but Hollis will not present it as verified or submit a new attestation until the export can be validated."
+              : "Audit export is temporarily unavailable. You can continue reviewing this case; Hollis will not present an unverified commitment or submit an attestation."}
+          </aside>
+        ) : null}
         <ReviewProgress attestations={attestations} reviewCase={reviewCase} />
         <nav className="case-tabs" aria-label="Case sections">
           <Link
@@ -847,7 +866,7 @@ function SelectedCaseWorkspace({
             <p>Hollis records your decision, then GenLayer checks the declared process.</p>
           </div>
           <nav className="right-rail-actions" aria-label="Selected case actions">
-            {canCreate ? (
+            {canCreate && reviewCase.status !== "completed" ? (
               <Link href={`/app/review-cases/${reviewCase.id}#add-evidence`}>Add evidence</Link>
             ) : null}
             <Link href={`/app/review-cases/${reviewCase.id}`}>View details</Link>
@@ -1069,7 +1088,7 @@ export default async function ReviewCasesPage({
           <span>Your workspace role cannot create review cases.</span>
         </aside>
       ) : null}
-      {reviewCase && exported ? (
+      {reviewCase ? (
         <section className="reference-dashboard">
           <CaseQueue
             canCreate={canCreate}

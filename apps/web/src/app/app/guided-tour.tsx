@@ -2,7 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { markDemoComplete } from "./demo-visibility";
+
+const tourCompleteKey = "hollis-guided-tour-complete";
 
 const steps = [
   {
@@ -55,13 +56,18 @@ export function GuidedTour() {
   const router = useRouter();
 
   useEffect(() => {
-    if (window.localStorage.getItem("hollis-demo-tour-complete") !== "1") setStep(0);
-  }, []);
+    if (pathname === "/app" && window.localStorage.getItem(tourCompleteKey) !== "1") setStep(0);
+  }, [pathname]);
 
   const current = step === null ? null : (steps[step] ?? steps[0]);
+  const isCurrentPath = current
+    ? current.path === "/app"
+      ? pathname === current.path
+      : pathname.startsWith(current.path)
+    : false;
 
   useEffect(() => {
-    if (!current || !pathname.startsWith(current.path)) return;
+    if (!current || !isCurrentPath) return;
     const target = document.querySelector(current.selector);
     target?.classList.add("guided-tour-focus");
     const advance = (event: MouseEvent) => {
@@ -73,26 +79,26 @@ export function GuidedTour() {
       target?.classList.remove("guided-tour-focus");
       document.removeEventListener("click", advance, true);
     };
-  }, [current, pathname]);
+  }, [current, isCurrentPath]);
 
   if (step === null || !current) return null;
   const finish = () => {
-    markDemoComplete();
+    window.localStorage.setItem(tourCompleteKey, "1");
     setStep(null);
   };
 
   return (
-    <div aria-label="Hollis demo tour" className="guided-tour" role="dialog">
+    <div aria-label="Hollis guided tour" className="guided-tour" role="dialog">
       <div className="guided-tour-progress">
         {step + 1} of {steps.length}
       </div>
       <button aria-label="Close tour" className="guided-tour-close" onClick={finish} type="button">
         ×
       </button>
-      <p className="eyebrow">Hollis demo workspace</p>
+      <p className="eyebrow">Hollis guided tour</p>
       <h2>{current.title}</h2>
       <p>{current.body}</p>
-      {!pathname.startsWith(current.path) ? (
+      {!isCurrentPath ? (
         <button
           className="guided-tour-primary guided-tour-open"
           onClick={() => router.push(current.path)}

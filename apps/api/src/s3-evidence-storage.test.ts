@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -9,12 +10,51 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { createS3EvidenceStorage } from "./s3-evidence-storage.js";
 
+const signedDownload = vi.hoisted(() => ({ command: null as GetObjectCommand | null }));
+
+vi.mock("@aws-sdk/s3-request-presigner", () => ({
+  getSignedUrl: (_client: unknown, command: GetObjectCommand) => {
+    signedDownload.command = command;
+    return Promise.resolve("https://storage.test/signed");
+  },
+}));
+
 const tenantId = "tenant-1";
 const objectName = `tenants/${tenantId}/evidence/${"a".repeat(64)}`;
 const content = Buffer.from("verified evidence");
 const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
 
 describe("S3 evidence storage", () => {
+  it("signs downloads against the recorded immutable version", async () => {
+    const storage = createS3EvidenceStorage("eu-west-1", "hollis-evidence-test", {
+      send: vi.fn(),
+    } as unknown as S3Client);
+
+    await expect(storage.createDownloadUrl(tenantId, objectName, "version-42")).resolves.toBe(
+      "https://storage.test/signed",
+    );
+    expect(signedDownload.command).toBeInstanceOf(GetObjectCommand);
+    expect(signedDownload.command?.input).toMatchObject({
+      Bucket: "hollis-evidence-test",
+      Key: objectName,
+      VersionId: "version-42",
+    });
+  });
+
+  it("does not sign a version identifier when an S3-compatible provider returns its null sentinel", async () => {
+    const storage = createS3EvidenceStorage("eu-west-1", "hollis-evidence-test", {
+      send: vi.fn(),
+    } as unknown as S3Client);
+
+    await storage.createDownloadUrl(tenantId, objectName, "null");
+
+    expect(signedDownload.command?.input).toMatchObject({
+      Bucket: "hollis-evidence-test",
+      Key: objectName,
+      VersionId: undefined,
+    });
+  });
+
   it("stores evidence under the tenant path", async () => {
     const send = vi.fn().mockResolvedValue({});
     const storage = createS3EvidenceStorage("eu-west-1", "hollis-evidence-test", {
@@ -46,7 +86,7 @@ describe("S3 evidence storage", () => {
         return { ContentLength: content.byteLength, ContentType: "text/plain" };
       }
       if (command instanceof GetObjectCommand) {
-        return { Body: { transformToByteArray: async () => content } };
+        return { Body: Readable.from([content]) };
       }
       throw new Error("Unexpected S3 command.");
     });
@@ -64,6 +104,8 @@ describe("S3 evidence storage", () => {
       digest,
       mediaType: "text/plain",
       objectName,
+      providerEtag: null,
+      providerVersion: null,
       sizeBytes: content.byteLength,
     });
   });

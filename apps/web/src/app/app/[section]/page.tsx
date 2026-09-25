@@ -50,7 +50,6 @@ function CaseList({ cases }: { cases: ReviewQueueItem[] }) {
     <div className="workspace-list">
       {cases.map((reviewCase) => (
         <Link
-          data-demo-content={reviewCase.externalReference.startsWith("DEMO-") ? "true" : undefined}
           href={`/app/review-cases?status=${reviewCase.status === "completed" ? "completed" : "active"}&caseId=${reviewCase.id}`}
           key={reviewCase.id}
         >
@@ -86,7 +85,6 @@ function EvidenceInventory({ cases }: { cases: ReviewCaseDetail[] }) {
     <div className="workspace-list workspace-list-evidence">
       {items.map((evidence) => (
         <Link
-          data-demo-content={evidence.hollisCaseReference.startsWith("DEMO-") ? "true" : undefined}
           href={`/app/review-cases?status=${evidence.status === "completed" ? "completed" : "active"}&caseId=${evidence.caseId}&tab=evidence`}
           key={`${evidence.caseId}:${evidence.id}`}
         >
@@ -129,11 +127,7 @@ function ReceiptList({
         {records.length > 0 ? (
           <div className="workspace-list">
             {records.map(({ caseId, hollisCaseReference, record }) => (
-              <Link
-                data-demo-content={hollisCaseReference.startsWith("DEMO-") ? "true" : undefined}
-                href={`/app/review-cases/${caseId}`}
-                key={record.id}
-              >
+              <Link href={`/app/review-cases/${caseId}`} key={record.id}>
                 <span>
                   <strong>{hollisCaseReference}</strong>
                   <small>{record.caseCommitment}</small>
@@ -164,13 +158,7 @@ function ReceiptList({
         {awaitingAttestation.length > 0 ? (
           <div className="workspace-list">
             {awaitingAttestation.map((reviewCase) => (
-              <Link
-                data-demo-content={
-                  reviewCase.externalReference.startsWith("DEMO-") ? "true" : undefined
-                }
-                href={`/app/review-cases/${reviewCase.id}#attestation`}
-                key={reviewCase.id}
-              >
+              <Link href={`/app/review-cases/${reviewCase.id}#attestation`} key={reviewCase.id}>
                 <span>
                   <strong>{reviewCase.hollisCaseReference}</strong>
                   <small>
@@ -222,6 +210,9 @@ function AuditRegister({ exports: caseExports }: { exports: ReviewExport[] }) {
           <div>
             <time dateTime={event.createdAt}>{formatDate(event.createdAt)}</time>
             <code>{event.eventHash}</code>
+            {event.eventType.startsWith("evidence_") ? (
+              <span>Safe evidence metadata: {JSON.stringify(event.payload)}</span>
+            ) : null}
           </div>
         </li>
       ))}

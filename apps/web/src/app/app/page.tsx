@@ -1,7 +1,6 @@
 import type { ReviewExport } from "@hollis/contracts/review-case";
 import Link from "next/link";
 import { readHollisSession } from "@/lib/hollis-session";
-import { seedDemoWorkspaceAction } from "./review-cases/actions";
 import { getReviewExport, listReviewCases, type ReviewQueueItem } from "./review-cases/data";
 import {
   caseUrgency,
@@ -16,10 +15,6 @@ import { canCreateReviewCases } from "./workspace-capabilities";
 function formatDate(value: string | null) {
   if (!value) return "No deadline";
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(value));
-}
-
-function isDemoCase(reviewCase: ReviewQueueItem) {
-  return reviewCase.externalReference.startsWith("DEMO-");
 }
 
 function Horizon({
@@ -79,7 +74,6 @@ function Horizon({
                   {matching.map((reviewCase) => (
                     <Link
                       className={`horizon-case horizon-case-${column.key}${reviewCase.status === "completed" ? " horizon-case-completed" : ""}`}
-                      data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
                       href={`/app/review-cases?caseId=${reviewCase.id}`}
                       key={reviewCase.id}
                     >
@@ -129,7 +123,7 @@ function NextAction({
   }
   return (
     <aside className="overview-next-action">
-      <div data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}>
+      <div>
         <div className="overview-next-heading">
           <p className="eyebrow">Next decision</p>
           <span className={`risk risk-${reviewCase.riskLevel}`}>{reviewCase.riskLevel}</span>
@@ -157,20 +151,6 @@ function NextAction({
           Open case <span>›</span>
         </Link>
       </div>
-      {isDemoCase(reviewCase) ? (
-        <div className="overview-next-action-empty demo-empty-next-action">
-          <p className="eyebrow">Queue clear</p>
-          <h2>No active decision requires review.</h2>
-          <p>New cases will appear here after they are bound to a published policy control.</p>
-          {canCreate ? (
-            <Link href="/app/review-cases/new">
-              New review case <span>›</span>
-            </Link>
-          ) : (
-            <small>Read-only workspace access</small>
-          )}
-        </div>
-      ) : null}
     </aside>
   );
 }
@@ -182,12 +162,10 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
         ...event,
         caseId: exported.case.id,
         caseReference: exported.case.hollisCaseReference,
-        isDemo: exported.case.externalReference.startsWith("DEMO-"),
       })),
     )
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, 5);
-  const allDemoEvents = events.length > 0 && events.every((event) => event.isDemo);
   return (
     <section className="overview-activity petrol-panel">
       <header>
@@ -199,7 +177,6 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
       {events.length ? (
         events.map((event) => (
           <Link
-            data-demo-content={event.isDemo ? "true" : undefined}
             href={`/app/review-cases?caseId=${event.caseId}&tab=history`}
             key={`${event.caseId}:${event.eventSequence}`}
           >
@@ -214,11 +191,6 @@ function Activity({ exports: caseExports }: { exports: ReviewExport[] }) {
       ) : (
         <p className="petrol-empty">No review activity has been recorded.</p>
       )}
-      {allDemoEvents ? (
-        <p className="petrol-empty demo-empty-overview-state">
-          No review activity has been recorded.
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -227,7 +199,6 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
   const followUp = cases
     .filter((reviewCase) => reviewCase.status === "escalated" || reviewCase.status === "pending")
     .slice(0, 4);
-  const allDemoFollowUp = followUp.length > 0 && followUp.every(isDemoCase);
   return (
     <section className="overview-follow-up petrol-panel">
       <header>
@@ -238,11 +209,7 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
       </header>
       {followUp.length ? (
         followUp.map((reviewCase) => (
-          <Link
-            data-demo-content={isDemoCase(reviewCase) ? "true" : undefined}
-            href={`/app/review-cases?caseId=${reviewCase.id}`}
-            key={reviewCase.id}
-          >
+          <Link href={`/app/review-cases?caseId=${reviewCase.id}`} key={reviewCase.id}>
             <div>
               <strong>{reviewCase.hollisCaseReference}</strong>
               <small>{reviewCase.externalReference}</small>
@@ -255,11 +222,6 @@ function FollowUp({ cases }: { cases: ReviewQueueItem[] }) {
       ) : (
         <p className="petrol-empty">No pending or escalated case requires follow-up.</p>
       )}
-      {allDemoFollowUp ? (
-        <p className="petrol-empty demo-empty-overview-state">
-          No pending or escalated case requires follow-up.
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -271,9 +233,6 @@ export default async function ApplicationPage() {
     listReviewCases("completed"),
   ]);
   const canCreate = canCreateReviewCases(session?.session.activeWorkspace?.role ?? "");
-  const canManage = ["owner", "administrator"].includes(
-    session?.session.activeWorkspace?.role ?? "",
-  );
   const now = new Date();
   const nextCase =
     [...activeCases]
@@ -298,23 +257,6 @@ export default async function ApplicationPage() {
         />
         <NextAction canCreate={canCreate} reviewCase={nextCase} />
       </div>
-      {canManage && activeCases.length === 0 && completedCases.length === 0 ? (
-        <form
-          action={seedDemoWorkspaceAction}
-          className="overview-demo-seed"
-          data-demo-content="true"
-        >
-          <p className="eyebrow">Demo workspace</p>
-          <h2>Explore Hollis with synthetic cases.</h2>
-          <p>
-            Load three clearly labelled DEMO cases for a guided review workflow. They expire after
-            14 days.
-          </p>
-          <button className="primary-action" type="submit">
-            Load DEMO cases
-          </button>
-        </form>
-      ) : null}
       <div className="overview-secondary-grid">
         <Activity exports={caseExports} />
         <FollowUp cases={activeCases} />

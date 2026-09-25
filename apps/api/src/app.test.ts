@@ -88,6 +88,10 @@ function createDependencies(
     welcomeEmailDeliveryStore?: WelcomeEmailDeliveryStore;
     evidenceStorage?: EvidenceStorage;
     organizationLogoService?: OrganizationLogoService;
+    scheduledMaintenanceRunner?: () => Promise<{
+      checkpoints: number;
+      retention: { completed: number; failed: number };
+    }>;
   } = {},
 ) {
   const accessTokenVerifier: AccessTokenVerifier = {
@@ -277,6 +281,7 @@ function createDependencies(
     publicAttestationCaseFileStore,
     policyLibraryStore,
     organizationLogoService: options.organizationLogoService,
+    scheduledMaintenanceRunner: options.scheduledMaintenanceRunner,
     legalHoldStore: options.legalHoldStore,
     reviewIntakeStore,
     tenantResolver,
@@ -314,6 +319,7 @@ const completedExport: ReviewExport = {
     escalationReason: null,
     finalRecommendation: "deny",
     id: "0198ef37-6216-7000-8000-000000000002",
+    policyId: "commercial-property-governance",
     policyVersion: "commercial-property-2026-01",
     recommendation: "deny",
     reviewDueAt: "2026-08-29T08:00:00.000Z",
@@ -363,6 +369,36 @@ describe("API boundaries", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
+  });
+
+  it("runs scheduled maintenance only with the configured Vercel cron secret", async () => {
+    const scheduledMaintenanceRunner = vi.fn(async () => ({
+      checkpoints: 2,
+      retention: { completed: 1, failed: 0 },
+    }));
+    const app = await buildApp(
+      { ...environment, CRON_SECRET: "s".repeat(32) },
+      createDependencies({ scheduledMaintenanceRunner }),
+    );
+    apps.push(app);
+
+    const denied = await app.inject({
+      method: "GET",
+      url: "/v1/internal/scheduled/maintenance",
+    });
+    expect(denied.statusCode).toBe(401);
+
+    const accepted = await app.inject({
+      headers: { authorization: `Bearer ${"s".repeat(32)}` },
+      method: "GET",
+      url: "/v1/internal/scheduled/maintenance",
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toEqual({
+      checkpoints: 2,
+      retention: { completed: 1, failed: 0 },
+    });
+    expect(scheduledMaintenanceRunner).toHaveBeenCalledTimes(1);
   });
 
   it("returns the configured server-side session expiry at session establishment", async () => {
@@ -625,6 +661,47 @@ describe("API boundaries", () => {
       code: "invalid_request",
       message: "Request validation failed.",
     });
+  });
+
+  it("accepts only the known legacy case-intake metadata from cached web clients", async () => {
+    const store: ReviewIntakeStore = {
+      async create(record) {
+        return {
+          created: true,
+          reviewCase: {
+            createdAt: record.occurredAt,
+            externalReference: record.externalReference,
+            fingerprint: record.fingerprint,
+            hollisCaseReference: "HL-26-7M4K-P9Q2",
+            id: record.caseId,
+            reviewDueAt: new Date(record.reviewDueAt),
+            status: "pending",
+          },
+        };
+      },
+    };
+    const app = await buildApp(
+      environment,
+      createDependencies({ permissions: ["reviews:create"], store }),
+    );
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer verified-token",
+        "content-type": "application/json",
+      },
+      method: "POST",
+      payload: JSON.stringify({
+        ...validIntake,
+        sourceFileName: "evidence.json",
+        sourceMediaType: "application/json",
+        sourceSizeBytes: 42,
+      }),
+      url: "/v1/review-cases",
+    });
+
+    expect(response.statusCode).toBe(201);
   });
 
   it("creates a pending review under the resolved tenant", async () => {
@@ -897,7 +974,7 @@ describe("API boundaries", () => {
     });
   });
 
-  it("submits a completed review as a GenLayer attestation and persists its receipt", async () => {
+  it("retires the caller-controlled direct GenLayer attestation endpoint", async () => {
     let providerInput: unknown;
     let storedCaseId: string | undefined;
     const workflowStore: ReviewWorkflowStore = {
@@ -989,12 +1066,12 @@ describe("API boundaries", () => {
       payload: {
         policy: {
           control: {
-            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            attestationCriterion: "Human review must be recorded.",
             controlId: "human-review-adverse-action",
-            controlVersion: "2026-01",
+            controlVersion: "1",
             evidenceRequirement: "verified_reference_required",
             interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+            policyDocumentDigest: `sha256:${"a".repeat(64)}`,
           },
           policyId: "commercial-property-governance",
           policyVersion: "commercial-property-2026-01",
@@ -1004,20 +1081,10 @@ describe("API boundaries", () => {
       url: `/v1/review-cases/${completedExport.case.id}/attestations`,
     });
 
-    expect(response.statusCode).toBe(201);
-    expect(response.json()).toMatchObject({
-      provider: "genlayer",
-      providerSubmissionId: "submission-001",
-      status: "submitted",
-    });
-    expect(storedCaseId).toBe(completedExport.case.id);
-    expect(providerInput).toMatchObject({
-      caseFile: {
-        caseCommitment: completedExport.manifestHash,
-        policy: { control: { controlId: "human-review-adverse-action" } },
-        review: { decisionRecorded: true, humanDecisionOutcome: "rejected" },
-      },
-    });
+    expect(response.statusCode).toBe(410);
+    expect(response.json()).toMatchObject({ code: "manual_attestation_retired" });
+    expect(storedCaseId).toBeUndefined();
+    expect(providerInput).toBeUndefined();
   });
 
   it("imports a verified finalized GenLayer attestation without a server signing key", async () => {
@@ -1097,12 +1164,12 @@ describe("API boundaries", () => {
       {
         policy: {
           control: {
-            attestationCriterion: "A completed human adverse-action review must be recorded.",
+            attestationCriterion: "Human review must be recorded.",
             controlId: "human-review-adverse-action",
-            controlVersion: "2026-01",
+            controlVersion: "1",
             evidenceRequirement: "verified_reference_required",
             interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
+            policyDocumentDigest: `sha256:${"a".repeat(64)}`,
           },
           policyId: "commercial-property-governance",
           policyVersion: "commercial-property-2026-01",
@@ -1159,7 +1226,10 @@ describe("API boundaries", () => {
       verdict: "pass",
     });
     expect(importerInput).toMatchObject({
-      caseFile: { caseCommitment: completedExport.manifestHash },
+      caseFile: {
+        caseCommitment: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        commitmentVersion: "hollis.case-commitment.v1",
+      },
       transactionHash,
     });
   });
@@ -1236,20 +1306,7 @@ describe("API boundaries", () => {
     const response = await app.inject({
       headers: { authorization: "Bearer verified-token" },
       method: "POST",
-      payload: {
-        policy: {
-          control: {
-            attestationCriterion: "A completed human adverse-action review must be recorded.",
-            controlId: "human-review-adverse-action",
-            controlVersion: "2026-01",
-            evidenceRequirement: "verified_reference_required",
-            interpretation: "deterministic",
-            policyDocumentDigest: `sha256:${"d".repeat(64)}`,
-          },
-          policyId: "commercial-property-governance",
-          policyVersion: "commercial-property-2026-01",
-        },
-      },
+      payload: {},
       url: `/v1/review-cases/${completedExport.case.id}/attestation-case-files`,
     });
 
@@ -1257,7 +1314,8 @@ describe("API boundaries", () => {
     const generated = response.json();
     expect(generated).toMatchObject({
       caseFile: {
-        caseCommitment: completedExport.manifestHash,
+        caseCommitment: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        commitmentVersion: "hollis.case-commitment.v1",
         policy: { control: { controlId: "human-review-adverse-action" } },
       },
       publicCaseFileUrl: expect.stringMatching(

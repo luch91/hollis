@@ -17,6 +17,13 @@ for (const packageName of packageNames) {
 
   const packagePath = join(packageDirectory, "package.json");
   const packageJson = JSON.parse(await readFile(packagePath, "utf8"));
-  packageJson.exports = { ".": "./dist/index.js" };
+  packageJson.exports = Object.fromEntries(
+    Object.entries(packageJson.exports).map(([subpath, target]) => {
+      if (typeof target !== "string" || !target.startsWith("./src/") || !target.endsWith(".ts")) {
+        throw new Error(`Unsupported workspace export ${subpath} in ${packageJson.name}.`);
+      }
+      return [subpath, target.replace("./src/", "./dist/").replace(/\.ts$/, ".js")];
+    }),
+  );
   await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
 }

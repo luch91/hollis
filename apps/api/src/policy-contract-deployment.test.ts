@@ -122,6 +122,7 @@ function client(overrides: Partial<PolicyContractDeploymentClient> = {}) {
   return {
     deploy: vi.fn(async () => transactionHash),
     readBinding: vi.fn(async () => binding),
+    readRuntimeAddress: vi.fn(async () => runtimeAddress),
     waitForFinalization: vi.fn(async () => ({ contractAddress, executionSucceeded: true })),
     ...overrides,
   } satisfies PolicyContractDeploymentClient;
@@ -135,15 +136,15 @@ function deploy(store: MemoryStore, deploymentClient: PolicyContractDeploymentCl
     policyControlRecordId: controlRecordId,
     runtimeAddress,
     source,
-    sourceVersion: "v7",
+    sourceVersion: "v8",
     store,
     tenantId,
   });
 }
 
 describe("policy contract deployment", () => {
-  it("maps the immutable binding to the V7 constructor order", () => {
-    expect(policyContractConstructorArguments(binding)).toEqual([
+  it("maps the immutable binding and authorized runtime to the V8 constructor order", () => {
+    expect(policyContractConstructorArguments(binding, runtimeAddress)).toEqual([
       "governance-policy",
       "2026.1",
       "human-review-required",
@@ -152,6 +153,7 @@ describe("policy contract deployment", () => {
       "A human decision must be recorded.",
       "verified_reference_required",
       "deterministic",
+      runtimeAddress,
     ]);
   });
 

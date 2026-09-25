@@ -52,8 +52,17 @@ const environmentSchema = z
       .regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/)
       .optional(),
     CLAIMS_WEBHOOK_SECRET: z.string().min(32).optional(),
+    AUDIT_CHECKPOINT_KEY_ID: z.string().trim().min(1).max(128).optional(),
+    AUDIT_CHECKPOINT_PRIVATE_KEY_BASE64: z.string().min(32).optional(),
+    AUDIT_CHECKPOINT_PUBLIC_KEY_BASE64: z.string().min(32).optional(),
     GCS_BUCKET: z.string().min(3).optional(),
     GCS_PROJECT_ID: z.string().min(1).default("hollis-507001"),
+    EVIDENCE_STORAGE_ENCRYPTION: z.enum(["provider_managed", "customer_managed"]).optional(),
+    EVIDENCE_STORAGE_JURISDICTION: z.enum(["us", "eu", "global"]).optional(),
+    EVIDENCE_STORAGE_PRIVATE: z.enum(["true"]).optional(),
+    EVIDENCE_STORAGE_VERSIONING: z.enum(["true"]).optional(),
+    EVIDENCE_RETENTION_DAYS: z.coerce.number().int().min(1).max(36_500).optional(),
+    CRON_SECRET: z.string().min(32).optional(),
     R2_ACCESS_KEY_ID: z.string().min(1).optional(),
     R2_ACCOUNT_ID: z.string().min(1).optional(),
     R2_BUCKET: z.string().min(3).optional(),
@@ -90,6 +99,22 @@ const environmentSchema = z
   })
   .and(databaseConfigurationSchema)
   .superRefine((value, context) => {
+    const auditCheckpointValues = [
+      value.AUDIT_CHECKPOINT_KEY_ID,
+      value.AUDIT_CHECKPOINT_PRIVATE_KEY_BASE64,
+      value.AUDIT_CHECKPOINT_PUBLIC_KEY_BASE64,
+    ];
+    if (
+      auditCheckpointValues.some((item) => item !== undefined) &&
+      !auditCheckpointValues.every((item) => item !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "AUDIT_CHECKPOINT_KEY_ID, AUDIT_CHECKPOINT_PRIVATE_KEY_BASE64, and AUDIT_CHECKPOINT_PUBLIC_KEY_BASE64 must be set together.",
+        path: ["AUDIT_CHECKPOINT_PRIVATE_KEY_BASE64"],
+      });
+    }
     const evidenceStoreCount = [
       value.GCS_BUCKET,
       value.R2_BUCKET,
@@ -188,7 +213,7 @@ const environmentSchema = z
       if (value.GENLAYER_RPC_URL !== "https://studio-next.genlayer.com/api") {
         context.addIssue({
           code: "custom",
-          message: "GENLAYER_RPC_URL must use the canonical Studio Next endpoint.",
+          message: "GENLAYER_RPC_URL must use the approved Studio Next endpoint.",
           path: ["GENLAYER_RPC_URL"],
         });
       }
@@ -202,6 +227,31 @@ const environmentSchema = z
         message: "CLAIMS_WEBHOOK_SECRET is required in production.",
         path: ["CLAIMS_WEBHOOK_SECRET"],
       });
+    }
+
+    if (evidenceStoreCount === 1) {
+      for (const capability of [
+        "EVIDENCE_STORAGE_PRIVATE",
+        "EVIDENCE_STORAGE_ENCRYPTION",
+        "EVIDENCE_STORAGE_VERSIONING",
+        "EVIDENCE_STORAGE_JURISDICTION",
+      ] as const) {
+        if (!value[capability]) {
+          context.addIssue({
+            code: "custom",
+            message: `${capability} is required when evidence storage is configured in production.`,
+            path: [capability],
+          });
+        }
+      }
+      if (value.EVIDENCE_RETENTION_DAYS === undefined) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "EVIDENCE_RETENTION_DAYS is required when evidence storage is configured in production.",
+          path: ["EVIDENCE_RETENTION_DAYS"],
+        });
+      }
     }
 
     if (

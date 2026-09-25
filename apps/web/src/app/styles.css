@@ -25,7 +25,7 @@
   --panel: #fafaf6;
   --line: rgba(27, 32, 25, 0.12);
   --line-strong: rgba(27, 32, 25, 0.22);
-  --lime: #718e10;
+  --lime: #526900;
   --lime-soft: #557100;
   --lime-glow: rgba(113, 142, 16, 0.18);
   --amber: #9b6813;
@@ -100,8 +100,8 @@ main:not(.application-frame) {
   padding: clamp(48px, 9vw, 98px) 30px;
   margin: 0 auto;
 }
-.content h1,
-h1 {
+h1,
+.content h1 {
   margin: 15px 0 23px;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(44px, 7vw, 76px);
@@ -126,11 +126,11 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   list-style: none;
 }
-.content > ul li {
+:where(.content) > ul li {
   color: var(--ink);
   font-size: 14px;
 }
-.content > ul li::before {
+:where(.content) > ul li::before {
   margin-right: 8px;
   color: var(--lime);
   content: "•";
@@ -201,7 +201,7 @@ h1 {
 .action-card textarea,
 .action-card select,
 .attestation-form input,
-.case-detail > form input[type="file"] {
+:where(.case-detail > form) input[type="file"] {
   width: 100%;
   min-height: 42px;
   padding: 10px;
@@ -312,7 +312,7 @@ h1 {
   align-items: center;
   gap: 13px;
 }
-.workspace-account > div {
+:where(.workspace-account) > div {
   display: grid;
   min-width: 130px;
   gap: 3px;
@@ -1035,7 +1035,7 @@ h1 {
 .detail-hero > p:last-child {
   max-width: 640px;
   margin: 0;
-  color: var(--muted);
+  color: #d8ecec;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1049,13 +1049,17 @@ h1 {
   margin: 12px 0 18px;
   font-size: clamp(40px, 5vw, 68px);
 }
-.case-reference-label {
-  margin: -8px 0 18px !important;
-  color: var(--lime-soft) !important;
+.case-detail .case-reference-label {
+  margin: -8px 0 18px;
+  color: var(--lime-soft);
   font-family: var(--font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
-  font-size: 10px !important;
+  font-size: 10px;
   letter-spacing: 0.08em;
-  text-transform: uppercase !important;
+  text-transform: uppercase;
+}
+
+.detail-hero .case-reference-label {
+  color: #d8ecec;
 }
 .case-summary {
   display: flex;
@@ -1188,7 +1192,7 @@ dl {
   margin: 30px 0 0;
   border-top: 1px solid var(--line);
 }
-dl div {
+:where(dl) > div {
   display: grid;
   padding: 14px 0;
   border-bottom: 1px solid var(--line);
@@ -1946,9 +1950,13 @@ dd {
   *,
   *::before,
   *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: The accessibility override must win every component animation rule. */
     scroll-behavior: auto !important;
+    /* biome-ignore lint/complexity/noImportantStyles: The accessibility override must win every component animation rule. */
     animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: The accessibility override must win every component animation rule. */
     animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: The accessibility override must win every component transition rule. */
     transition-duration: 0.01ms !important;
   }
 }
@@ -2206,8 +2214,8 @@ dd {
   font-size: 12px;
   text-transform: capitalize;
 }
-.reference-case-header > .case-reference-label {
-  margin: 0 0 6px !important;
+.reference-case-header > p.case-reference-label {
+  margin: 0 0 6px;
   text-transform: uppercase;
 }
 .reference-case-header dl {
@@ -2289,51 +2297,6 @@ dd {
 .case-tabs > span a.is-active {
   border-color: var(--lime);
   color: var(--lime);
-}
-.view-list .reference-graph {
-  height: auto;
-  min-height: 520px;
-  padding-top: 22px;
-  overflow: visible;
-}
-.view-list .reference-graph > svg {
-  opacity: 0.18;
-}
-.view-list .source-nodes,
-.view-list .policy-nodes,
-.view-list .model-card,
-.view-list .reviewer-notes {
-  display: grid;
-  width: auto;
-  position: static;
-  margin-bottom: 10px;
-}
-.view-list .model-card {
-  min-width: 0;
-}
-.view-list .reference-graph {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 1fr 1fr;
-}
-.view-list .graph-label {
-  display: none;
-}
-.view-list .source-nodes,
-.view-list .model-card {
-  grid-column: 1;
-}
-.view-list .policy-nodes,
-.view-list .reviewer-notes {
-  grid-column: 2;
-}
-.view-list .source-nodes,
-.view-list .policy-nodes {
-  grid-row: 1 / span 2;
-}
-.view-list .model-card,
-.view-list .reviewer-notes {
-  grid-row: 3;
 }
 .reference-graph {
   height: 430px;
@@ -2486,7 +2449,7 @@ dd {
   font-weight: 500;
   text-transform: capitalize;
 }
-.model-primary strong i {
+:where(.model-primary strong) i {
   display: inline-block;
   width: 7px;
   height: 7px;
@@ -2626,6 +2589,49 @@ dd {
   font-size: 7px;
   line-height: 1.4;
   text-overflow: ellipsis;
+}
+.view-list .reference-graph {
+  display: grid;
+  height: auto;
+  min-height: 520px;
+  padding-top: 22px;
+  overflow: visible;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+.view-list .reference-graph > svg {
+  opacity: 0.18;
+}
+.view-list .source-nodes,
+.view-list .policy-nodes,
+.view-list .model-card,
+.view-list .reviewer-notes {
+  display: grid;
+  width: auto;
+  position: static;
+  margin-bottom: 10px;
+}
+.view-list .model-card {
+  min-width: 0;
+}
+.view-list .graph-label {
+  display: none;
+}
+.view-list .source-nodes,
+.view-list .model-card {
+  grid-column: 1;
+}
+.view-list .policy-nodes,
+.view-list .reviewer-notes {
+  grid-column: 2;
+}
+.view-list .source-nodes,
+.view-list .policy-nodes {
+  grid-row: 1 / span 2;
+}
+.view-list .model-card,
+.view-list .reviewer-notes {
+  grid-row: 3;
 }
 .human-review-card {
   padding: 22px;
@@ -3216,7 +3222,7 @@ dd {
   text-transform: uppercase;
 }
 .receipt-paper-heading span.is-verifiable {
-  color: #718e10;
+  color: var(--lime);
 }
 .receipt-seal {
   display: flex;
@@ -4460,8 +4466,7 @@ dd {
   font-size: clamp(26px, 2.3vw, 34px);
 }
 
-.reference-case-header > p,
-.case-reference-label {
+.reference-case-header > p {
   font-size: 13px;
 }
 
