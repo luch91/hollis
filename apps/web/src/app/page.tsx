@@ -10,17 +10,17 @@ const workflow = [
   ],
   [
     "02",
-    "Build the record",
-    "Attach private evidence, bind the case to its policy, and retain an append-only account of material actions.",
+    "Open the record",
+    "Attach private evidence, bind the case to its policy, and preserve each material action in order.",
   ],
   [
     "03",
-    "Apply judgment",
-    "An authorized reviewer claims the case, records a rationale, and decides or escalates the outcome.",
+    "Apply human judgment",
+    "An authorized reviewer assesses the record, writes a rationale, and decides or escalates the outcome.",
   ],
   [
     "04",
-    "Attest the process",
+    "Verify the process",
     "Eligible completed reviews receive a privacy-safe GenLayer process attestation and portable receipt.",
   ],
 ] as const;
@@ -34,7 +34,7 @@ export default function Home() {
           <span>Hollis</span>
         </a>
         <nav aria-label="Primary navigation">
-          <a href="#workflow">How it works</a>
+          <a href="#workflow">Workflow</a>
           <a href="#workspace">Workspace</a>
           <a href="#attestation">Attestation</a>
           <a href="#trust">Trust</a>
@@ -44,7 +44,7 @@ export default function Home() {
             Sign in
           </a>
           <a className="landing-nav-cta" href="/sign-in">
-            Request access <span aria-hidden="true">→</span>
+            Get started <span aria-hidden="true">→</span>
           </a>
         </div>
       </header>
@@ -52,23 +52,23 @@ export default function Home() {
       <section id="top" className="landing-hero">
         <div className="landing-hero-copy landing-reveal">
           <p className="landing-kicker">AI governance for consequential decisions</p>
-          <h1>Make AI decisions explainable before they are challenged.</h1>
+          <h1>Build the record behind every consequential AI decision.</h1>
           <p className="landing-lede">
-            Hollis is the enterprise workspace for policy-bound review, private evidence,
-            accountable human judgment, and independent GenLayer process attestation.
+            Hollis gives teams one policy-bound workspace to review AI-involved decisions, preserve
+            private evidence, document human judgment, and verify the declared process.
           </p>
           <div className="landing-hero-actions">
             <a className="landing-primary" href="/sign-in">
-              Request access <span aria-hidden="true">→</span>
+              Create a workspace <span aria-hidden="true">→</span>
             </a>
             <a className="landing-watch" href="#workflow">
-              <span aria-hidden="true">▶</span> See how it works
+              <span aria-hidden="true">↓</span> Explore the workflow
             </a>
           </div>
           <div className="landing-hero-notes">
-            <span>Govern with evidence</span>
-            <span>Operate with accountability</span>
-            <span>Export what matters</span>
+            <span>Policy-bound from the start</span>
+            <span>Private by design</span>
+            <span>Export-ready records</span>
           </div>
         </div>
         <div className="landing-ledger" role="img" aria-label="The Hollis record flow">
@@ -111,10 +111,10 @@ export default function Home() {
       <section id="workflow" className="landing-workflow">
         <div className="landing-section-heading landing-reveal">
           <p className="landing-kicker">A complete review path</p>
-          <h2>One accountable record, from AI recommendation to receipt.</h2>
+          <h2>Govern the decision, not just the model.</h2>
           <p>
-            Hollis keeps the decision process legible without exposing sensitive evidence in the
-            independent attestation layer.
+            A clear four-step route turns an automated recommendation into a reviewable,
+            policy-bound, and portable decision record.
           </p>
         </div>
         <ol>
@@ -135,18 +135,18 @@ export default function Home() {
       <section id="workspace" className="landing-product-section">
         <div className="landing-product-copy landing-reveal">
           <p className="landing-kicker">The review workspace</p>
-          <h2>Bring evidence, policy, and judgment into the same operating view.</h2>
+          <h2>Everything a reviewer needs, in one accountable view.</h2>
           <p>
-            A case is not a loose bundle of files. Hollis makes its policy binding, evidence
-            references, decision context, reviewer activity, and event history visible together.
+            A case is more than a loose bundle of files. Hollis keeps its policy binding, evidence,
+            decision context, reviewer activity, and event history together.
           </p>
           <ul>
-            <li>Policy version and control are fixed at case creation</li>
-            <li>Reviewers can claim, decide, or escalate with recorded rationale</li>
-            <li>Material activity is retained as an append-only history</li>
+            <li>The policy version and control are locked when the case opens</li>
+            <li>Reviewers can claim, decide, or escalate with a recorded rationale</li>
+            <li>Material activity remains available in an append-only history</li>
           </ul>
           <a className="landing-text-link" href="/sign-in">
-            Open Hollis <span aria-hidden="true">→</span>
+            Explore the workspace <span aria-hidden="true">→</span>
           </a>
         </div>
         <Screen
@@ -171,13 +171,12 @@ export default function Home() {
           </p>
           <div className="landing-stat-row">
             <strong>Policy-bound</strong>
-            <span>Every new review case starts from a published control.</span>
+            <span>Every review case starts from a published, versioned control.</span>
           </div>
           <div className="landing-stat-row">
             <strong>Role-aware</strong>
             <span>
-              Workspace permissions distinguish owners, administrators, reviewers, auditors, and
-              contributors.
+              Permissions distinguish owners, administrators, reviewers, auditors, and contributors.
             </span>
           </div>
         </div>
@@ -186,21 +185,21 @@ export default function Home() {
       <section id="attestation" className="landing-attestation">
         <div className="landing-attestation-copy landing-reveal">
           <p className="landing-kicker">Independent layer</p>
-          <h2>Human judgment stays authoritative. The process becomes independently attestable.</h2>
+          <h2>Human judgment stays authoritative. The process becomes independently verifiable.</h2>
           <p>
-            For eligible completed reviews, Hollis produces a privacy-safe case file of bounded
-            process facts. The managed GenLayer flow verifies that declared process after the human
-            review is recorded.
+            For eligible completed reviews, Hollis produces a privacy-safe case file containing
+            bounded process facts. GenLayer verifies the declared process after human review is
+            recorded.
           </p>
           <div className="landing-attestation-list">
             <span>
-              <b>01</b>No raw evidence or private policy document on-chain
+              <b>01</b>No raw evidence or private policy document enters the attestation record
             </span>
             <span>
-              <b>02</b>No customer Studio workflow, wallet, or transaction entry
+              <b>02</b>No Studio workflow, wallet, or transaction entry for the customer
             </span>
             <span>
-              <b>03</b>A finalized receipt linked back to the completed review
+              <b>03</b>A finalized receipt linked to the completed review
             </span>
           </div>
         </div>
@@ -214,7 +213,7 @@ export default function Home() {
       <section id="trust" className="landing-proof">
         <div className="landing-section-heading landing-reveal">
           <p className="landing-kicker">Designed for scrutiny</p>
-          <h2>The information people need when a decision is questioned.</h2>
+          <h2>A record built to be reviewed, questioned, and carried forward.</h2>
         </div>
         <div className="landing-proof-grid">
           <Proof number="01" title="Private evidence">
@@ -226,8 +225,8 @@ export default function Home() {
             reviewer.
           </Proof>
           <Proof number="03" title="Portable records">
-            Export a selected case as JSON, Markdown, DOCX, or PDF for audit and downstream
-            reporting.
+            Export a selected case as JSON, Markdown, DOCX, or PDF for audit, reporting, and
+            downstream systems.
           </Proof>
           <Screen
             className="landing-screen-exports"
@@ -239,10 +238,12 @@ export default function Home() {
 
       <section className="landing-closing">
         <p className="landing-kicker">A better standard for consequential AI</p>
-        <h2>Build a record that can stand behind the decision.</h2>
-        <p>Start a workspace, publish a control, and bring the next review into view.</p>
+        <h2>Make your next consequential decision ready to explain.</h2>
+        <p>
+          Start a workspace, publish the governing control, and bring the next review into view.
+        </p>
         <a className="landing-primary" href="/sign-in">
-          Create or access your workspace <span aria-hidden="true">→</span>
+          Create or access a workspace <span aria-hidden="true">→</span>
         </a>
       </section>
       <footer className="landing-footer">
@@ -250,7 +251,7 @@ export default function Home() {
           <Image src="/assets/hollis-mark-reversed.svg" alt="" width={24} height={26} />
           <span>Hollis</span>
         </a>
-        <p>Human oversight for consequential automated decisions.</p>
+        <p>Accountable review for consequential automated decisions.</p>
         <a href="/sign-in">Sign in</a>
       </footer>
     </main>
